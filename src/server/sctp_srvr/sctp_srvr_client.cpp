@@ -8,10 +8,13 @@
 #include "sctp_srvr.h"
 
 
-Client::Client(struct socket* sctp_sock, SCTPServer& s) 
-	: sock(sctp_sock), server(s) {
 
-	ssl = SSL_new(server.ssl_obj_.ctx_);
+Client::Client(struct socket* sctp_sock, SCTPServer& s) 
+	: IClient(sctp_sock, s) {};
+
+
+void Client::init()  {
+	ssl = SSL_new(server_.ssl_obj_.ctx_);
 	assert(ssl);
 
 	output_bio = BIO_new(BIO_s_mem());
@@ -24,7 +27,7 @@ Client::Client(struct socket* sctp_sock, SCTPServer& s)
 	SSL_set_bio(ssl, input_bio, output_bio);
 
 	SSL_set_accept_state(ssl);
-};
+}
 
 
 void Client::set_state(Client::State new_state) {
@@ -39,7 +42,7 @@ void Client::set_state(Client::State new_state) {
 			if (usrsctp_set_non_blocking(sock, 1) < 0) {
 				throw std::runtime_error(strerror(errno));
 			}
-			if (usrsctp_set_upcall(sock, &SCTPServer::handle_upcall, &server)) {
+			if (usrsctp_set_upcall(sock, &SCTPServer::handle_upcall, &server_)) {
 				throw std::runtime_error(strerror(errno));
 			}			
 			break;
@@ -55,9 +58,11 @@ void Client::set_state(Client::State new_state) {
 	}
 }
 
+
 Client::~Client() {
-	SSL_free(ssl);
+	if (nullptr != ssl) SSL_free(ssl);
 };
+
 
 std::string Client::to_string() const {
 	std::ostringstream oss;

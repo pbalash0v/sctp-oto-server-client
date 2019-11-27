@@ -6,10 +6,11 @@
 
 #include "ssl_h.h"
 
-
 class SCTPServer;
 
-struct Client {
+
+class IClient {
+public:
    enum State {
    	NONE,
       SCTP_ACCEPTED,
@@ -20,7 +21,34 @@ struct Client {
 		PURGE
    };
 
+	IClient(struct socket* s, SCTPServer& srv)
+	 : sock(s), server_(srv) {};
 
+	virtual ~IClient() {};
+
+	virtual void init() = 0;
+	virtual void set_state(IClient::State) = 0;
+	virtual std::string to_string() const = 0;
+
+	struct socket* sock = nullptr;
+
+	SCTPServer& server_;
+
+	State state = NONE;
+
+	SSL* ssl = nullptr;
+	BIO* output_bio = nullptr;
+	BIO* input_bio = nullptr;
+
+
+	friend std::ostream& operator<<(std::ostream &out, const IClient::State s);
+	friend class SCTPServer;
+};
+
+
+
+class Client : public IClient {
+public:
 	Client(struct socket* sock, SCTPServer& server);
 
 	Client(const Client& oth) = delete;
@@ -29,21 +57,18 @@ struct Client {
 
 	virtual ~Client();
 
-	void set_state(Client::State new_state);
+	virtual void init();
 
-	std::string to_string() const;
+	virtual void set_state(Client::State new_state);
 
-	struct socket* sock = nullptr;
+	virtual std::string to_string() const;
 
-	SCTPServer& server;
+	friend std::ostream& operator<<(std::ostream &out, const Client &c);
 
-	State state = NONE;
+	friend class SCTPServer;
 
-	SSL* ssl = nullptr;
-	BIO* output_bio = nullptr;
-	BIO* input_bio = nullptr;
+private:
+
 };
 
-std::ostream& operator<<(std::ostream &out, const Client &c);
 
-std::ostream& operator<<(std::ostream &out, const Client::State s);

@@ -62,7 +62,11 @@ extern "C" {
 
 SCTPServer::SCTPServer() : SCTPServer(std::make_shared<SCTPServer::Config>()) {}
 
-SCTPServer::SCTPServer(std::shared_ptr<SCTPServer::Config> p) : cfg_(p) {}
+SCTPServer::SCTPServer(std::shared_ptr<SCTPServer::Config> ptr) : cfg_(ptr) {
+	cfg_->client_factory = [&] (struct socket* s, SCTPServer&) {
+		return std::make_shared<Client>(s, *this);
+	};
+}
 
 
 SCTPServer::~SCTPServer() {
@@ -193,14 +197,14 @@ void SCTPServer::broadcast(const std::string& message) {
 }
 
 
-void SCTPServer::send(std::shared_ptr<Client> c, const void* data, size_t len) {
+void SCTPServer::send(std::shared_ptr<IClient> c, const void* data, size_t len) {
 	if (c->state == Client::SSL_CONNECTED) {
 		send_raw(c, data, len);
 	}
 }
 
 
-void SCTPServer::send(std::shared_ptr<Client> c, const std::string& message) {
+void SCTPServer::send(std::shared_ptr<IClient> c, const std::string& message) {
 	send(c, message.c_str(), message.size());
 }
 
@@ -208,7 +212,7 @@ void SCTPServer::send(std::shared_ptr<Client> c, const std::string& message) {
 /*
 	Private. Accounts for state.
 */
-ssize_t SCTPServer::send_raw(std::shared_ptr<Client>& c, const void* buf, size_t len) {
+ssize_t SCTPServer::send_raw(std::shared_ptr<IClient>& c, const void* buf, size_t len) {
 	ssize_t sent = -1;
 
 	if (c->state < Client::SSL_CONNECTED) {
@@ -267,8 +271,10 @@ void SCTPServer::accept_loop() {
 			{
 				std::lock_guard<std::mutex> lock(clients_mutex_);
 
-				clients_.push_back(std::make_shared<Client>(conn_sock, *this));
+				//clients_.push_back(std::make_shared<Client>(conn_sock, *this));
+				clients_.push_back(cfg_->client_factory(conn_sock, *this));
 				try {
+					clients_.back()->init();
 					clients_.back()->set_state(Client::SCTP_ACCEPTED);
 				} catch (const std::runtime_error& exc) {
 					ERROR(std::string("Dropping client: ") + exc.what());
@@ -287,7 +293,7 @@ void SCTPServer::accept_loop() {
 }
 
 
-void SCTPServer::drop_client(std::shared_ptr<Client> c) {
+void SCTPServer::drop_client(std::shared_ptr<IClient> c) {
 	std::lock_guard<std::mutex> lock(clients_mutex_);
 	clients_.erase(std::remove_if(clients_.begin(), clients_.end(),
 	 [&] (auto s_ptr) { return s_ptr->sock == c->sock;}), clients_.end());
@@ -308,7 +314,7 @@ void SCTPServer::handle_upcall(struct socket* sock, void* arg, int) {
 
 	auto& clients = s->clients_;
 
-	std::shared_ptr<Client> c;
+	std::shared_ptr<IClient> c;
 	{
 		std::lock_guard<std::mutex> lock(s->clients_mutex_);
 
@@ -357,7 +363,7 @@ void SCTPServer::handle_upcall(struct socket* sock, void* arg, int) {
 			if (flags & MSG_NOTIFICATION) {
 				printf("Notification of length %llu received.\n", (unsigned long long) n);
 			} else {
-				c->server.handle_client_data(c, buf, n, addr, rn, infotype, flags);
+				c->server_.handle_client_data(c, buf, n, addr, rn, infotype, flags);
 			}
 		} else if (n == 0) {
 			INFO("Client disconnected.");
@@ -424,7 +430,7 @@ void SCTPServer::client_loop(std::shared_ptr<SCTPClient> client) {
 #endif
 
 
-void SCTPServer::handle_client_data(std::shared_ptr<Client> c, const void* buffer, ssize_t n, 
+void SCTPServer::handle_client_data(std::shared_ptr<IClient> c, const void* buffer, ssize_t n, 
 						const struct sockaddr_in& addr, const struct sctp_recvv_rn& rcv_info,
 						unsigned int infotype, int flags) {
 
