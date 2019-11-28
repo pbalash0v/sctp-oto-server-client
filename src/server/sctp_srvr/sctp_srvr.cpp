@@ -118,7 +118,6 @@ void SCTPServer::init() {
 		throw std::runtime_error(strerror(errno));
 	}
 
-
 	if (usrsctp_listen(server_sock_, 1) < 0) {
 		DEBUG(strerror(errno));
 		throw std::runtime_error(strerror(errno));
@@ -197,14 +196,14 @@ void SCTPServer::broadcast(const std::string& message) {
 }
 
 
-void SCTPServer::send(std::shared_ptr<IClient> c, const void* data, size_t len) {
+void SCTPServer::send(std::shared_ptr<IClient>& c, const void* data, size_t len) {
 	if (c->state == Client::SSL_CONNECTED) {
 		send_raw(c, data, len);
 	}
 }
 
 
-void SCTPServer::send(std::shared_ptr<IClient> c, const std::string& message) {
+void SCTPServer::send(std::shared_ptr<IClient>& c, const std::string& message) {
 	send(c, message.c_str(), message.size());
 }
 
@@ -293,7 +292,7 @@ void SCTPServer::accept_loop() {
 }
 
 
-void SCTPServer::drop_client(std::shared_ptr<IClient> c) {
+void SCTPServer::drop_client(std::shared_ptr<IClient>& c) {
 	std::lock_guard<std::mutex> lock(clients_mutex_);
 	clients_.erase(std::remove_if(clients_.begin(), clients_.end(),
 	 [&] (auto s_ptr) { return s_ptr->sock == c->sock;}), clients_.end());
@@ -430,7 +429,7 @@ void SCTPServer::client_loop(std::shared_ptr<SCTPClient> client) {
 #endif
 
 
-void SCTPServer::handle_client_data(std::shared_ptr<IClient> c, const void* buffer, ssize_t n, 
+void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buffer, ssize_t n, 
 						const struct sockaddr_in& addr, const struct sctp_recvv_rn& rcv_info,
 						unsigned int infotype, int flags) {
 

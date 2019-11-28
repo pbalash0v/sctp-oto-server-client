@@ -70,12 +70,12 @@ public:
 	*/
 	void run();
 
-	inline void send(std::shared_ptr<IClient> c, const void* data, size_t len);
+	void send(std::shared_ptr<IClient>& c, const void* data, size_t len);
 
 	/*
 		Convenience wrapper
 	*/
-	inline void send(std::shared_ptr<IClient> c, const std::string& message);
+	void send(std::shared_ptr<IClient>& c, const std::string& message);
 
 	void broadcast(const void* data, size_t len);
 
@@ -110,7 +110,7 @@ private:
 
 	void accept_loop();
 
-	void handle_client_data(std::shared_ptr<IClient> c, const void* buffer, ssize_t n,
+	void handle_client_data(std::shared_ptr<IClient>& c, const void* buffer, ssize_t n,
 		 const struct sockaddr_in& addr, const struct sctp_recvv_rn& rcv_info, unsigned int infotype, int flags);
 
 	static void handle_upcall(struct socket* sock, void* arg, [[maybe_unused]] int flgs);
@@ -119,7 +119,7 @@ private:
 
 	ssize_t send_raw(std::shared_ptr<IClient>& c, const void* buf, size_t len);
 
-	void drop_client(std::shared_ptr<IClient>);
+	void drop_client(std::shared_ptr<IClient>&);
 
 	//holds main SSL context etc
 	SSL_h ssl_obj_ { SSL_h::SERVER };

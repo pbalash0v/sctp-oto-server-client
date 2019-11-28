@@ -14,6 +14,7 @@
 #include "sctp_client.h"
 
 constexpr const char* TEST_STRING = "HELLO";
+constexpr const char* START_SIGNAL = "START_SIGNAL";
 
 
 int main(int, char const**) {
@@ -22,8 +23,15 @@ int main(int, char const**) {
 		we need two processes since using 
 		two instanes of usrsctp seems to be impossible
 	*/
+	int fd[2];
+	if (pipe(fd) != 0) {
+		return EXIT_FAILURE;
+	}
 
 	pid_t pid = fork();
+ 	if (pid < 0) {		/* fork failed */
+		return EXIT_FAILURE;
+ 	}
 
  	if (pid == 0) { 	// client process
 		std::atomic_bool running { true };
@@ -44,6 +52,12 @@ int main(int, char const**) {
 		};
 
 		client.init();
+
+		/* wait for server init */
+	   close(fd[1]);
+	   char buf[strlen(START_SIGNAL)];
+		assert(read(fd[0], buf, strlen(START_SIGNAL)) > 0);
+
 		client.run();
 
 		while (running) {
@@ -68,11 +82,13 @@ int main(int, char const**) {
 		server.init();
 		server.run();
 
+		/* signal server init to client */
+	   close(fd[0]);
+   	assert(write(fd[1], START_SIGNAL, strlen(START_SIGNAL)));
+
 		while (running) {
 			std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 		}
- 	} else {		// fork failed
-		return 1;
  	}
 
 

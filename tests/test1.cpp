@@ -17,7 +17,5 @@ int main(int, char const**) {
 
 	s.run();
 
-	std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-
 	return EXIT_SUCCESS;
 }
