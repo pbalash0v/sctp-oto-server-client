@@ -5,7 +5,8 @@ bin_PROGRAMS = client
 
 client_SOURCES = main.cpp \
 				sctp_client/sctp_client.cpp \
-				tui/tui.cpp
+				tui/tui.cpp \
+				tui/simple_tui.cpp
 				
 client_CXXFLAGS = $(AM_CXXFLAGS)
 

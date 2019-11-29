@@ -11,6 +11,7 @@
 
 #include "gopt.h"
 #include "tui.h"
+#include "simple_tui.h"
 #include "sctp_client.h"
 
 
@@ -53,6 +54,10 @@ static void parse_args(char* argv[], struct option options[], size_t opt_count) 
 	options[5].short_name = 'l';
 	options[5].flags      = GOPT_ARGUMENT_FORBIDDEN;
 
+	options[6].long_name  = "tui";
+	options[6].short_name = 't';
+	options[6].flags      = GOPT_ARGUMENT_FORBIDDEN;
+
 	options[opt_count-1].flags      = GOPT_LAST;
 
 	gopt(argv, options);
@@ -65,7 +70,7 @@ constexpr uint16_t MAX_IP_PORT = std::numeric_limits<uint16_t>::max();
 int main([[maybe_unused]] int argc, char* argv[]) {
 	std::set_terminate(&onTerminate);
 
-	struct option options[7];
+	struct option options[8];
 	parse_args(argv, options, sizeof options / sizeof options[0]);
 
 	if (options[0].count) {
@@ -75,6 +80,7 @@ int main([[maybe_unused]] int argc, char* argv[]) {
 		"\t-s, --server\t\t -- server address" << std::endl << \
 		"\t-p, --port\t\t -- server port" << std::endl << \
 		"\t-l, --log\t\t -- enable rotating log" << std::endl << \
+		"\t-t, --tui\t\t -- run TUI (unstable)" << std::endl << \
 		"\t-h, --help\t\t -- this message" << std::endl << \
 		"\t-v, --version\t\t -- print the version and exit" << std::endl << \
 
@@ -120,18 +126,22 @@ int main([[maybe_unused]] int argc, char* argv[]) {
 		server_address = options[4].argument;
 	}
 
-
-	TUI tui;
+	std::unique_ptr<ITUI> tui;
+	if (options[6].count) {
+		tui = std::move(std::make_unique<TUI>());
+	} else {
+		tui = std::move(std::make_unique<SimpleTUI>());
+	}
 
 	/* Pepare Config object for SCTPClient */
 	auto cfg = std::make_shared<SCTPClient::Config>();
 	cfg->udp_encaps_port = port;
 	cfg->server_address = server_address;
 	cfg->data_cback_f = [&](const auto& s) { 
-		tui.put_message("Server sent: " + s + "\n"); 
+		tui->put_message("Server sent: " + s + "\n"); 
 	};
 	cfg->debug_f = [&](auto level, const auto& s) {
-		tui.put_message(std::string("[DEBUG] ") + s);
+		tui->put_message(std::string("[DEBUG] ") + s);
 		std::string s_ { s };
 		s_.erase(std::remove(s_.begin(), s_.end(), '\n'), s_.end());		
 		switch (level) {
@@ -179,33 +189,30 @@ int main([[maybe_unused]] int argc, char* argv[]) {
 				break;				
 			case SCTPClient::PURGE:
 				message += "Terminating...";
-				tui.stop();
+				tui->stop();
 			default:
 				break;
 		}
 
-		tui.put_message(message + "\n"); 
+		tui->put_message(message + "\n"); 
 	};
 
 	SCTPClient client { cfg };
 
-	tui.init([&](const auto& s) {
+	tui->init([&](const auto& s) {
 		if (client.connected()) client.sctp_send(s);
-		else tui.put_message("\n" + s + " not sent (client not connected).\n");
+		else tui->put_message("\n" + s + " not sent (client not connected).\n");
 	});
 
-	tui.put_message("Starting...press ` to shutdown.\n");
+	tui->put_message("Starting...press ctrl-D to stop.\n");
 
 	client.init();
 	client.run(); /* this is async, starts separate thread */
 
-	tui.loop(); /* this blocks main thread */
+	tui->loop(); /* this blocks main thread */
 
 	/* if we're here means tui input eval loop ended */
 	client.stop();
-
-	tui.put_message("Press enter to quit.\n");
-	std::cin.get();
 
 	return EXIT_SUCCESS;
 }

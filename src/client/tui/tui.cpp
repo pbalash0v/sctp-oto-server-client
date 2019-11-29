@@ -44,7 +44,7 @@ void TUI::display_func() {
 	}
 }
 
-void TUI::init(TUI_cback_t cback) {
+void TUI::init(ITUI_cback_t cback) {
 	cback_ = cback;
 	
 	//nonl();         /* tell curses not to do NL->CR/NL on output */

@@ -2,22 +2,19 @@
 
 #include <atomic>
 #include <thread>
-#include <ncurses.h>
-
 
 #include "sync_queue.hpp"
 #include "i_tui.h"
 
 
-class TUI : public ITUI {
+class SimpleTUI : public ITUI {
 public:
-	TUI();
+	SimpleTUI();
 
-	TUI(const TUI& oth) = delete;
+	SimpleTUI(const SimpleTUI& oth) = delete;
 	
-	TUI& operator=(const TUI& oth) = delete;
+	SimpleTUI& operator=(const SimpleTUI& oth) = delete;
 
- 	//initializes ncurses stuff
 	virtual void init(ITUI_cback_t cback) override;
 
 	//does blocking select on stdin and evals input
@@ -28,7 +25,7 @@ public:
 
 	virtual void stop() override;
 	
-	virtual ~TUI();
+	virtual ~SimpleTUI();
 	
 private:
 	std::atomic_bool should_handle_input_ { true };
@@ -42,7 +39,6 @@ private:
 	int pipefd[2];
 
 	void handle_input();
-	void handle_resize();
 
 	//pops item from internal queue and displays it
 	void display_func();
