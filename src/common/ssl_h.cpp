@@ -70,14 +70,14 @@ void SSL_h::init(const std::string& cert_file, const std::string& key_file) {
 	#endif
 
 	if (SSL_CTX_use_certificate_file(ctx_, cert_file.c_str(),  SSL_FILETYPE_PEM) != 1)
-		throw std::runtime_error("SSL_CTX_use_certificate_file failed");
+		throw std::runtime_error("SSL_CTX_use_certificate_file");
 
 	if (SSL_CTX_use_PrivateKey_file(ctx_, key_file.c_str(), SSL_FILETYPE_PEM) != 1)
-		throw std::runtime_error("SSL_CTX_use_PrivateKey_file failed");
+		throw std::runtime_error("SSL_CTX_use_PrivateKey_file");
 
 	/* Make sure the key and certificate file match. */
 	if (SSL_CTX_check_private_key(ctx_) != 1)
-		throw std::runtime_error("SSL_CTX_check_private_key failed");
+		throw std::runtime_error("SSL_CTX_check_private_key");
 
 	/* Recommended to avoid SSLv2 & SSLv3 */
 	#define OPTIONS SSL_OP_ALL|SSL_OP_NO_SSLv2|SSL_OP_NO_SSLv3|SSL_OP_NO_TLSv1|SSL_OP_NO_TLSv1_1
@@ -85,7 +85,7 @@ void SSL_h::init(const std::string& cert_file, const std::string& key_file) {
 
 	#define CIPHER_LIST "ALL:!ADH:!LOW:!EXP:!MD5:@STRENGTH"
 	if (SSL_CTX_set_cipher_list(ctx_, CIPHER_LIST) != 1)
-		throw std::runtime_error("Error setting cipher list (no valid ciphers)");
+		throw std::runtime_error("SSL_CTX_set_cipher_list");
 }
 
 

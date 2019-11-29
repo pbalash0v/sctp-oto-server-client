@@ -94,17 +94,20 @@ void SCTPServer::init() {
 	usrsctp_sysctl_set_sctp_blackhole(2); // TODO: ?
 	usrsctp_sysctl_set_sctp_no_csum_on_loopback(0); // TODO: ?
 
-	int (*receive_cb)(struct socket*, union sctp_sockstore, void*, size_t, struct sctp_rcvinfo, int, void*) = NULL;
+	int (*receive_cb)(struct socket*, union sctp_sockstore, 
+		void*, size_t, struct sctp_rcvinfo, int, void*) = NULL;
 	int (*send_cb)(struct socket *sock, uint32_t sb_free)	= NULL;
 	uint32_t sb_threshold = 0;
 	void* recv_cback_data = NULL;
 
-	if ((server_sock_ = usrsctp_socket(PF_INET, SOCK_STREAM, IPPROTO_SCTP,
+	/* create SCTP socket */
+	if ((serv_sock_ = usrsctp_socket(PF_INET, SOCK_STREAM, IPPROTO_SCTP,
 		 receive_cb = NULL, send_cb = NULL, sb_threshold, recv_cback_data = NULL)) == NULL) {
-		throw std::runtime_error(strerror(errno));
+		CRITICAL(strerror(errno));
+		throw std::runtime_error(std::string("usrsctp_socket: ") + strerror(errno));
 	}
 
-	//bind SCTP	
+	/* bind SCTP socket */
 	struct sockaddr_in addr;
 	memset((void *)&addr, 0, sizeof(struct sockaddr_in));
 #ifdef HAVE_SIN_LEN
@@ -113,14 +116,15 @@ void SCTPServer::init() {
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(cfg_->sctp_port);
 	addr.sin_addr.s_addr = INADDR_ANY;
-	if (usrsctp_bind(server_sock_, (struct sockaddr *)&addr, sizeof(struct sockaddr_in)) < 0) {
-		DEBUG(strerror(errno));
-		throw std::runtime_error(strerror(errno));
+	if (usrsctp_bind(serv_sock_, (struct sockaddr *)&addr, sizeof(struct sockaddr_in)) < 0) {
+		CRITICAL(strerror(errno));
+		throw std::runtime_error(std::string("usrsctp_bind: ") + strerror(errno));
 	}
 
-	if (usrsctp_listen(server_sock_, 1) < 0) {
-		DEBUG(strerror(errno));
-		throw std::runtime_error(strerror(errno));
+	/* listen SCTP socket*/
+	if (usrsctp_listen(serv_sock_, 1) < 0) {
+		CRITICAL(strerror(errno));
+		throw std::runtime_error(std::string("usrsctp_listen: ") + strerror(errno));
 	}
 
 	TRACE_func_left();
@@ -140,8 +144,8 @@ void SCTPServer::cleanup() {
 
 	if (accept_thr_.joinable()) {
 		/* Stop and clean up on accepting thread */
-		TRACE("before server_sock_ usrsctp_shutdown");
-		usrsctp_shutdown(server_sock_, SHUT_RDWR);
+		TRACE("before serv_sock_ usrsctp_shutdown");
+		usrsctp_shutdown(serv_sock_, SHUT_RDWR);
 
 		/* signal on usrsctp lib's accept thread cond variable
 			no idea how to unblock blocking accept in any other way */
@@ -153,7 +157,7 @@ void SCTPServer::cleanup() {
 		TRACE("accept_thr_ joined");
 
 		TRACE("server socket usrsctp_close");
-		usrsctp_close(server_sock_);
+		usrsctp_close(serv_sock_);
 		TRACE("server socket closed");
 	}
 
@@ -260,7 +264,7 @@ void SCTPServer::accept_loop() {
 			DEBUG("Accepting new connections...");
 			
 			memset(&remote_addr, 0, sizeof(struct sockaddr_in));
-			if ((conn_sock = usrsctp_accept(server_sock_, (struct sockaddr *) &remote_addr, &addr_len)) == NULL) {
+			if ((conn_sock = usrsctp_accept(serv_sock_, (struct sockaddr *) &remote_addr, &addr_len)) == NULL) {
 				DEBUG(strerror(errno));
 				throw std::runtime_error(strerror(errno));
 			}
@@ -578,7 +582,14 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 
 }
 
-
+/* testing "seams" C lib function wrappers s*/
+inline struct socket* SCTPServer::usrsctp_socket(int domain, int type, int protocol,
+               int (*receive_cb)(struct socket *sock, union sctp_sockstore addr, void *data,
+                                 size_t datalen, struct sctp_rcvinfo, int flags, void *ulp_info),
+               int (*send_cb)(struct socket *sock, uint32_t sb_free),
+               uint32_t sb_threshold, void *ulp_info) {
+	return ::usrsctp_socket(domain, type, protocol,receive_cb, send_cb, sb_threshold, ulp_info);
+};
 
 
 std::ostream& operator<<(std::ostream& out, const SCTPServer::Config& c) {

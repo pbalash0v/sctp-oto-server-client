@@ -10,6 +10,13 @@
 #include "ssl_h.h"
 #include "sctp_srvr_client.h"
 
+#ifdef TEST_BUILD
+#define COND_VIRTUAL virtual
+#else
+#define COND_VIRTUAL
+#endif
+
+
 class SCTPServer;
 
 constexpr uint16_t DEFAULT_UDP_ENCAPS_PORT = 9899;
@@ -105,9 +112,14 @@ public:
 
 	friend class Client;
 	friend class IClient;;
-
+protected:
+	COND_VIRTUAL struct socket* usrsctp_socket(int domain, int type, int protocol,
+               int (*receive_cb)(struct socket *sock, union sctp_sockstore addr, void *data,
+                                 size_t datalen, struct sctp_rcvinfo, int flags, void *ulp_info),
+               int (*send_cb)(struct socket *sock, uint32_t sb_free),
+               uint32_t sb_threshold,
+               void *ulp_info);	
 private:
-
 	void accept_loop();
 
 	void handle_client_data(std::shared_ptr<IClient>& c, const void* buffer, ssize_t n,
@@ -121,11 +133,13 @@ private:
 
 	void drop_client(std::shared_ptr<IClient>&);
 
+
+
 	//holds main SSL context etc
 	SSL_h ssl_obj_ { SSL_h::SERVER };
 
 	std::thread accept_thr_;
-	struct socket* server_sock_;
+	struct socket* serv_sock_;
 
 	std::mutex clients_mutex_;
 	std::vector<std::shared_ptr<IClient>> clients_;
