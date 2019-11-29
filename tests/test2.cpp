@@ -17,7 +17,7 @@
 
 std::atomic_bool running { true };
 
-
+//
 class BrokenSCTPServer_usrsctp_socket : public SCTPServer {
 public:
 	BrokenSCTPServer_usrsctp_socket(std::shared_ptr<SCTPServer::Config> ptr) 
@@ -33,7 +33,32 @@ protected:
 	};
 };
 
+//
+class BrokenSCTPServer_usrsctp_bind : public SCTPServer {
+public:
+	BrokenSCTPServer_usrsctp_bind(std::shared_ptr<SCTPServer::Config> ptr) 
+	: SCTPServer(ptr) {};
 
+protected:
+	int usrsctp_bind(struct socket*, struct sockaddr*, socklen_t) override {
+		std::cerr << "in usrsctp_bind override" << std::endl;
+		return -1;
+	};
+};
+
+//
+class BrokenSCTPServer_usrsctp_listen : public SCTPServer {
+public:
+	BrokenSCTPServer_usrsctp_listen(std::shared_ptr<SCTPServer::Config> ptr) 
+	: SCTPServer(ptr) {};
+
+protected:
+	int usrsctp_listen(struct socket*, int) override {
+		return -1;
+	};
+};
+
+//
 class BrokenSCTPServer_bad_SSL_fname : public SCTPServer {
 public:
 	BrokenSCTPServer_bad_SSL_fname(std::shared_ptr<SCTPServer::Config> ptr) 
@@ -44,11 +69,13 @@ std::shared_ptr<SCTPServer::Config> get_cfg() {
 	auto serv_cfg = std::make_shared<SCTPServer::Config>();
 	serv_cfg->cert_filename = "../src/certs/server-cert.pem";
 	serv_cfg->key_filename = "../src/certs/server-key.pem";
+	serv_cfg->debug_f = [](auto, auto s) { std::cerr << s << std::endl; };
 	return serv_cfg;	
 }
 
 
 int main(int, char const**) {
+	std::cerr << "***BrokenSCTPServer_bad_SSL_fname cert_filename" << std::endl;
 	{
 		BrokenSCTPServer_bad_SSL_fname server { get_cfg() };
 		server.cfg_->cert_filename = "NONEXISTANT";
@@ -60,7 +87,7 @@ int main(int, char const**) {
 		}
 	}
 
-
+	std::cerr << "***BrokenSCTPServer_bad_SSL_fname key_filename" << std::endl;
 	{
 		BrokenSCTPServer_bad_SSL_fname server { get_cfg() };
 		server.cfg_->key_filename = "NONEXISTANT";
@@ -71,7 +98,7 @@ int main(int, char const**) {
 		}
 	}
 
-
+	std::cerr << "***BrokenSCTPServer_usrsctp_socket" << std::endl;
 	{
 		BrokenSCTPServer_usrsctp_socket server { get_cfg() };
 
@@ -81,7 +108,28 @@ int main(int, char const**) {
 			assert(strstr(exc.what(), "usrsctp_socket"));
 		}
 	}
+	
+	std::cerr << "***BrokenSCTPServer_usrsctp_bind" << std::endl;
+	{
+		BrokenSCTPServer_usrsctp_bind server { get_cfg() };
 
+		try {
+			server.init();
+		} catch (const std::runtime_error& exc) {
+			assert(strstr(exc.what(), "usrsctp_bind"));
+		}
+	}
+
+	std::cerr << "BrokenSCTPServer_usrsctp_bind" << std::endl;
+	{
+		BrokenSCTPServer_usrsctp_listen server { get_cfg() };
+
+		try {
+			server.init();
+		} catch (const std::runtime_error& exc) {
+			assert(strstr(exc.what(), "usrsctp_listen"));
+		}
+	}
 
 	return EXIT_SUCCESS;
 }
