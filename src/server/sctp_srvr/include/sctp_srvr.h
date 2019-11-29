@@ -121,14 +121,19 @@ public:
  	friend std::ostream& operator<<(std::ostream &out, const SCTPServer &s);
 
 	friend class Client;
-	friend class IClient;;
+	friend class IClient;
+
 protected:
 	MAYBE_VIRTUAL struct socket* usrsctp_socket(int domain, int type, int protocol,
                int (*receive_cb)(struct socket *sock, union sctp_sockstore addr, void *data,
                                  size_t datalen, struct sctp_rcvinfo, int flags, void *ulp_info),
                int (*send_cb)(struct socket *sock, uint32_t sb_free),
                uint32_t sb_threshold,
-               void *ulp_info);	
+               void *ulp_info);
+	MAYBE_VIRTUAL int usrsctp_bind(struct socket*, struct sockaddr*, socklen_t);
+	MAYBE_VIRTUAL int usrsctp_listen(struct socket*, int);
+	MAYBE_VIRTUAL struct socket* usrsctp_accept(struct socket*, struct sockaddr*, socklen_t*);
+
 private:
 	void accept_loop();
 
@@ -150,7 +155,7 @@ private:
 	SSL_h ssl_obj_ { SSL_h::SERVER };
 
 	std::thread accept_thr_;
-	struct socket* serv_sock_;
+	struct socket* serv_sock_ { nullptr };
 
 	std::mutex clients_mutex_;
 	std::vector<std::shared_ptr<IClient>> clients_;

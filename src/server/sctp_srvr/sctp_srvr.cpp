@@ -170,20 +170,24 @@ void SCTPServer::cleanup() {
 
 	std::lock_guard<std::mutex> lock(clients_mutex_);
 
-	if (accept_thr_.joinable()) {
-		/* Stop and clean up on accepting thread */
+	if (serv_sock_) {
 		TRACE("before serv_sock_ usrsctp_shutdown");
 		usrsctp_shutdown(serv_sock_, SHUT_RDWR);
+	}
 
-		/* signal on usrsctp lib's accept thread cond variable
-			no idea how to unblock blocking accept in any other way */
-		wakeup_one(NULL);
-		TRACE("usrsctp_shutdown done");
+	/* signal on usrsctp lib's accept thread cond variable
+		no idea how to unblock blocking accept in any other way */
+	wakeup_one(NULL);
+	TRACE("usrsctp_shutdown done");
 
+	/* Stop and clean up on accepting thread */
+	if (accept_thr_.joinable()) {
 		TRACE("before accept_thr_.join()");
 		accept_thr_.join();
 		TRACE("accept_thr_ joined");
+	}
 
+	if (serv_sock_) {
 		TRACE("server socket usrsctp_close");
 		usrsctp_close(serv_sock_);
 		TRACE("server socket closed");
@@ -196,6 +200,7 @@ void SCTPServer::cleanup() {
 	}
 	clients_.clear();
 	TRACE("clients shutdown done");
+
 
 	TRACE_func_left();
 }
@@ -696,6 +701,16 @@ inline struct socket* SCTPServer::usrsctp_socket(int domain, int type, int proto
                uint32_t sb_threshold, void *ulp_info) {
 	return ::usrsctp_socket(domain, type, protocol,receive_cb, send_cb, sb_threshold, ulp_info);
 };
+inline int SCTPServer::usrsctp_bind(struct socket* so, struct sockaddr* name, socklen_t namelen) {
+	return ::usrsctp_bind(so, name, namelen);
+};
+inline int SCTPServer::usrsctp_listen(struct socket* so, int backlog) {
+	return ::usrsctp_listen(so, backlog);
+};
+inline struct socket* SCTPServer::usrsctp_accept(struct socket* so, struct sockaddr* aname, socklen_t* anamelen) {
+	return ::usrsctp_accept(so, aname, anamelen);
+};
+
 
 
 std::ostream& operator<<(std::ostream& out, const SCTPServer::Config& c) {
