@@ -66,12 +66,12 @@ Client::~Client() {
 
 std::string Client::to_string() const {
 	std::ostringstream oss;
-	oss << this;
+	oss << *this;
 	return oss.str();
 }
 
-std::ostream& operator<<(std::ostream &out, const Client &c) {
-	out << std::string("Client socket: ") << ((const void*) c.sock) << ", ";
+std::ostream& operator<<(std::ostream &out, const Client& c) {
+	out << std::string("Client: socket: ") << ((const void*) c.sock) << ", ";
 	out << c.state;
 	return out;
 }

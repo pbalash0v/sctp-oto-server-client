@@ -127,12 +127,15 @@ void SCTPServer::init() {
 		throw std::runtime_error(std::string("usrsctp_listen: ") + strerror(errno));
 	}
 
+	initialized = true;
+
 	TRACE_func_left();
 }
 
 
 
 void SCTPServer::run() {
+	if (not initialized) throw std::logic_error("Server not initialized.");
 	accept_thr_ = std::thread(&SCTPServer::accept_loop, this);
 }
 
@@ -302,10 +305,33 @@ void SCTPServer::drop_client(std::shared_ptr<IClient>& c) {
 	 [&] (auto s_ptr) { return s_ptr->sock == c->sock;}), clients_.end());
 }
 
+
+static void _log_client_error_and_throw(const char* func, std::shared_ptr<IClient>& c,
+													 bool should_throw) {
+	std::shared_ptr<SCTPServer::Config> cfg_ = c->server_.cfg_;
+
+	std::string error { func };
+	error += ": ";
+	error += c->to_string();
+	error += " ";
+	error += strerror(errno);
+	ERROR(error);
+	if (should_throw) throw std::runtime_error(error);
+}
+
+static void log_client_error(const char* func, std::shared_ptr<IClient>& c) {
+	_log_client_error_and_throw(func, c, false);
+}
+
+static void log_client_error_and_throw(const char* func, std::shared_ptr<IClient>& c) {
+	_log_client_error_and_throw(func, c, true);
+}
+
+
 /*
 	handle_upcall is called by usrsctp engine on any (configurable ?) *client* socket event,
 	such as : data, successeful connect, client shutdown etc
-	handle_upcall is registered with a new client socket in accept thread
+	handle_upcall is registered with any new client socket in accept thread
 */
 void SCTPServer::handle_upcall(struct socket* sock, void* arg, int) {
 	#define BUFFERSIZE (1<<16)
@@ -361,20 +387,26 @@ void SCTPServer::handle_upcall(struct socket* sock, void* arg, int) {
 
 		n = usrsctp_recvv(sock, buf, BUFFERSIZE, (struct sockaddr*) &addr, &from_len, (void *) &rn,
 								&infolen, &infotype, &flags);
-
+		/* got data */
 		if (n > 0) {
 			if (flags & MSG_NOTIFICATION) {
 				printf("Notification of length %llu received.\n", (unsigned long long) n);
 			} else {
-				c->server_.handle_client_data(c, buf, n, addr, rn, infotype, flags);
+				try {
+					c->server_.handle_client_data(c, buf, n, addr, rn, infotype, flags);
+				} catch (const std::runtime_error& exc) {
+					log_client_error("handle_client_data", c);
+				}
 			}
+		/* client disconnected */
 		} else if (n == 0) {
-			INFO("Client disconnected.");
+			INFO(c->to_string() + std::string(" disconnected."));
 			c->set_state(Client::PURGE);
 			s->drop_client(c);
+		/* client disconnected */
 		} else { // wtf ?
 			free(buf);
-			throw std::runtime_error(strerror(errno));
+			log_client_error("usrsctp_recvv", c);
 		}
 
 		free(buf);
@@ -433,115 +465,167 @@ void SCTPServer::client_loop(std::shared_ptr<SCTPClient> client) {
 #endif
 
 
+
 void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buffer, ssize_t n, 
 						const struct sockaddr_in& addr, const struct sctp_recvv_rn& rcv_info,
 						unsigned int infotype, int flags) {
 
-	DEBUG("State: " + std::to_string(c->state));
+	DEBUG(std::string("handle_client_data: ") + c->to_string());
 
 	switch (c->state) {
 
 		case Client::SCTP_CONNECTED:
 			{
-				DEBUG("Client::SCTP_CONNECTED");
+				TRACE("Client::SCTP_CONNECTED");
+
 				int written = BIO_write(c->input_bio, buffer, n);
-				assert(SSL_ERROR_NONE == SSL_get_error(c->ssl, written));
+				if (SSL_ERROR_NONE != SSL_get_error(c->ssl, written)) {
+					log_client_error_and_throw("BIO_write", c);
+				}
 
 				int r = SSL_do_handshake(c->ssl);
-				assert(SSL_ERROR_WANT_READ == SSL_get_error(c->ssl, r));
+				if (SSL_ERROR_WANT_READ != SSL_get_error(c->ssl, r)) {
+					log_client_error_and_throw("SSL_do_handshake", c);
+				}
 
 				char outbuf[BUFFER_SIZE] = {0};
 				int read = BIO_read(c->output_bio, outbuf, sizeof outbuf);
-				assert(SSL_ERROR_NONE == SSL_get_error(c->ssl, read));
+				if (SSL_ERROR_NONE != SSL_get_error(c->ssl, read)) {
+					log_client_error_and_throw("BIO_read", c);
+				}
 
-				usrsctp_sendv(c->sock, outbuf, read,
+				ssize_t sent = usrsctp_sendv(c->sock, outbuf, read,
 						 /* addrs */ NULL, /* addrcnt */ 0,
 						  /* info */ NULL, /* infolen */ 0,
 						   SCTP_SENDV_NOINFO, /* flags */ 0);
-
-				c->set_state(Client::SSL_HANDSHAKING);
+				if (sent < 0) {
+					log_client_error_and_throw("usrsctp_sendv", c);
+				}
+				try {
+					c->set_state(Client::SSL_HANDSHAKING);
+				} catch (const std::runtime_error& exc) {
+					log_client_error_and_throw((std::string("set_state") + 
+						std::string(exc.what())).c_str(), c);
+				}
 			}
 		break;
 
 		case Client::SSL_HANDSHAKING:
 			{
-				DEBUG("Client::SSL_HANDSHAKING");
+				TRACE("Client::SSL_HANDSHAKING");
+				char outbuf[BUFFER_SIZE] = {0};
+
 				int written = BIO_write(c->input_bio, buffer, n);
-				assert(SSL_ERROR_NONE == SSL_get_error(c->ssl, written));
+				if (SSL_ERROR_NONE != SSL_get_error(c->ssl, written)) {
+					log_client_error_and_throw("BIO_write", c);
+				}
 
 				int r = SSL_do_handshake(c->ssl);
 
 				if (not SSL_is_init_finished(c->ssl)) {
-					if (SSL_ERROR_WANT_READ == SSL_get_error(c->ssl, r) && BIO_ctrl_pending(c->output_bio)) {
-						char outbuf[BUFFER_SIZE] = {0};
+					if (SSL_ERROR_WANT_READ == SSL_get_error(c->ssl, r) and BIO_ctrl_pending(c->output_bio)) {
 						int read = BIO_read(c->output_bio, outbuf, sizeof outbuf);
-						assert(SSL_ERROR_NONE == SSL_get_error(c->ssl, read));
+						if (SSL_ERROR_NONE != SSL_get_error(c->ssl, read)) {
+							log_client_error_and_throw("BIO_read", c);
+						}
 
-						usrsctp_sendv(c->sock, outbuf, read,
+						ssize_t sent = usrsctp_sendv(c->sock, outbuf, read,
 						 /* addrs */ NULL, /* addrcnt */ 0,
 						  /* info */ NULL, /* infolen */ 0,
 						   SCTP_SENDV_NOINFO, /* flags */ 0);
+						if (sent < 0) {
+							log_client_error_and_throw("usrsctp_sendv", c);
+						}
 						break;
 					}
 
-					if (SSL_ERROR_NONE == SSL_get_error(c->ssl, r) && BIO_ctrl_pending(c->output_bio)) {
-						char outbuf[BUFFER_SIZE] = {0};
+					if (SSL_ERROR_NONE == SSL_get_error(c->ssl, r) and BIO_ctrl_pending(c->output_bio)) {
 						int read = BIO_read(c->output_bio, outbuf, sizeof outbuf);						
-						assert(SSL_ERROR_NONE == SSL_get_error(c->ssl, read));
+						if (SSL_ERROR_NONE != SSL_get_error(c->ssl, read)) {
+							log_client_error_and_throw("BIO_read", c);
+						}
 
-						usrsctp_sendv(c->sock, outbuf, read,
+						ssize_t sent = usrsctp_sendv(c->sock, outbuf, read,
 						 /* addrs */ NULL, /* addrcnt */ 0,
 						  /* info */ NULL, /* infolen */ 0,
 						   SCTP_SENDV_NOINFO, /* flags */ 0);
-						c->set_state(Client::SSL_CONNECTED);
+						if (sent < 0) {
+							log_client_error_and_throw("usrsctp_sendv", c);
+						}
+
+						try {
+							c->set_state(Client::SSL_CONNECTED);
+						} catch (const std::runtime_error& exc) {
+							log_client_error_and_throw((std::string("set_state") + 
+								std::string(exc.what())).c_str(), c);
+						}						
 						break;
 					}
 
-					if (SSL_ERROR_NONE == SSL_get_error(c->ssl, r) && !BIO_ctrl_pending(c->output_bio)) {
-						c->set_state(Client::SSL_CONNECTED);
+					if (SSL_ERROR_NONE == SSL_get_error(c->ssl, r) and not BIO_ctrl_pending(c->output_bio)) {
+						try {
+							c->set_state(Client::SSL_CONNECTED);
+						} catch (const std::runtime_error& exc) {
+							log_client_error_and_throw((std::string("set_state") + 
+								std::string(exc.what())).c_str(), c);
+						}						
 						break;
 					}				
 				} else {
 					if (BIO_ctrl_pending(c->output_bio)) {
 						DEBUG("output BIO_ctrl_pending");
-						char outbuf[BUFFER_SIZE] = {0};
-						int read = BIO_read(c->output_bio, outbuf, sizeof outbuf);	
-						assert(SSL_ERROR_NONE == SSL_get_error(c->ssl, read));
-						usrsctp_sendv(c->sock, outbuf, read,
+
+						int read = BIO_read(c->output_bio, outbuf, sizeof outbuf);
+						if (SSL_ERROR_NONE != SSL_get_error(c->ssl, read)) {
+							log_client_error_and_throw("BIO_read", c);
+						}
+
+						ssize_t sent = usrsctp_sendv(c->sock, outbuf, read,
 						 /* addrs */ NULL, /* addrcnt */ 0,
 						  /* info */ NULL, /* infolen */ 0,
 						   SCTP_SENDV_NOINFO, /* flags */ 0);
+						if (sent < 0) {
+							log_client_error_and_throw("usrsctp_sendv", c);
+						}						   
 					}
 
-					c->set_state(Client::SSL_CONNECTED);
-					break;	
-				}	
+					try {
+						c->set_state(Client::SSL_CONNECTED);
+					} catch (const std::runtime_error& exc) {
+						log_client_error_and_throw((std::string("set_state") + 
+							std::string(exc.what())).c_str(), c);
+					}
+					break;
+				}
 			}
 		break;
 
 		case Client::SSL_CONNECTED:
 			{
-				DEBUG("Client::SSL_CONNECTED");
-
+				TRACE("Client::SSL_CONNECTED");
 				DEBUG(std::string("n: ") + std::to_string(n));
 
 				char name[INET_ADDRSTRLEN] = {'\0'};
 
 				int written = BIO_write(c->input_bio, buffer, n);
-				assert(SSL_ERROR_NONE == SSL_get_error(c->ssl, written));
-
+				if (SSL_ERROR_NONE != SSL_get_error(c->ssl, written)) {
+					log_client_error_and_throw("BIO_write", c);
+				}
 
 				char outbuf[BUFFER_SIZE] = {'\0'};
 				int read = SSL_read(c->ssl, outbuf, sizeof outbuf);
+				if (SSL_ERROR_NONE != SSL_get_error(c->ssl, read)) {
+					log_client_error_and_throw("SSL_read", c);
+				}
 
-				DEBUG("read: " + std::to_string(read));
+				DEBUG(std::string("read: ") + std::to_string(read));
 
-				if (!read && SSL_ERROR_ZERO_RETURN == SSL_get_error(c->ssl, read)) {
+				if (not read and SSL_ERROR_ZERO_RETURN == SSL_get_error(c->ssl, read)) {
 					c->set_state(Client::SSL_SHUTDOWN);
 					break;
 				}
 
-				if (read < 0 && (SSL_ERROR_WANT_READ == SSL_get_error(c->ssl, read))) {
+				if (read < 0 and SSL_ERROR_WANT_READ == SSL_get_error(c->ssl, read)) {
 					DEBUG("SSL_ERROR_WANT_READ");
 					break;
 				}
@@ -567,7 +651,13 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 
 				DEBUG(message);
 
-				if (cfg_->data_cback_f) cfg_->data_cback_f(c, outbuf);
+				if (cfg_->data_cback_f) {
+					try {
+						cfg_->data_cback_f(c, outbuf);
+					} catch (...) {
+						CRITICAL("data_cback_f");
+					}
+				}
 			}
 		break;
 
@@ -575,14 +665,13 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 			break;
 
 		default:
-			throw std::runtime_error("Unknown client state !");
+			log_client_error_and_throw("Unknown client state !", c);
 		break;
 	} //end of switch
-
-
 }
 
-/* testing "seams" C lib function wrappers s*/
+
+/* testing "seams". C lib function wrappers */
 inline struct socket* SCTPServer::usrsctp_socket(int domain, int type, int protocol,
                int (*receive_cb)(struct socket *sock, union sctp_sockstore addr, void *data,
                                  size_t datalen, struct sctp_rcvinfo, int flags, void *ulp_info),

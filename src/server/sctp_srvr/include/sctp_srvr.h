@@ -6,14 +6,15 @@
 #include <functional>
 #include <thread>
 #include <mutex>
+#include <atomic>
 
 #include "ssl_h.h"
 #include "sctp_srvr_client.h"
 
 #ifdef TEST_BUILD
-#define COND_VIRTUAL virtual
+#define MAYBE_VIRTUAL virtual
 #else
-#define COND_VIRTUAL
+#define MAYBE_VIRTUAL
 #endif
 
 
@@ -68,32 +69,41 @@ public:
 	SCTPServer& operator=(const SCTPServer& oth) = delete;
 
 	/*
-		usrsctp lib, SSL etc initializations
+		usrsctp lib, SSL etc initializations. (sync).
+		Mandatory
 	*/
 	void init();
 
  	/*
- 		Async, runs accept in separate thread
+ 		Accepts on server socket in separate thread. (async).
 	*/
 	void run();
 
+	/*
+		Sends message to client.
+	*/
 	void send(std::shared_ptr<IClient>& c, const void* data, size_t len);
 
 	/*
-		Convenience wrapper
+		Convenience wrapper.
 	*/
 	void send(std::shared_ptr<IClient>& c, const std::string& message);
 
+	/*
+		Sends message to all clients.
+	*/
 	void broadcast(const void* data, size_t len);
 
 	/*
-		Convenience wrapper. Sends message to all clients.
+		Convenience wrapper.
 	*/
 	void broadcast(const std::string& message);
 
 
-	// might not be called explicitly
-	// as dtor also handles correct cleanup
+	/* 
+		might not be called explicitly
+		as dtor also handles correct cleanup
+	*/
 	void stop();
 	
 	virtual ~SCTPServer();
@@ -113,7 +123,7 @@ public:
 	friend class Client;
 	friend class IClient;;
 protected:
-	COND_VIRTUAL struct socket* usrsctp_socket(int domain, int type, int protocol,
+	MAYBE_VIRTUAL struct socket* usrsctp_socket(int domain, int type, int protocol,
                int (*receive_cb)(struct socket *sock, union sctp_sockstore addr, void *data,
                                  size_t datalen, struct sctp_rcvinfo, int flags, void *ulp_info),
                int (*send_cb)(struct socket *sock, uint32_t sb_free),
@@ -134,6 +144,7 @@ private:
 	void drop_client(std::shared_ptr<IClient>&);
 
 
+	std::atomic_bool initialized { false };
 
 	//holds main SSL context etc
 	SSL_h ssl_obj_ { SSL_h::SERVER };
