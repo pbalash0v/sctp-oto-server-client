@@ -45,6 +45,29 @@
 #define TRACE_func_left() TRACE("Left " + std::string(__func__))
 
 
+static void _log_client_error_and_throw(const char* func, std::shared_ptr<IClient>& c,
+													 bool should_throw) {
+	std::shared_ptr<SCTPServer::Config> cfg_ = c->server_.cfg_;
+
+	std::string error { func };
+	error += ": ";
+	error += c->to_string();
+	error += " ";
+	error += strerror(errno);
+	ERROR(error);
+	if (should_throw) throw std::runtime_error(error);
+}
+
+static void log_client_error(const char* func, std::shared_ptr<IClient>& c) {
+	_log_client_error_and_throw(func, c, false);
+}
+
+static void log_client_error_and_throw(const char* func, std::shared_ptr<IClient>& c) {
+	_log_client_error_and_throw(func, c, true);
+}
+
+
+
 std::shared_ptr<SCTPServer> SCTPServer::s_ = std::make_shared<SCTPServer>();
 
 constexpr auto BUFFER_SIZE = 1 << 16;
@@ -58,6 +81,8 @@ constexpr auto BUFFER_SIZE = 1 << 16;
 extern "C" {
 	void wakeup_one(void *ident);
 }
+
+
 
 
 SCTPServer::SCTPServer() : SCTPServer(std::make_shared<SCTPServer::Config>()) {}
@@ -231,13 +256,15 @@ ssize_t SCTPServer::send_raw(std::shared_ptr<IClient>& c, const void* buf, size_
 						   SCTP_SENDV_NOINFO, /* flags */ 0);
 	} else {
 		int written = SSL_write(c->ssl, buf, len);
-		if (SSL_ERROR_NONE != SSL_get_error(c->ssl, written)) throw std::runtime_error("SSL_write");
-
-		assert(BIO_ctrl_pending(c->output_bio));
+		if (SSL_ERROR_NONE != SSL_get_error(c->ssl, written)) {
+			log_client_error_and_throw("SSL_write", c);
+		}		
 
 		char outbuf[BUFFER_SIZE] = { 0 };
 		int read = BIO_read(c->output_bio, outbuf, sizeof(outbuf));
-		if (SSL_ERROR_NONE != SSL_get_error(c->ssl, read)) throw std::runtime_error("BIO_read");
+		if (SSL_ERROR_NONE != SSL_get_error(c->ssl, read)) {
+			log_client_error_and_throw("BIO_read", c);
+		}		
 
 		sent = usrsctp_sendv(c->sock, outbuf, read,
 						 /* addrs */ NULL, /* addrcnt */ 0,
@@ -245,7 +272,9 @@ ssize_t SCTPServer::send_raw(std::shared_ptr<IClient>& c, const void* buf, size_
 						   SCTP_SENDV_NOINFO, /* flags */ 0);
 	}
 
-	if (sent < 0) throw std::runtime_error(std::string("usrsctp_sendv: ") + strerror(errno));
+	if (sent < 0) {
+		log_client_error_and_throw((std::string("usrsctp_sendv: ") + strerror(errno)).c_str(), c);
+	}
 
 	return sent;
 }
@@ -277,8 +306,8 @@ void SCTPServer::accept_loop() {
 			{
 				std::lock_guard<std::mutex> lock(clients_mutex_);
 
-				//clients_.push_back(std::make_shared<Client>(conn_sock, *this));
 				clients_.push_back(cfg_->client_factory(conn_sock, *this));
+
 				try {
 					clients_.back()->init();
 					clients_.back()->set_state(Client::SCTP_ACCEPTED);
@@ -286,9 +315,13 @@ void SCTPServer::accept_loop() {
 					ERROR(std::string("Dropping client: ") + exc.what());
 					clients_.back()->set_state(Client::PURGE);
 					drop_client(clients_.back());
+					continue;
 				}
+
+				INFO("Accepted: " + clients_.back()->to_string());
 			}
 		}
+
 	/* at this point accept loop has ended
 		but there still could be client to serve */
 	} catch (const std::runtime_error& exc) {
@@ -306,26 +339,6 @@ void SCTPServer::drop_client(std::shared_ptr<IClient>& c) {
 }
 
 
-static void _log_client_error_and_throw(const char* func, std::shared_ptr<IClient>& c,
-													 bool should_throw) {
-	std::shared_ptr<SCTPServer::Config> cfg_ = c->server_.cfg_;
-
-	std::string error { func };
-	error += ": ";
-	error += c->to_string();
-	error += " ";
-	error += strerror(errno);
-	ERROR(error);
-	if (should_throw) throw std::runtime_error(error);
-}
-
-static void log_client_error(const char* func, std::shared_ptr<IClient>& c) {
-	_log_client_error_and_throw(func, c, false);
-}
-
-static void log_client_error_and_throw(const char* func, std::shared_ptr<IClient>& c) {
-	_log_client_error_and_throw(func, c, true);
-}
 
 
 /*
@@ -360,6 +373,7 @@ void SCTPServer::handle_upcall(struct socket* sock, void* arg, int) {
 	
 	int events = usrsctp_get_events(sock);
 
+	/* client connected */
 	if ((events & SCTP_EVENT_WRITE) && c->state < Client::SCTP_CONNECTED) {
 		DEBUG(std::string("SCTP_EVENT_WRITE for: ") + (*c).to_string());
 		try {
@@ -368,9 +382,12 @@ void SCTPServer::handle_upcall(struct socket* sock, void* arg, int) {
 			ERROR(std::string("Dropping client: ") + exc.what());
 			c->set_state(Client::PURGE);
 			s->drop_client(c);
+			return;
 		}
+		INFO("Connected: " + c->to_string());
 	}
 
+	/* client sent data */
 	if (events & SCTP_EVENT_READ && c->state >= Client::SCTP_CONNECTED) {
 		struct sctp_recvv_rn rn;
 		memset(&rn, 0, sizeof(struct sctp_recvv_rn));
@@ -470,7 +487,7 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 						const struct sockaddr_in& addr, const struct sctp_recvv_rn& rcv_info,
 						unsigned int infotype, int flags) {
 
-	DEBUG(std::string("handle_client_data: ") + c->to_string());
+	DEBUG(std::string("handle_client_data of ") + c->to_string());
 
 	switch (c->state) {
 
@@ -573,7 +590,7 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 					}				
 				} else {
 					if (BIO_ctrl_pending(c->output_bio)) {
-						DEBUG("output BIO_ctrl_pending");
+						TRACE("output BIO_ctrl_pending");
 
 						int read = BIO_read(c->output_bio, outbuf, sizeof outbuf);
 						if (SSL_ERROR_NONE != SSL_get_error(c->ssl, read)) {
