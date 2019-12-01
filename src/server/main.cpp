@@ -162,14 +162,14 @@ int main([[maybe_unused]] int argc, char* argv[]) {
 		return EXIT_FAILURE;
 	}
 
-	srv.run();
-	
 	spdlog::info("{}", srv);
-	spdlog::info("Serving. Press return to terminate.", srv);
+	srv.run();
+	spdlog::info("Serving. Press ctrl-D to terminate.");
 
-
-	//we wait here for any keyboard input to terminate
-	std::cin.get();
+	while (true) {
+		std::string _s;
+		if (not getline(std::cin, _s)) break;
+	}
 
 	return EXIT_SUCCESS;
 }
