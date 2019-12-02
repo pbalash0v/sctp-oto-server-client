@@ -14,6 +14,7 @@ Client::Client(struct socket* sctp_sock, SCTPServer& s)
 
 
 void Client::init()  {
+
 	ssl = SSL_new(server_.ssl_obj_.ctx_);
 	assert(ssl);
 
@@ -31,6 +32,15 @@ void Client::init()  {
 
 
 void Client::set_state(Client::State new_state) {
+	/* 
+		log macros depend on local object named cfg_.
+		Getting it here explicitly.
+	*/
+	std::shared_ptr<SCTPServer::Config> cfg_ = server_.cfg_;
+
+	/* from here on we can use log macros */
+	TRACE_func_entry();
+
 	if (new_state != PURGE) {
 		assert(new_state != state);
 	}
@@ -39,12 +49,36 @@ void Client::set_state(Client::State new_state) {
 	
 	switch (new_state) {
 		case SCTP_ACCEPTED:
+		{
 			if (usrsctp_set_non_blocking(sock, 1) < 0) {
+				ERROR("usrsctp_set_non_blocking for " + to_string());
 				throw std::runtime_error(strerror(errno));
 			}
+
 			if (usrsctp_set_upcall(sock, &SCTPServer::handle_upcall, &server_)) {
+				ERROR("usrsctp_set_upcall for " + to_string());
 				throw std::runtime_error(strerror(errno));
-			}			
+			}
+
+			uint16_t event_types[] = {	SCTP_ASSOC_CHANGE,
+	                          			SCTP_PEER_ADDR_CHANGE,
+	                          			SCTP_REMOTE_ERROR,
+	                          			SCTP_SHUTDOWN_EVENT,
+	                          			SCTP_ADAPTATION_INDICATION,
+	                          			SCTP_PARTIAL_DELIVERY_EVENT
+	                          		};
+			struct sctp_event event;
+			memset(&event, 0, sizeof(event));
+			event.se_assoc_id = SCTP_ALL_ASSOC;
+			event.se_on = 1;
+			for (auto ev_type : event_types) {
+				event.se_type = ev_type;
+				if (usrsctp_setsockopt(sock, IPPROTO_SCTP, SCTP_EVENT, &event, sizeof(event)) < 0) {
+					ERROR("usrsctp_setsockopt SCTP_EVENT for " + to_string());
+					throw std::runtime_error(std::string("setsockopt SCTP_EVENT: ") + strerror(errno));
+				}
+			}
+		}
 			break;
 		case SCTP_CONNECTED:
 			break;
@@ -56,6 +90,8 @@ void Client::set_state(Client::State new_state) {
 		default:
 			break;
 	}
+
+	TRACE_func_left();
 }
 
 

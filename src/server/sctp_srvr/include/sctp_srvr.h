@@ -18,11 +18,36 @@
 #endif
 
 
-class SCTPServer;
+#ifndef NDEBUG
+#define log(level, text) do { \
+						if (nullptr == cfg_->debug_f) break; \
+						std::string s = std::string(); \
+						s += std::string(basename(__FILE__)) + \
+						 + ", " + std::string(__func__) + \
+						 + ":" + std::to_string(__LINE__) + \
+						 + "\t " + std::string(text); \
+							cfg_->debug_f(level, s); \
+						} while (0)
+#else
+#define log(level, text) do {} while (0)
+#endif
 
+#define TRACE(text) log(SCTPServer::TRACE, text)
+#define DEBUG(text) log(SCTPServer::DEBUG, text)
+#define INFO(text) log(SCTPServer::INFO, text)
+#define WARNING(text) log(SCTPServer::WARNING, text)
+#define ERROR(text) log(SCTPServer::ERROR, text)
+#define CRITICAL(text) log(SCTPServer::CRITICAL, text)
+
+
+#define TRACE_func_entry() TRACE("Entered " + std::string(__func__))
+
+#define TRACE_func_left() TRACE("Left " + std::string(__func__))
+
+
+						
 constexpr uint16_t DEFAULT_UDP_ENCAPS_PORT = 9899;
 constexpr uint16_t DEFAULT_SCTP_PORT = 5001;
-
 
 
 class SCTPServer {
@@ -59,7 +84,9 @@ public:
     	friend std::ostream& operator<<(std::ostream &out, const Config &c); 
 	};
 
-
+	/* 
+		Uses default cfg object.
+	*/
 	SCTPServer();
 
 	SCTPServer(std::shared_ptr<SCTPServer::Config> p);
@@ -69,13 +96,13 @@ public:
 	SCTPServer& operator=(const SCTPServer& oth) = delete;
 
 	/*
-		usrsctp lib, SSL etc initializations. (sync).
+		Usrsctp lib, SSL etc initializations. (synchronous).
 		Mandatory
 	*/
 	void init();
 
  	/*
- 		Accepts on server socket in separate thread. (async).
+ 		Accepts on server socket in separate thread. (asynchronous).
 	*/
 	void run();
 
@@ -106,12 +133,13 @@ public:
 	*/
 	void stop();
 	
+
 	virtual ~SCTPServer();
 
 
 	/* 
-		static object may be used for embedding to dyn library
-		(FreeSWITCH module in particular) for RAII on dlopen/dlclose
+		Static object may be used for embedding to dyn library
+		(having FreeSWITCH module in mind in particular) for RAII on dlopen/dlclose
 		(for future use mainly)
  	*/
 	static std::shared_ptr<SCTPServer> s_;
@@ -124,6 +152,11 @@ public:
 	friend class IClient;
 
 protected:
+	/* 
+		MAYBE_VIRTUAL is a macro.
+		Such function declarations used for unit testing as a "seam" point.
+		In real code scope-resolved to usrsctp lib functions.
+	 */
 	MAYBE_VIRTUAL struct socket* usrsctp_socket(int domain, int type, int protocol,
                int (*receive_cb)(struct socket *sock, union sctp_sockstore addr, void *data,
                                  size_t datalen, struct sctp_rcvinfo, int flags, void *ulp_info),
@@ -136,6 +169,8 @@ protected:
 
 private:
 	void accept_loop();
+
+	void handle_notification(union sctp_notification* buf, size_t n);
 
 	void handle_client_data(std::shared_ptr<IClient>& c, const void* buffer, ssize_t n,
 		 const struct sockaddr_in& addr, const struct sctp_recvv_rn& rcv_info, unsigned int infotype, int flags);
@@ -159,7 +194,6 @@ private:
 
 	std::mutex clients_mutex_;
 	std::vector<std::shared_ptr<IClient>> clients_;
-
 };
 
 

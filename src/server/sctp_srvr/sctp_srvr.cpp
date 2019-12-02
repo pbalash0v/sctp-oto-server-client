@@ -5,7 +5,6 @@
 #include <cassert>
 #include <algorithm>
 
-
 #include <sys/socket.h>
 #include <netdb.h>
 #include <arpa/inet.h>
@@ -16,33 +15,6 @@
 
 #include "sctp_srvr.h"
 
-
-
-#ifndef NDEBUG
-#define log(level, text) do { \
-						if (nullptr == cfg_->debug_f) break; \
-						std::string s = std::string(); \
-						s += std::string(basename(__FILE__)) + \
-						 + ", " + std::string(__func__) + \
-						 + ":" + std::to_string(__LINE__) + \
-						 + "\t " + std::string(text); \
-							cfg_->debug_f(level, s); \
-						} while (0)
-#else
-#define log(level, text) do {} while (0)
-#endif
-
-#define TRACE(text) log(SCTPServer::TRACE, text)
-#define DEBUG(text) log(SCTPServer::DEBUG, text)
-#define INFO(text) log(SCTPServer::INFO, text)
-#define WARNING(text) log(SCTPServer::WARNING, text)
-#define ERROR(text) log(SCTPServer::ERROR, text)
-#define CRITICAL(text) log(SCTPServer::CRITICAL, text)
-
-
-#define TRACE_func_entry() TRACE("Entered " + std::string(__func__))
-
-#define TRACE_func_left() TRACE("Left " + std::string(__func__))
 
 
 static void _log_client_error_and_throw(const char* func, std::shared_ptr<IClient>& c,
@@ -246,7 +218,7 @@ void SCTPServer::send(std::shared_ptr<IClient>& c, const std::string& message) {
 
 
 /*
-	Private. Accounts for state.
+	Private. Accounts for client state.
 */
 ssize_t SCTPServer::send_raw(std::shared_ptr<IClient>& c, const void* buf, size_t len) {
 	ssize_t sent = -1;
@@ -287,7 +259,7 @@ ssize_t SCTPServer::send_raw(std::shared_ptr<IClient>& c, const void* buf, size_
 
 /*
 	Accepting new connections with blocking sctp accept.
-	Runs in own thread
+	Runs in own thread.
 */
 void SCTPServer::accept_loop() {
 	TRACE_func_entry();
@@ -347,16 +319,26 @@ void SCTPServer::drop_client(std::shared_ptr<IClient>& c) {
 
 
 /*
-	handle_upcall is called by usrsctp engine on any (configurable ?) *client* socket event,
-	such as : data, successeful connect, client shutdown etc
+	handle_upcall is called by usrsctp engine on *client* socket event,
+	such as : SCTP_EVENT_ERROR, SCTP_EVENT_WRITE, SCTP_EVENT_READ.
 	handle_upcall is registered with any new client socket in accept thread
+
+	struct socket* sock: client socket.
+	void* arg : pointer to SCTPServer instance, supplied on new socket init.
+	last int argument: supposed to be upcall_flags, haven't seen it's usage in examples
 */
 void SCTPServer::handle_upcall(struct socket* sock, void* arg, int) {
 	#define BUFFERSIZE (1<<16)
 
 	SCTPServer* s = (SCTPServer*) arg; assert(s);
-	std::shared_ptr<SCTPServer::Config> cfg_ = ((SCTPServer*) arg)->cfg_;
+
+	/* 
+		log macros depend on local object named cfg_.
+		Getting it here explicitly.
+	*/
+	std::shared_ptr<SCTPServer::Config> cfg_ = s->cfg_;
 	
+	/* from here on we can use log macros */
 	TRACE_func_entry();
 
 	auto& clients = s->clients_;
@@ -365,22 +347,36 @@ void SCTPServer::handle_upcall(struct socket* sock, void* arg, int) {
 	{
 		std::lock_guard<std::mutex> lock(s->clients_mutex_);
 
-		auto it = find_if(clients.cbegin(), clients.cend(), [&] (auto s_ptr) {
+		auto it = std::find_if(clients.cbegin(), clients.cend(), [&] (const auto& s_ptr) {
 			return s_ptr->sock == sock;
 		});
 
 		if (it != clients.cend()) {
 			c = *it;
 		} else {
-			throw std::runtime_error("handle_upcall: client socket not found ?");
+			ERROR("handle_upcall: client socket not found ?");
+			return;
 		}
 	}
 	
+
 	int events = usrsctp_get_events(sock);
 
-	/* client connected */
-	if ((events & SCTP_EVENT_WRITE) && c->state < Client::SCTP_CONNECTED) {
-		DEBUG(std::string("SCTP_EVENT_WRITE for: ") + (*c).to_string());
+	/*
+		In usrsctp user_socket.c SCTP_EVENT_ERROR appears to be one of
+		the available event types.
+		No idea what does it mean.
+	*/
+	if (events & SCTP_EVENT_ERROR) {
+		ERROR("SCTP_EVENT_ERROR: " + c->to_string());
+	}
+
+	/* 
+		Looks like SCTP_EVENT_WRITE fires only once (?).
+		Client socket writable, e.g. client connected.
+	 */
+	if ((events & SCTP_EVENT_WRITE) and c->state < Client::SCTP_CONNECTED) {
+		DEBUG(std::string("SCTP_EVENT_WRITE for: ") + c->to_string());
 		try {
 			c->set_state(Client::SCTP_CONNECTED);
 		} catch (const std::runtime_error& exc) {
@@ -393,7 +389,7 @@ void SCTPServer::handle_upcall(struct socket* sock, void* arg, int) {
 	}
 
 	/* client sent data */
-	if (events & SCTP_EVENT_READ && c->state >= Client::SCTP_CONNECTED) {
+	if (events & SCTP_EVENT_READ and c->state >= Client::SCTP_CONNECTED) {
 		struct sctp_recvv_rn rn;
 		memset(&rn, 0, sizeof(struct sctp_recvv_rn));
 
@@ -412,7 +408,8 @@ void SCTPServer::handle_upcall(struct socket* sock, void* arg, int) {
 		/* got data */
 		if (n > 0) {
 			if (flags & MSG_NOTIFICATION) {
-				printf("Notification of length %llu received.\n", (unsigned long long) n);
+				TRACE(std::string("Notification of length ") + std::to_string(n) + std::string(" received.\n"));
+				s->handle_notification((union sctp_notification*) buf, n);
 			} else {
 				try {
 					c->server_.handle_client_data(c, buf, n, addr, rn, infotype, flags);
@@ -431,8 +428,8 @@ void SCTPServer::handle_upcall(struct socket* sock, void* arg, int) {
 			log_client_error("usrsctp_recvv", c);
 		}
 
+
 		free(buf);
-		// //events = usrsctp_get_events(sock);
 	}
 
 
@@ -693,6 +690,366 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 }
 
 
+
+static void handle_association_change_event(struct sctp_assoc_change* sac, const SCTPServer& s) {
+	/* 
+		log macros depend on local object named cfg_.
+		Getting it here explicitly.
+	*/
+	std::shared_ptr<SCTPServer::Config> cfg_ = s.cfg_;
+	/* from here on we can use log macros */
+
+	unsigned int i, n;
+
+	TRACE("Association change event.");
+
+	std::string message { "Association change " };
+
+	switch (sac->sac_state) {
+		case SCTP_COMM_UP:
+			message += "SCTP_COMM_UP";
+			break;
+		case SCTP_COMM_LOST:
+			message += "SCTP_COMM_LOST";
+			break;
+		case SCTP_RESTART:
+			message += "SCTP_RESTART";
+			break;
+		case SCTP_SHUTDOWN_COMP:
+			message += "SCTP_SHUTDOWN_COMP";
+			break;
+		case SCTP_CANT_STR_ASSOC:
+			message += "SCTP_CANT_STR_ASSOC";
+			break;
+		default:
+			message += "UNKNOWN";
+			break;
+	}
+
+
+	message += ", streams (in/out) = (";
+	message += std::to_string(sac->sac_inbound_streams);
+	message += "/";
+	message += std::to_string(sac->sac_outbound_streams);
+	message += ")";
+
+
+	n = sac->sac_length - sizeof(struct sctp_assoc_change);
+
+	if (((sac->sac_state == SCTP_COMM_UP) or
+	     (sac->sac_state == SCTP_RESTART)) and (n > 0)) {
+		message += ", supports";
+		for (i = 0; i < n; i++) {
+			switch (sac->sac_info[i]) {
+			case SCTP_ASSOC_SUPPORTS_PR:
+				message += " PR";
+				break;
+			case SCTP_ASSOC_SUPPORTS_AUTH:
+				message += " AUTH";
+				break;
+			case SCTP_ASSOC_SUPPORTS_ASCONF:
+				message += " ASCONF";
+				break;
+			case SCTP_ASSOC_SUPPORTS_MULTIBUF:
+				message += " MULTIBUF";
+				break;
+			case SCTP_ASSOC_SUPPORTS_RE_CONFIG:
+				message += " RE-CONFIG";
+				break;
+			default:
+				message += " UNKNOWN(0x";
+				message += std::to_string(sac->sac_info[i]);
+				message += ")";
+				break;
+			}
+		}
+	} else if (((sac->sac_state == SCTP_COMM_LOST) or
+	            (sac->sac_state == SCTP_CANT_STR_ASSOC)) and (n > 0)) {
+		message += ", ABORT =";
+		for (i = 0; i < n; i++) {
+			message += " 0x";
+			message += std::to_string(sac->sac_info[i]);
+		}
+	}
+
+	message += ".\n";
+	
+	DEBUG(message);
+	return;
+}
+
+static void handle_peer_address_change_event(struct sctp_paddr_change* spc, const SCTPServer& s) {
+	/* 
+		log macros depend on local object named cfg_.
+		Getting it here explicitly.
+	*/
+	std::shared_ptr<SCTPServer::Config> cfg_ = s.cfg_;
+	/* from here on we can use log macros */
+
+	char addr_buf[INET6_ADDRSTRLEN];
+	const char* addr;
+	struct sockaddr_in *sin;
+	struct sockaddr_in6* sin6;
+	struct sockaddr_conn* sconn;
+
+	switch (spc->spc_aaddr.ss_family) {
+		case AF_INET:
+			sin = (struct sockaddr_in *)&spc->spc_aaddr;
+			addr = inet_ntop(AF_INET, &sin->sin_addr, addr_buf, INET_ADDRSTRLEN);
+			break;
+		case AF_INET6:
+			sin6 = (struct sockaddr_in6 *)&spc->spc_aaddr;
+			addr = inet_ntop(AF_INET6, &sin6->sin6_addr, addr_buf, INET6_ADDRSTRLEN);
+			break;
+		case AF_CONN:
+			sconn = (struct sockaddr_conn *)&spc->spc_aaddr;
+			snprintf(addr_buf, INET6_ADDRSTRLEN, "%p", sconn->sconn_addr);
+			addr = addr_buf;
+			break;
+		default:
+			snprintf(addr_buf, INET6_ADDRSTRLEN, "Unknown family %d", spc->spc_aaddr.ss_family);
+			addr = addr_buf;
+			break;
+	}
+
+	fprintf(stderr, "Peer address %s is now ", addr);
+	switch (spc->spc_state) {
+		case SCTP_ADDR_AVAILABLE:
+			fprintf(stderr, "SCTP_ADDR_AVAILABLE");
+			break;
+		case SCTP_ADDR_UNREACHABLE:
+			fprintf(stderr, "SCTP_ADDR_UNREACHABLE");
+			break;
+		case SCTP_ADDR_REMOVED:
+			fprintf(stderr, "SCTP_ADDR_REMOVED");
+			break;
+		case SCTP_ADDR_ADDED:
+			fprintf(stderr, "SCTP_ADDR_ADDED");
+			break;
+		case SCTP_ADDR_MADE_PRIM:
+			fprintf(stderr, "SCTP_ADDR_MADE_PRIM");
+			break;
+		case SCTP_ADDR_CONFIRMED:
+			fprintf(stderr, "SCTP_ADDR_CONFIRMED");
+			break;
+		default:
+			fprintf(stderr, "UNKNOWN");
+			break;
+	}
+	
+	fprintf(stderr, " (error = 0x%08x).\n", spc->spc_error);
+	return;
+}
+
+static void handle_send_failed_event(struct sctp_send_failed_event* ssfe, const SCTPServer& s) {
+	/* 
+		log macros depend on local object named cfg_.
+		Getting it here explicitly.
+	*/
+	std::shared_ptr<SCTPServer::Config> cfg_ = s.cfg_;
+	/* from here on we can use log macros */
+
+	size_t i, n;
+
+	if (ssfe->ssfe_flags & SCTP_DATA_UNSENT) {
+		fprintf(stderr, "Unsent ");
+	}
+	if (ssfe->ssfe_flags & SCTP_DATA_SENT) {
+		fprintf(stderr, "Sent ");
+	}
+	if (ssfe->ssfe_flags & ~(SCTP_DATA_SENT | SCTP_DATA_UNSENT)) {
+		fprintf(stderr, "(flags = %x) ", ssfe->ssfe_flags);
+	}
+	fprintf(stderr, "message with PPID = %u, SID = %u, flags: 0x%04x due to error = 0x%08x",
+	       ntohl(ssfe->ssfe_info.snd_ppid), ssfe->ssfe_info.snd_sid,
+	       ssfe->ssfe_info.snd_flags, ssfe->ssfe_error);
+	n = ssfe->ssfe_length - sizeof(struct sctp_send_failed_event);
+	for (i = 0; i < n; i++) {
+		fprintf(stderr, " 0x%02x", ssfe->ssfe_data[i]);
+	}
+	fprintf(stderr, ".\n");
+	return;
+}
+
+static void handle_adaptation_indication(struct sctp_adaptation_event* sai, const SCTPServer& s) {
+	/* 
+		log macros depend on local object named cfg_.
+		Getting it here explicitly.
+	*/
+	std::shared_ptr<SCTPServer::Config> cfg_ = s.cfg_;
+	/* from here on we can use log macros */
+	char buf[BUFFERSIZE] = { '\0' };
+	snprintf(buf, sizeof buf, "Adaptation indication: %x.\n", sai-> sai_adaptation_ind);
+	DEBUG(buf);
+	return;
+}
+
+static void handle_shutdown_event(struct sctp_shutdown_event*, const SCTPServer& s) {
+	/* 
+		log macros depend on local object named cfg_.
+		Getting it here explicitly.
+	*/
+	std::shared_ptr<SCTPServer::Config> cfg_ = s.cfg_;
+	/* from here on we can use log macros */
+
+	char buf[BUFFERSIZE] = { '\0' };
+	snprintf(buf, sizeof buf, "Shutdown event.\n");
+	DEBUG(buf);
+	/* XXX: notify all channels. */
+	return;
+}
+
+static void handle_stream_reset_event(struct sctp_stream_reset_event* strrst, const SCTPServer& s) {
+	/* 
+		log macros depend on local object named cfg_.
+		Getting it here explicitly.
+	*/
+	std::shared_ptr<SCTPServer::Config> cfg_ = s.cfg_;
+	/* from here on we can use log macros */
+
+	uint32_t n, i;
+
+	n = (strrst->strreset_length - sizeof(struct sctp_stream_reset_event)) / sizeof(uint16_t);
+	fprintf(stderr, "Stream reset event: flags = %x, ", strrst->strreset_flags);
+	if (strrst->strreset_flags & SCTP_STREAM_RESET_INCOMING_SSN) {
+		if (strrst->strreset_flags & SCTP_STREAM_RESET_OUTGOING_SSN) {
+			fprintf(stderr, "incoming/");
+		}
+		fprintf(stderr, "incoming ");
+	}
+	if (strrst->strreset_flags & SCTP_STREAM_RESET_OUTGOING_SSN) {
+		fprintf(stderr, "outgoing ");
+	}
+	fprintf(stderr, "stream ids = ");
+	for (i = 0; i < n; i++) {
+		if (i > 0) {
+			fprintf(stderr, ", ");
+		}
+		fprintf(stderr, "%d", strrst->strreset_stream_list[i]);
+	}
+	fprintf(stderr, ".\n");
+	return;
+}
+
+static void handle_stream_change_event(struct sctp_stream_change_event* strchg, const SCTPServer& s) {
+	/* 
+		log macros depend on local object named cfg_.
+		Getting it here explicitly.
+	*/
+	std::shared_ptr<SCTPServer::Config> cfg_ = s.cfg_;
+	/* from here on we can use log macros */
+
+	char buf[BUFFERSIZE] = { '\0' };
+	snprintf(buf, sizeof buf, "Stream change event: streams (in/out) = (%u/%u), flags = %x.\n",
+	       strchg->strchange_instrms, strchg->strchange_outstrms, strchg->strchange_flags);
+	DEBUG(buf);
+
+	return;
+}
+
+static void handle_remote_error_event(struct sctp_remote_error* sre, const SCTPServer& s) {
+	/* 
+		log macros depend on local object named cfg_.
+		Getting it here explicitly.
+	*/
+	std::shared_ptr<SCTPServer::Config> cfg_ = s.cfg_;
+	/* from here on we can use log macros */
+
+	size_t i, n;
+
+	n = sre->sre_length - sizeof(struct sctp_remote_error);
+
+	int written = 0;
+	char buf[BUFFERSIZE] = { '\0' };
+	written = snprintf(buf, sizeof buf, "Remote Error (error = 0x%04x): ", sre->sre_error);
+	for (i = 0; i < n; i++) {
+		written += snprintf(buf + written, sizeof buf - written, " 0x%02x", sre-> sre_data[i]);
+	}
+
+	DEBUG(std::string(buf) + ".\n");
+
+	return;
+}
+
+void SCTPServer::handle_notification(union sctp_notification *notif, size_t n) {
+	TRACE_func_entry();
+
+	if (notif->sn_header.sn_length != (uint32_t) n) {
+		return;
+	}
+	std::string message { "handle_notification : " };
+
+	switch (notif->sn_header.sn_type) {
+	case SCTP_ASSOC_CHANGE:
+		message += "SCTP_ASSOC_CHANGE\n";
+		DEBUG(message);
+		handle_association_change_event(&(notif->sn_assoc_change), *this);
+		break;
+	case SCTP_PEER_ADDR_CHANGE:
+		message += "SCTP_PEER_ADDR_CHANGE\n";
+		DEBUG(message);
+		handle_peer_address_change_event(&(notif->sn_paddr_change), *this);
+		break;
+	case SCTP_REMOTE_ERROR:
+		message += "SCTP_REMOTE_ERROR\n";
+		DEBUG(message);
+		handle_remote_error_event(&(notif->sn_remote_error), *this);
+		break;
+	case SCTP_SHUTDOWN_EVENT:
+		message += "SCTP_SHUTDOWN_EVENT\n";
+		DEBUG(message);
+		handle_shutdown_event(&(notif->sn_shutdown_event), *this);
+		break;
+	case SCTP_ADAPTATION_INDICATION:
+		message += "SCTP_ADAPTATION_INDICATION\n";
+		DEBUG(message);
+		handle_adaptation_indication(&(notif->sn_adaptation_event), *this);
+		break;
+	case SCTP_PARTIAL_DELIVERY_EVENT:
+		message += "SCTP_PARTIAL_DELIVERY_EVENT\n";
+		DEBUG(message);
+		break;
+	case SCTP_AUTHENTICATION_EVENT:
+		message += "SCTP_AUTHENTICATION_EVENT\n";
+		DEBUG(message);		
+		break;
+	case SCTP_SENDER_DRY_EVENT:
+		message += "SCTP_SENDER_DRY_EVENT\n";
+		DEBUG(message);		
+		break;
+	case SCTP_NOTIFICATIONS_STOPPED_EVENT:
+		message += "SCTP_NOTIFICATIONS_STOPPED_EVENT\n";
+		DEBUG(message);		
+		break;
+	case SCTP_SEND_FAILED_EVENT:
+		message += "SCTP_SEND_FAILED_EVENT\n";
+		DEBUG(message);		
+		handle_send_failed_event(&(notif->sn_send_failed_event), *this);
+		break;
+	case SCTP_STREAM_RESET_EVENT:
+		message += "SCTP_STREAM_RESET_EVENT\n";
+		DEBUG(message);
+		handle_stream_reset_event(&(notif->sn_strreset_event), *this);
+		break;
+	case SCTP_ASSOC_RESET_EVENT:
+		message += "SCTP_ASSOC_RESET_EVENT\n";
+		DEBUG(message);
+		break;
+	case SCTP_STREAM_CHANGE_EVENT:
+		message += "SCTP_STREAM_CHANGE_EVENT\n";
+		DEBUG(message);
+		handle_stream_change_event(&(notif->sn_strchange_event), *this);
+		break;
+	default:
+		break;
+	}
+
+
+	TRACE_func_left();
+}
+
+
+
 /* testing "seams". C lib function wrappers */
 inline struct socket* SCTPServer::usrsctp_socket(int domain, int type, int protocol,
                int (*receive_cb)(struct socket *sock, union sctp_sockstore addr, void *data,
@@ -727,3 +1084,6 @@ std::ostream& operator<<(std::ostream &out, const SCTPServer &s) {
 	out << *(s.cfg_);
 	return out;
 }
+
+
+

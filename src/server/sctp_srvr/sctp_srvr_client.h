@@ -39,8 +39,7 @@ public:
 	SSL* ssl = nullptr;
 	BIO* output_bio = nullptr;
 	BIO* input_bio = nullptr;
-
-
+	
 	friend std::ostream& operator<<(std::ostream &out, const IClient::State s);
 	friend class SCTPServer;
 };
@@ -66,6 +65,7 @@ public:
 	friend std::ostream& operator<<(std::ostream &out, const Client &c);
 
 	friend class SCTPServer;
+
 
 private:
 
