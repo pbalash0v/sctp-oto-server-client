@@ -19,10 +19,9 @@
 
 #define BUFFERSIZE (1<<16)
 
-
-
 static void _log_client_error_and_throw(const char* func, std::shared_ptr<IClient>& c,
-													 bool should_throw) {
+													 bool should_throw)
+{
 	std::shared_ptr<SCTPServer::Config> cfg_ = c->server_.cfg_;
 
 	std::string error { func };
@@ -34,11 +33,13 @@ static void _log_client_error_and_throw(const char* func, std::shared_ptr<IClien
 	if (should_throw) throw std::runtime_error(error);
 }
 
-static void log_client_error(const char* func, std::shared_ptr<IClient>& c) {
+static void log_client_error(const char* func, std::shared_ptr<IClient>& c)
+{
 	_log_client_error_and_throw(func, c, false);
 }
 
-static void log_client_error_and_throw(const char* func, std::shared_ptr<IClient>& c) {
+static void log_client_error_and_throw(const char* func, std::shared_ptr<IClient>& c)
+{
 	_log_client_error_and_throw(func, c, true);
 }
 
@@ -63,14 +64,16 @@ extern "C" {
 
 SCTPServer::SCTPServer() : SCTPServer(std::make_shared<SCTPServer::Config>()) {}
 
-SCTPServer::SCTPServer(std::shared_ptr<SCTPServer::Config> ptr) : cfg_(ptr) {
+SCTPServer::SCTPServer(std::shared_ptr<SCTPServer::Config> ptr) : cfg_(ptr)
+{
 	cfg_->client_factory = [&] (struct socket* s, SCTPServer&) {
 		return std::make_shared<Client>(s, *this);
 	};
 }
 
 
-SCTPServer::~SCTPServer() {
+SCTPServer::~SCTPServer()
+{
 	TRACE_func_entry();
 
 	cleanup();
@@ -84,7 +87,8 @@ SCTPServer::~SCTPServer() {
 }
 
 
-void SCTPServer::init() {
+void SCTPServer::init()
+{
 	TRACE_func_entry();
 
 	ssl_obj_.init(cfg_->cert_filename, cfg_->key_filename);
@@ -158,13 +162,15 @@ void SCTPServer::init() {
 
 
 
-void SCTPServer::run() {
+void SCTPServer::run()
+{
 	if (not initialized) throw std::logic_error("Server not initialized.");
 	//accept_thr_ = std::thread(&SCTPServer::accept_loop, this);
 }
 
 
-void SCTPServer::cleanup() {
+void SCTPServer::cleanup()
+{
 	TRACE_func_entry();
 
 	std::lock_guard<std::mutex> lock(clients_mutex_);
@@ -205,7 +211,8 @@ void SCTPServer::cleanup() {
 }
 
 
-void SCTPServer::stop() {
+void SCTPServer::stop()
+{
 	TRACE_func_entry();
 
 	cleanup();
@@ -214,7 +221,8 @@ void SCTPServer::stop() {
 }
 
 
-void SCTPServer::broadcast(const void* data, size_t len) {
+void SCTPServer::broadcast(const void* data, size_t len)
+{
 	TRACE_func_entry();
 
 	std::lock_guard<std::mutex> lock(clients_mutex_);
@@ -226,20 +234,22 @@ void SCTPServer::broadcast(const void* data, size_t len) {
 }
 
 
-
-void SCTPServer::broadcast(const std::string& message) {
+void SCTPServer::broadcast(const std::string& message)
+{
 	broadcast(message.c_str(), message.size());
 }
 
 
-void SCTPServer::send(std::shared_ptr<IClient>& c, const void* data, size_t len) {
+void SCTPServer::send(std::shared_ptr<IClient>& c, const void* data, size_t len)
+{
 	if (c->state == Client::SSL_CONNECTED) {
 		send_raw(c, data, len);
 	}
 }
 
 
-void SCTPServer::send(std::shared_ptr<IClient>& c, const std::string& message) {
+void SCTPServer::send(std::shared_ptr<IClient>& c, const std::string& message)
+{
 	send(c, message.c_str(), message.size());
 }
 
@@ -247,7 +257,8 @@ void SCTPServer::send(std::shared_ptr<IClient>& c, const std::string& message) {
 /*
 	Private. Accounts for client state.
 */
-ssize_t SCTPServer::send_raw(std::shared_ptr<IClient>& c, const void* buf, size_t len) {
+ssize_t SCTPServer::send_raw(std::shared_ptr<IClient>& c, const void* buf, size_t len)
+{
 	ssize_t sent = -1;
 
 	if (c->state < Client::SSL_CONNECTED) {
@@ -288,7 +299,8 @@ ssize_t SCTPServer::send_raw(std::shared_ptr<IClient>& c, const void* buf, size_
 	Accepting new connections with blocking sctp accept.
 	Runs in own thread.
 */
-void SCTPServer::accept_loop() {
+void SCTPServer::accept_loop()
+{
 	TRACE_func_entry();
 
 	struct sockaddr_in remote_addr;
@@ -732,8 +744,12 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 }
 
 
+/*
+	Functions to handle assoc notifications
+*/
 
-static void handle_association_change_event(std::shared_ptr<IClient>& c, struct sctp_assoc_change* sac) {
+static void handle_association_change_event(std::shared_ptr<IClient>& c, struct sctp_assoc_change* sac)
+{
 	/* 
 		log macros depend on local object named cfg_.
 		Getting it here explicitly.
@@ -852,12 +868,13 @@ static void handle_association_change_event(std::shared_ptr<IClient>& c, struct 
 	return;
 }
 
-static void handle_peer_address_change_event(struct sctp_paddr_change* spc, const SCTPServer& s) {
+static void handle_peer_address_change_event(std::shared_ptr<IClient>& c, struct sctp_paddr_change* spc)
+{
 	/* 
 		log macros depend on local object named cfg_.
 		Getting it here explicitly.
 	*/
-	std::shared_ptr<SCTPServer::Config> cfg_ = s.cfg_;
+	std::shared_ptr<SCTPServer::Config> cfg_ = (c->server_).cfg_;
 	/* from here on we can use log macros */
 
 	char addr_buf[INET6_ADDRSTRLEN];
@@ -919,12 +936,13 @@ static void handle_peer_address_change_event(struct sctp_paddr_change* spc, cons
 	return;
 }
 
-static void handle_send_failed_event(struct sctp_send_failed_event* ssfe, const SCTPServer& s) {
+static void handle_send_failed_event(std::shared_ptr<IClient>& c, struct sctp_send_failed_event* ssfe)
+{
 	/* 
 		log macros depend on local object named cfg_.
 		Getting it here explicitly.
 	*/
-	std::shared_ptr<SCTPServer::Config> cfg_ = s.cfg_;
+	std::shared_ptr<SCTPServer::Config> cfg_ = (c->server_).cfg_;
 	/* from here on we can use log macros */
 
 	size_t i, n;
@@ -954,12 +972,13 @@ static void handle_send_failed_event(struct sctp_send_failed_event* ssfe, const 
 	return;
 }
 
-static void handle_adaptation_indication(struct sctp_adaptation_event* sai, const SCTPServer& s) {
+static void handle_adaptation_indication(std::shared_ptr<IClient>& c, struct sctp_adaptation_event* sai)
+{
 	/* 
 		log macros depend on local object named cfg_.
 		Getting it here explicitly.
 	*/
-	std::shared_ptr<SCTPServer::Config> cfg_ = s.cfg_;
+	std::shared_ptr<SCTPServer::Config> cfg_ = (c->server_).cfg_;
 	/* from here on we can use log macros */
 
 	char buf[BUFFERSIZE] = { '\0' };
@@ -968,12 +987,13 @@ static void handle_adaptation_indication(struct sctp_adaptation_event* sai, cons
 	return;
 }
 
-static void handle_shutdown_event(struct sctp_shutdown_event*, const SCTPServer& s) {
+static void handle_shutdown_event(std::shared_ptr<IClient>& c, struct sctp_shutdown_event*)
+{
 	/* 
 		log macros depend on local object named cfg_.
 		Getting it here explicitly.
 	*/
-	std::shared_ptr<SCTPServer::Config> cfg_ = s.cfg_;
+	std::shared_ptr<SCTPServer::Config> cfg_ = (c->server_).cfg_;
 	/* from here on we can use log macros */
 
 	char buf[BUFFERSIZE] = { '\0' };
@@ -983,12 +1003,13 @@ static void handle_shutdown_event(struct sctp_shutdown_event*, const SCTPServer&
 	return;
 }
 
-static void handle_stream_reset_event(struct sctp_stream_reset_event* strrst, const SCTPServer& s) {
+static void handle_stream_reset_event(std::shared_ptr<IClient>& c, struct sctp_stream_reset_event* strrst)
+{
 	/* 
 		log macros depend on local object named cfg_.
 		Getting it here explicitly.
 	*/
-	std::shared_ptr<SCTPServer::Config> cfg_ = s.cfg_;
+	std::shared_ptr<SCTPServer::Config> cfg_ = (c->server_).cfg_;
 	/* from here on we can use log macros */
 
 	uint32_t n, i;
@@ -1015,12 +1036,13 @@ static void handle_stream_reset_event(struct sctp_stream_reset_event* strrst, co
 	return;
 }
 
-static void handle_stream_change_event(struct sctp_stream_change_event* strchg, const SCTPServer& s) {
+static void handle_stream_change_event(std::shared_ptr<IClient>& c, struct sctp_stream_change_event* strchg)
+{
 	/* 
 		log macros depend on local object named cfg_.
 		Getting it here explicitly.
 	*/
-	std::shared_ptr<SCTPServer::Config> cfg_ = s.cfg_;
+	std::shared_ptr<SCTPServer::Config> cfg_ = (c->server_).cfg_;
 	/* from here on we can use log macros */
 
 	char buf[BUFFERSIZE] = { '\0' };
@@ -1031,12 +1053,13 @@ static void handle_stream_change_event(struct sctp_stream_change_event* strchg, 
 	return;
 }
 
-static void handle_remote_error_event(struct sctp_remote_error* sre, const SCTPServer& s) {
+static void handle_remote_error_event(std::shared_ptr<IClient>& c, struct sctp_remote_error* sre)
+{
 	/* 
 		log macros depend on local object named cfg_.
 		Getting it here explicitly.
 	*/
-	std::shared_ptr<SCTPServer::Config> cfg_ = s.cfg_;
+	std::shared_ptr<SCTPServer::Config> cfg_ = (c->server_).cfg_;
 	/* from here on we can use log macros */
 
 	size_t i, n;
@@ -1055,7 +1078,8 @@ static void handle_remote_error_event(struct sctp_remote_error* sre, const SCTPS
 	return;
 }
 
-void SCTPServer::handle_notification(std::shared_ptr<IClient>& c, union sctp_notification* notif, size_t n) {
+void SCTPServer::handle_notification(std::shared_ptr<IClient>& c, union sctp_notification* notif, size_t n)
+{
 	TRACE_func_entry();
 
 	if (notif->sn_header.sn_length != (uint32_t) n) {
@@ -1072,22 +1096,22 @@ void SCTPServer::handle_notification(std::shared_ptr<IClient>& c, union sctp_not
 	case SCTP_PEER_ADDR_CHANGE:
 		message += "SCTP_PEER_ADDR_CHANGE";
 		TRACE(message);
-		handle_peer_address_change_event(&(notif->sn_paddr_change), *this);
+		handle_peer_address_change_event(c, &(notif->sn_paddr_change));
 		break;
 	case SCTP_REMOTE_ERROR:
 		message += "SCTP_REMOTE_ERROR";
 		TRACE(message);
-		handle_remote_error_event(&(notif->sn_remote_error), *this);
+		handle_remote_error_event(c, &(notif->sn_remote_error));
 		break;
 	case SCTP_SHUTDOWN_EVENT:
 		message += "SCTP_SHUTDOWN_EVENT";
 		TRACE(message);
-		handle_shutdown_event(&(notif->sn_shutdown_event), *this);
+		handle_shutdown_event(c, &(notif->sn_shutdown_event));
 		break;
 	case SCTP_ADAPTATION_INDICATION:
 		message += "SCTP_ADAPTATION_INDICATION";
 		TRACE(message);
-		handle_adaptation_indication(&(notif->sn_adaptation_event), *this);
+		handle_adaptation_indication(c, &(notif->sn_adaptation_event));
 		break;
 	case SCTP_PARTIAL_DELIVERY_EVENT:
 		message += "SCTP_PARTIAL_DELIVERY_EVENT\n";
@@ -1108,12 +1132,12 @@ void SCTPServer::handle_notification(std::shared_ptr<IClient>& c, union sctp_not
 	case SCTP_SEND_FAILED_EVENT:
 		message += "SCTP_SEND_FAILED_EVENT\n";
 		TRACE(message);		
-		handle_send_failed_event(&(notif->sn_send_failed_event), *this);
+		handle_send_failed_event(c, &(notif->sn_send_failed_event));
 		break;
 	case SCTP_STREAM_RESET_EVENT:
 		message += "SCTP_STREAM_RESET_EVENT\n";
 		TRACE(message);
-		handle_stream_reset_event(&(notif->sn_strreset_event), *this);
+		handle_stream_reset_event(c, &(notif->sn_strreset_event));
 		break;
 	case SCTP_ASSOC_RESET_EVENT:
 		message += "SCTP_ASSOC_RESET_EVENT\n";
@@ -1122,7 +1146,7 @@ void SCTPServer::handle_notification(std::shared_ptr<IClient>& c, union sctp_not
 	case SCTP_STREAM_CHANGE_EVENT:
 		message += "SCTP_STREAM_CHANGE_EVENT\n";
 		TRACE(message);
-		handle_stream_change_event(&(notif->sn_strchange_event), *this);
+		handle_stream_change_event(c, &(notif->sn_strchange_event));
 		break;
 	default:
 		message += "UNKNOWN";
@@ -1141,22 +1165,27 @@ inline struct socket* SCTPServer::usrsctp_socket(int domain, int type, int proto
                int (*receive_cb)(struct socket *sock, union sctp_sockstore addr, void *data,
                                  size_t datalen, struct sctp_rcvinfo, int flags, void *ulp_info),
                int (*send_cb)(struct socket *sock, uint32_t sb_free),
-               uint32_t sb_threshold, void *ulp_info) {
+               uint32_t sb_threshold, void *ulp_info)
+{
 	return ::usrsctp_socket(domain, type, protocol,receive_cb, send_cb, sb_threshold, ulp_info);
 };
-inline int SCTPServer::usrsctp_bind(struct socket* so, struct sockaddr* name, socklen_t namelen) {
+inline int SCTPServer::usrsctp_bind(struct socket* so, struct sockaddr* name, socklen_t namelen)
+{
 	return ::usrsctp_bind(so, name, namelen);
 };
-inline int SCTPServer::usrsctp_listen(struct socket* so, int backlog) {
+inline int SCTPServer::usrsctp_listen(struct socket* so, int backlog)
+{
 	return ::usrsctp_listen(so, backlog);
 };
-inline struct socket* SCTPServer::usrsctp_accept(struct socket* so, struct sockaddr* aname, socklen_t* anamelen) {
+inline struct socket* SCTPServer::usrsctp_accept(struct socket* so, struct sockaddr* aname, socklen_t* anamelen)
+{
 	return ::usrsctp_accept(so, aname, anamelen);
 };
 
 
 
-std::ostream& operator<<(std::ostream& out, const SCTPServer::Config& c) {
+std::ostream& operator<<(std::ostream& out, const SCTPServer::Config& c)
+{
 	out << "UDP encaps port: " << std::to_string(c.udp_encaps_port) << ", ";
 	out << "SCTP port: " << std::to_string(c.sctp_port) << ", ";	
 	out << "Data callback: " << (c.data_cback_f == nullptr ? "nullptr" : "set") << ", ";
@@ -1166,10 +1195,8 @@ std::ostream& operator<<(std::ostream& out, const SCTPServer::Config& c) {
 	return out;
 }
 
-std::ostream& operator<<(std::ostream &out, const SCTPServer &s) {
+std::ostream& operator<<(std::ostream &out, const SCTPServer &s)
+{
 	out << *(s.cfg_);
 	return out;
 }
-
-
-
