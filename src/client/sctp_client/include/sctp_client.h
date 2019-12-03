@@ -13,7 +13,7 @@
 #include "ssl_h.h"
 
 
-constexpr uint16_t DEFAULT_LOCAL_UDP_ENCAPS_PORT = 9898;
+constexpr uint16_t DEFAULT_LOCAL_UDP_ENCAPS_PORT = 0;
 
 constexpr const char* DEFAULT_SERVER_ADDRESS = "127.0.0.1";
 constexpr uint16_t DEFAULT_SERVER_UDP_ENCAPS_PORT = 9899;

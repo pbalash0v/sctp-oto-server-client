@@ -71,7 +71,8 @@ SCTPClient::SCTPClient() : SCTPClient(std::make_shared<SCTPClient::Config>()) {}
 
 SCTPClient::SCTPClient(std::shared_ptr<SCTPClient::Config> p) : cfg_(p) {};
 
-SCTPClient::~SCTPClient() {
+SCTPClient::~SCTPClient()
+{
 	TRACE_func_entry();
 
 
@@ -101,7 +102,8 @@ SCTPClient::~SCTPClient() {
 }
 
 
-void SCTPClient::set_state(SCTPClient::State new_state) {
+void SCTPClient::set_state(SCTPClient::State new_state)
+{
 	if (new_state == state) {
 		CRITICAL("Wrong state transition.");
 		throw std::logic_error("Wrong state transition.");
@@ -169,14 +171,17 @@ void SCTPClient::handle_upcall(struct socket* sock, void* arg, [[maybe_unused]] 
 
 
 		if (n == 0) {
-				TRACE("Socket shutdown");
-				usrsctp_deregister_address(c); // ?
-				usrsctp_close(c->sock);
-				shutdown(c->udp_sock_fd, SHUT_RDWR);			
+			TRACE("Socket shutdown");
+			usrsctp_deregister_address(c); // ?
+			usrsctp_close(c->sock);
+			shutdown(c->udp_sock_fd, SHUT_RDWR);			
 		}
 
 		if (n < 0) {
-			if ((errno == EAGAIN) or (errno == EWOULDBLOCK) or (errno == EINTR)) {
+			if ((errno == EAGAIN) or 
+				(errno == EWOULDBLOCK) or 
+				(errno == EINTR)) {
+				TRACE(strerror(errno));
 			} else {
 				CRITICAL(strerror(errno));
 			}
@@ -219,7 +224,8 @@ int SCTPClient::conn_output(void* arg, void *buf, size_t length, [[maybe_unused]
 
 
 /* UDP init */
-void SCTPClient::init_local_UDP() {
+void SCTPClient::init_local_UDP()
+{
 	int status;
 	struct addrinfo* cli_info = NULL;   /* will point to the result */
 	std::shared_ptr<struct addrinfo*> ptr (&cli_info,
@@ -266,7 +272,8 @@ void SCTPClient::init_local_UDP() {
 }
 
 
-void SCTPClient::init_remote_UDP() {
+void SCTPClient::init_remote_UDP()
+{
 	TRACE_func_entry();
 
 	int status;
@@ -400,7 +407,7 @@ void SCTPClient::init()
 		init_SCTP();
 	} catch (const std::runtime_error& exc) {
 		CRITICAL(exc.what());
-		set_state(PURGE);		
+		set_state(PURGE);
 	}
 
 	TRACE_func_left();
@@ -648,7 +655,8 @@ void SCTPClient::handle_server_data(void* buffer, ssize_t n, const struct sockad
 
 
 
-void SCTPClient::handle_association_change_event(struct sctp_assoc_change* sac) {
+void SCTPClient::handle_association_change_event(struct sctp_assoc_change* sac)
+{
 	TRACE("Association change event.");
 
 	unsigned int i, n;
@@ -787,7 +795,8 @@ void SCTPClient::handle_association_change_event(struct sctp_assoc_change* sac) 
 	return;
 }
 
-void SCTPClient::handle_peer_address_change_event(struct sctp_paddr_change* spc) {
+void SCTPClient::handle_peer_address_change_event(struct sctp_paddr_change* spc)
+{
 	char addr_buf[INET6_ADDRSTRLEN];
 	const char* addr;
 	char buf[BUFFERSIZE] = { '\0' };
@@ -847,7 +856,8 @@ void SCTPClient::handle_peer_address_change_event(struct sctp_paddr_change* spc)
 	return;
 }
 
-void SCTPClient::handle_send_failed_event(struct sctp_send_failed_event* ssfe) {
+void SCTPClient::handle_send_failed_event(struct sctp_send_failed_event* ssfe)
+{
 	size_t i, n;
 
 	if (ssfe->ssfe_flags & SCTP_DATA_UNSENT) {

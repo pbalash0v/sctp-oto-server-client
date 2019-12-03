@@ -113,7 +113,11 @@ int main([[maybe_unused]] int argc, char* argv[]) {
 	uint16_t port = DEFAULT_LOCAL_UDP_ENCAPS_PORT;
 	if (options[3].count) {
 		auto _port = std::strtoul(options[3].argument, NULL, 10);
-		if (_port > MIN_IP_PORT && _port <= MAX_IP_PORT) {
+		if (errno == ERANGE) {
+			std::cout << "UDP port " << _port << " is invalid." << std::endl;
+			exit(EXIT_FAILURE);	
+		}
+		if (_port <= MAX_IP_PORT) {
 			port = (uint16_t) _port;
 		} else {
 			std::cout << "UDP port " << _port << " is invalid." << std::endl;
