@@ -111,7 +111,7 @@ void SCTPClient::set_state(SCTPClient::State new_state) {
 }
 
 
-void SCTPClient::handle_upcall(struct socket *sock, void* arg, [[maybe_unused]] int flgs) {
+void SCTPClient::handle_upcall(struct socket* sock, void* arg, [[maybe_unused]] int flgs) {
 	SCTPClient* c = (SCTPClient *) arg;
 	std::shared_ptr<SCTPClient::Config> cfg_ = c->cfg_;
 
@@ -119,7 +119,60 @@ void SCTPClient::handle_upcall(struct socket *sock, void* arg, [[maybe_unused]] 
 
 	int events = usrsctp_get_events(sock);
 
-	if ((events & SCTP_EVENT_WRITE ) && c->state < SCTPClient::SCTP_CONNECTED) {
+	std::string m { "Socket events: "};
+	if (events & SCTP_EVENT_ERROR) {
+		m += "SCTP_EVENT_ERROR";
+	}
+	if (events & SCTP_EVENT_WRITE) {
+		m += " SCTP_EVENT_WRITE";
+	}
+	if (events & SCTP_EVENT_READ) {
+		m += " SCTP_EVENT_READ";
+	}
+	INFO(m);
+
+	if (events & SCTP_EVENT_READ) { //&& c->state >= SCTPClient::SCTP_CONNECTED) {
+		struct sctp_recvv_rn rn;
+		memset(&rn, 0, sizeof(struct sctp_recvv_rn));
+
+		//struct sctp_rcvinfo rcv_info;
+		ssize_t n;
+		struct sockaddr_in addr;
+		void* buf = calloc(1, BUFFERSIZE);
+		int flags = 0;
+		socklen_t from_len = (socklen_t) sizeof(struct sockaddr_in);
+		unsigned int infotype;
+		socklen_t infolen = sizeof(struct sctp_recvv_rn);
+		//infolen = (socklen_t) sizeof(struct sctp_rcvinfo);
+
+		while ((n = usrsctp_recvv(sock, buf, BUFFERSIZE, (struct sockaddr*) &addr, &from_len, (void *) &rn,
+								&infolen, &infotype, &flags)) > 0) {
+
+			if (n > 0) {
+				if (flags & MSG_NOTIFICATION) {
+					printf("Notification of length %llu received.\n", (unsigned long long) n);
+				} else {
+					c->handle_server_data(buf, n, addr, rn, infotype, flags);
+				}
+			} else if (n == 0) {
+				// done = 1;
+				// input_done = 1;
+				usrsctp_deregister_address(c);
+				usrsctp_close(c->sock);
+				shutdown(c->udp_sock_fd, SHUT_RDWR);			
+			} else {
+				if (errno != EINTR) {
+					free(buf);
+					throw std::runtime_error(strerror(errno));
+				}
+			}
+
+			free(buf);
+		}
+	}
+
+
+	if (events & SCTP_EVENT_WRITE) { // && c->state < SCTPClient::SCTP_CONNECTED) {
 		c->set_state(SCTPClient::SCTP_CONNECTED);
 
 		// TODO: should be refactored into ssl_obj
@@ -153,49 +206,10 @@ void SCTPClient::handle_upcall(struct socket *sock, void* arg, [[maybe_unused]] 
 		return;
 	}
 
-	if (events & SCTP_EVENT_READ && c->state >= SCTPClient::SCTP_CONNECTED) {
-		struct sctp_recvv_rn rn;
-		memset(&rn, 0, sizeof(struct sctp_recvv_rn));
 
-		//struct sctp_rcvinfo rcv_info;
-		ssize_t n;
-		struct sockaddr_in addr;
-		void* buf = calloc(1, BUFFERSIZE);
-		int flags = 0;
-		socklen_t from_len = (socklen_t) sizeof(struct sockaddr_in);
-		unsigned int infotype;
-		socklen_t infolen = sizeof(struct sctp_recvv_rn);
-		//infolen = (socklen_t) sizeof(struct sctp_rcvinfo);
-
-		n = usrsctp_recvv(sock, buf, BUFFERSIZE, (struct sockaddr*) &addr, &from_len, (void *) &rn,
-								&infolen, &infotype, &flags);
-
-		if (n > 0) {
-			if (flags & MSG_NOTIFICATION) {
-				printf("Notification of length %llu received.\n", (unsigned long long) n);
-			} else {
-				c->handle_server_data(buf, n, addr, rn, infotype, flags);
-			}
-		} else if (n == 0) {
-			// done = 1;
-			// input_done = 1;
-			usrsctp_deregister_address(c);
-			usrsctp_close(c->sock);
-			shutdown(c->udp_sock_fd, SHUT_RDWR);			
-		} else {
-			if (errno != EINTR) {
-				free(buf);
-				throw std::runtime_error(strerror(errno));
-			}
-		}
-
-		free(buf);
-		//events = usrsctp_get_events(sock);
-	}
 
 	TRACE_func_left();
 
-	return;
 }
 
 /*
@@ -347,6 +361,25 @@ void SCTPClient::init_SCTP() {
 	if ((sock = usrsctp_socket(AF_CONN, SOCK_STREAM, IPPROTO_SCTP, 
 					receive_cb = NULL, send_cb = NULL, sb_threshold, recv_cback_data = NULL)) == NULL) {
 		throw std::runtime_error(strerror(errno));
+	}
+
+	uint16_t event_types[] = {	SCTP_ASSOC_CHANGE,
+                       			SCTP_PEER_ADDR_CHANGE,
+                       			SCTP_REMOTE_ERROR,
+                       			SCTP_SHUTDOWN_EVENT,
+                       			SCTP_ADAPTATION_INDICATION,
+                       			SCTP_PARTIAL_DELIVERY_EVENT
+                       		};
+	struct sctp_event event;
+	memset(&event, 0, sizeof(event));
+	event.se_assoc_id = SCTP_ALL_ASSOC;
+	event.se_on = 1;
+	for (auto ev_type : event_types) {
+		event.se_type = ev_type;
+		if (usrsctp_setsockopt(sock, IPPROTO_SCTP, SCTP_EVENT, &event, sizeof(event)) < 0) {
+			ERROR("usrsctp_setsockopt SCTP_EVENT");
+			throw std::runtime_error(std::string("setsockopt SCTP_EVENT: "));
+		}
 	}
 
 	usrsctp_set_non_blocking(sock, 1); //TODO: check retval 

@@ -11,6 +11,7 @@
 #include "ssl_h.h"
 #include "sctp_srvr_client.h"
 
+
 #ifdef TEST_BUILD
 #define MAYBE_VIRTUAL virtual
 #else
@@ -39,13 +40,11 @@
 #define ERROR(text) log(SCTPServer::ERROR, text)
 #define CRITICAL(text) log(SCTPServer::CRITICAL, text)
 
-
 #define TRACE_func_entry() TRACE("Entered " + std::string(__func__))
-
 #define TRACE_func_left() TRACE("Left " + std::string(__func__))
 
 
-						
+
 constexpr uint16_t DEFAULT_UDP_ENCAPS_PORT = 9899;
 constexpr uint16_t DEFAULT_SCTP_PORT = 5001;
 
@@ -176,6 +175,8 @@ private:
 		 const struct sockaddr_in& addr, const struct sctp_recvv_rn& rcv_info, unsigned int infotype, int flags);
 
 	static void handle_upcall(struct socket* sock, void* arg, [[maybe_unused]] int flgs);
+
+	static void handle_serv_upcall(struct socket* sock, void* arg, [[maybe_unused]] int flgs);
 
 	void cleanup();
 

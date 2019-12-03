@@ -50,16 +50,6 @@ void Client::set_state(Client::State new_state) {
 	switch (new_state) {
 		case SCTP_ACCEPTED:
 		{
-			if (usrsctp_set_non_blocking(sock, 1) < 0) {
-				ERROR("usrsctp_set_non_blocking for " + to_string());
-				throw std::runtime_error(strerror(errno));
-			}
-
-			if (usrsctp_set_upcall(sock, &SCTPServer::handle_upcall, &server_)) {
-				ERROR("usrsctp_set_upcall for " + to_string());
-				throw std::runtime_error(strerror(errno));
-			}
-
 			uint16_t event_types[] = {	SCTP_ASSOC_CHANGE,
 	                          			SCTP_PEER_ADDR_CHANGE,
 	                          			SCTP_REMOTE_ERROR,
@@ -78,6 +68,17 @@ void Client::set_state(Client::State new_state) {
 					throw std::runtime_error(std::string("setsockopt SCTP_EVENT: ") + strerror(errno));
 				}
 			}
+			
+			// if (usrsctp_set_non_blocking(sock, 1) < 0) {
+			// 	ERROR("usrsctp_set_non_blocking for " + to_string());
+			// 	throw std::runtime_error(strerror(errno));
+			// }
+
+			if (usrsctp_set_upcall(sock, &SCTPServer::handle_upcall, &server_)) {
+				ERROR("usrsctp_set_upcall for " + to_string());
+				throw std::runtime_error(strerror(errno));
+			}
+
 		}
 			break;
 		case SCTP_CONNECTED:

@@ -17,6 +17,10 @@
 
 
 
+#define BUFFERSIZE (1<<16)
+
+
+
 static void _log_client_error_and_throw(const char* func, std::shared_ptr<IClient>& c,
 													 bool should_throw) {
 	std::shared_ptr<SCTPServer::Config> cfg_ = c->server_.cfg_;
@@ -104,6 +108,27 @@ void SCTPServer::init() {
 		throw std::runtime_error(std::string("usrsctp_socket: ") + strerror(errno));
 	}
 
+	uint16_t event_types[] = {	SCTP_ASSOC_CHANGE,
+                       			SCTP_PEER_ADDR_CHANGE,
+                       			SCTP_REMOTE_ERROR,
+                       			SCTP_SHUTDOWN_EVENT,
+                       			SCTP_ADAPTATION_INDICATION,
+                       			SCTP_PARTIAL_DELIVERY_EVENT
+                       		};
+	struct sctp_event event;
+	memset(&event, 0, sizeof(event));
+	event.se_assoc_id = SCTP_ALL_ASSOC;
+	event.se_on = 1;
+	for (auto ev_type : event_types) {
+		event.se_type = ev_type;
+		if (usrsctp_setsockopt(serv_sock_, IPPROTO_SCTP, SCTP_EVENT, &event, sizeof(event)) < 0) {
+			ERROR("usrsctp_setsockopt SCTP_EVENT for serv_sock");
+			throw std::runtime_error(std::string("setsockopt SCTP_EVENT: ") + strerror(errno));
+		}
+	}
+
+	usrsctp_set_non_blocking(serv_sock_, 1);
+
 	/* bind SCTP socket */
 	struct sockaddr_in addr;
 	memset((void *)&addr, 0, sizeof(struct sockaddr_in));
@@ -118,11 +143,13 @@ void SCTPServer::init() {
 		throw std::runtime_error(std::string("usrsctp_bind: ") + strerror(errno));
 	}
 
-	/* listen SCTP socket*/
+	/* set listen on server socket*/
 	if (usrsctp_listen(serv_sock_, 1) < 0) {
 		CRITICAL(strerror(errno));
 		throw std::runtime_error(std::string("usrsctp_listen: ") + strerror(errno));
 	}
+
+	usrsctp_set_upcall(serv_sock_, &SCTPServer::handle_serv_upcall, this);
 
 	initialized = true;
 
@@ -133,7 +160,7 @@ void SCTPServer::init() {
 
 void SCTPServer::run() {
 	if (not initialized) throw std::logic_error("Server not initialized.");
-	accept_thr_ = std::thread(&SCTPServer::accept_loop, this);
+	//accept_thr_ = std::thread(&SCTPServer::accept_loop, this);
 }
 
 
@@ -318,6 +345,63 @@ void SCTPServer::drop_client(std::shared_ptr<IClient>& c) {
 
 
 
+void SCTPServer::handle_serv_upcall(struct socket* serv_sock, void* arg, int) {
+	SCTPServer* s = (SCTPServer*) arg; assert(s);
+	/* 
+		log macros depend on local object named cfg_.
+		Getting it here explicitly.
+	*/
+	std::shared_ptr<SCTPServer::Config> cfg_ = s->cfg_;
+
+	/* from here on we can use log macros */
+	TRACE_func_entry();
+
+	int events = usrsctp_get_events(serv_sock);
+
+	if (events & SCTP_EVENT_ERROR) {
+		ERROR("SCTP_EVENT_ERROR on server socket.");
+	}
+
+	if (events & SCTP_EVENT_WRITE) {
+		ERROR("SCTP_EVENT_WRITE on server socket.");
+	}
+
+	if (events & SCTP_EVENT_READ) {
+		struct sockaddr_in remote_addr;
+		socklen_t addr_len = sizeof(struct sockaddr_in);
+		struct socket* conn_sock;
+
+		DEBUG("Accepting new connections...");
+		
+		memset(&remote_addr, 0, sizeof(struct sockaddr_in));
+		if ((conn_sock = s->usrsctp_accept(serv_sock, (struct sockaddr *) &remote_addr, &addr_len)) == NULL) {
+			DEBUG(strerror(errno));
+			throw std::runtime_error(strerror(errno));
+		}
+
+		DEBUG("New connection accepted.");
+
+		{
+			std::lock_guard<std::mutex> lock(s->clients_mutex_);
+
+			auto new_client = cfg_->client_factory(conn_sock, *s);
+			s->clients_.push_back(new_client);
+
+			try {
+				new_client->init();
+				new_client->set_state(Client::SCTP_ACCEPTED);
+			} catch (const std::runtime_error& exc) {
+				ERROR(std::string("Dropping client: ") + exc.what());
+				new_client->set_state(Client::PURGE);
+				s->drop_client(new_client);
+			}
+			
+			INFO("Accepted: " + new_client->to_string());
+		}
+	}
+}
+
+
 /*
 	handle_upcall is called by usrsctp engine on *client* socket event,
 	such as : SCTP_EVENT_ERROR, SCTP_EVENT_WRITE, SCTP_EVENT_READ.
@@ -327,8 +411,7 @@ void SCTPServer::drop_client(std::shared_ptr<IClient>& c) {
 	void* arg : pointer to SCTPServer instance, supplied on new socket init.
 	last int argument: supposed to be upcall_flags, haven't seen it's usage in examples
 */
-void SCTPServer::handle_upcall(struct socket* sock, void* arg, int) {
-	#define BUFFERSIZE (1<<16)
+void SCTPServer::handle_upcall(struct socket* upcall_sock, void* arg, int) {
 
 	SCTPServer* s = (SCTPServer*) arg; assert(s);
 
@@ -340,6 +423,8 @@ void SCTPServer::handle_upcall(struct socket* sock, void* arg, int) {
 	
 	/* from here on we can use log macros */
 	TRACE_func_entry();
+	TRACE("\n");
+	ERROR("handle_upcall");
 
 	auto& clients = s->clients_;
 
@@ -348,7 +433,7 @@ void SCTPServer::handle_upcall(struct socket* sock, void* arg, int) {
 		std::lock_guard<std::mutex> lock(s->clients_mutex_);
 
 		auto it = std::find_if(clients.cbegin(), clients.cend(), [&] (const auto& s_ptr) {
-			return s_ptr->sock == sock;
+			return s_ptr->sock == upcall_sock;
 		});
 
 		if (it != clients.cend()) {
@@ -360,7 +445,19 @@ void SCTPServer::handle_upcall(struct socket* sock, void* arg, int) {
 	}
 	
 
-	int events = usrsctp_get_events(sock);
+	int events = usrsctp_get_events(upcall_sock);
+
+	std::string m { "Socket events: "};
+	if (events & SCTP_EVENT_ERROR) {
+		m += "SCTP_EVENT_ERROR";
+	}
+	if (events & SCTP_EVENT_WRITE) {
+		m += " SCTP_EVENT_WRITE";
+	}
+	if (events & SCTP_EVENT_READ) {
+		m += " SCTP_EVENT_READ";
+	}
+	INFO(m);
 
 	/*
 		In usrsctp user_socket.c SCTP_EVENT_ERROR appears to be one of
@@ -371,25 +468,9 @@ void SCTPServer::handle_upcall(struct socket* sock, void* arg, int) {
 		ERROR("SCTP_EVENT_ERROR: " + c->to_string());
 	}
 
-	/* 
-		Looks like SCTP_EVENT_WRITE fires only once (?).
-		Client socket writable, e.g. client connected.
-	 */
-	if ((events & SCTP_EVENT_WRITE) and c->state < Client::SCTP_CONNECTED) {
-		DEBUG(std::string("SCTP_EVENT_WRITE for: ") + c->to_string());
-		try {
-			c->set_state(Client::SCTP_CONNECTED);
-		} catch (const std::runtime_error& exc) {
-			ERROR(std::string("Dropping client: ") + exc.what());
-			c->set_state(Client::PURGE);
-			s->drop_client(c);
-			return;
-		}
-		INFO("Connected: " + c->to_string());
-	}
-
 	/* client sent data */
-	if (events & SCTP_EVENT_READ and c->state >= Client::SCTP_CONNECTED) {
+	if (events & SCTP_EVENT_READ) {// and c->state >= Client::SCTP_CONNECTED) {
+		DEBUG(std::string("SCTP_EVENT_READ for: ") + c->to_string());
 		struct sctp_recvv_rn rn;
 		memset(&rn, 0, sizeof(struct sctp_recvv_rn));
 
@@ -403,34 +484,93 @@ void SCTPServer::handle_upcall(struct socket* sock, void* arg, int) {
 		socklen_t infolen = sizeof(struct sctp_recvv_rn);
 		//infolen = (socklen_t) sizeof(struct sctp_rcvinfo);
 
-		n = usrsctp_recvv(sock, buf, BUFFERSIZE, (struct sockaddr*) &addr, &from_len, (void *) &rn,
-								&infolen, &infotype, &flags);
-		/* got data */
-		if (n > 0) {
-			if (flags & MSG_NOTIFICATION) {
-				TRACE(std::string("Notification of length ") + std::to_string(n) + std::string(" received.\n"));
-				s->handle_notification((union sctp_notification*) buf, n);
-			} else {
-				try {
-					c->server_.handle_client_data(c, buf, n, addr, rn, infotype, flags);
-				} catch (const std::runtime_error& exc) {
-					log_client_error("handle_client_data", c);
+		while ((n = usrsctp_recvv(upcall_sock, buf, BUFFERSIZE, (struct sockaddr*) &addr, &from_len, (void *) &rn,
+								&infolen, &infotype, &flags)) > 0) {
+			/* got data */
+			if (n > 0) {
+				if (flags & MSG_NOTIFICATION) {
+					TRACE(std::string("Notification of length ") + std::to_string(n) + std::string(" received.\n"));
+					s->handle_notification((union sctp_notification*) buf, n);
+				} else {
+					TRACE(std::string("socket data of length ") + std::to_string(n) + std::string(" received.\n"));
+					try {
+						c->server_.handle_client_data(c, buf, n, addr, rn, infotype, flags);
+					} catch (const std::runtime_error& exc) {
+						log_client_error("handle_client_data", c);
+					}
 				}
+			/* client disconnected */
+			} else if (n == 0) {
+				INFO(c->to_string() + std::string(" disconnected."));
+				c->set_state(Client::PURGE);
+				s->drop_client(c);
+			/* client disconnected */
+			} else { // wtf ?
+				free(buf);
+				log_client_error("usrsctp_recvv", c);
 			}
-		/* client disconnected */
-		} else if (n == 0) {
-			INFO(c->to_string() + std::string(" disconnected."));
-			c->set_state(Client::PURGE);
-			s->drop_client(c);
-		/* client disconnected */
-		} else { // wtf ?
+
+
 			free(buf);
-			log_client_error("usrsctp_recvv", c);
 		}
 
-
-		free(buf);
 	}
+
+
+	if (events & SCTP_EVENT_WRITE) { //and c->state < Client::SCTP_CONNECTED) {
+		DEBUG(std::string("SCTP_EVENT_WRITE for: ") + c->to_string());
+
+		// try {
+		// 	c->set_state(Client::SCTP_CONNECTED);
+		// } catch (const std::runtime_error& exc) {
+		// 	ERROR(std::string("Dropping client: ") + exc.what());
+		// 	c->set_state(Client::PURGE);
+		// 	s->drop_client(c);
+		// 	return;
+		// }
+		// INFO("Connected: " + c->to_string());
+	}
+
+
+
+
+	// /* 
+	// 	Looks like SCTP_EVENT_WRITE fires only once (?).
+	// 	Client socket writable, e.g. client connected.
+	//  */
+	// if ( (events & SCTP_EVENT_WRITE) and not (events & SCTP_EVENT_READ)) {
+
+	// 	WARNING(std::string("SCTP_EVENT_WRITE and not (events & SCTP_EVENT_READ for: ") + c->to_string());
+
+	// 	struct sctp_recvv_rn rn;
+	// 	memset(&rn, 0, sizeof(struct sctp_recvv_rn));
+
+	// 	//struct sctp_rcvinfo rcv_info;
+	// 	ssize_t n;
+	// 	struct sockaddr_in addr;
+	// 	void* buf = calloc(1, BUFFERSIZE);
+	// 	int flags = 0;
+	// 	socklen_t from_len = (socklen_t) sizeof(struct sockaddr_in);
+	// 	unsigned int infotype;
+	// 	socklen_t infolen = sizeof(struct sctp_recvv_rn);
+	// 	//infolen = (socklen_t) sizeof(struct sctp_rcvinfo);
+
+	// 	n = usrsctp_recvv(sock, buf, BUFFERSIZE, (struct sockaddr*) &addr, &from_len, (void *) &rn,
+	// 							&infolen, &infotype, &flags);
+	// 	/* got data */
+	// 	if (n > 0) {
+	// 		if (flags & MSG_NOTIFICATION) {
+	// 			TRACE(std::string("Notification of length ") + std::to_string(n) + std::string(" received.\n"));
+	// 		} else {
+	// 		}
+	// 	/* client disconnected */
+	// 	} else if (n == 0) {
+
+	// 	/* client disconnected */
+	// 	} else { // wtf ?
+	// 		TRACE("n < 0\n");
+	// 	}
+	// }
 
 
 	TRACE_func_left();
@@ -813,6 +953,7 @@ static void handle_peer_address_change_event(struct sctp_paddr_change* spc, cons
 	}
 
 	fprintf(stderr, "Peer address %s is now ", addr);
+
 	switch (spc->spc_state) {
 		case SCTP_ADDR_AVAILABLE:
 			fprintf(stderr, "SCTP_ADDR_AVAILABLE");
@@ -836,7 +977,7 @@ static void handle_peer_address_change_event(struct sctp_paddr_change* spc, cons
 			fprintf(stderr, "UNKNOWN");
 			break;
 	}
-	
+
 	fprintf(stderr, " (error = 0x%08x).\n", spc->spc_error);
 	return;
 }
@@ -854,19 +995,24 @@ static void handle_send_failed_event(struct sctp_send_failed_event* ssfe, const 
 	if (ssfe->ssfe_flags & SCTP_DATA_UNSENT) {
 		fprintf(stderr, "Unsent ");
 	}
+
 	if (ssfe->ssfe_flags & SCTP_DATA_SENT) {
 		fprintf(stderr, "Sent ");
 	}
+
 	if (ssfe->ssfe_flags & ~(SCTP_DATA_SENT | SCTP_DATA_UNSENT)) {
 		fprintf(stderr, "(flags = %x) ", ssfe->ssfe_flags);
 	}
+
 	fprintf(stderr, "message with PPID = %u, SID = %u, flags: 0x%04x due to error = 0x%08x",
 	       ntohl(ssfe->ssfe_info.snd_ppid), ssfe->ssfe_info.snd_sid,
 	       ssfe->ssfe_info.snd_flags, ssfe->ssfe_error);
+
 	n = ssfe->ssfe_length - sizeof(struct sctp_send_failed_event);
 	for (i = 0; i < n; i++) {
 		fprintf(stderr, " 0x%02x", ssfe->ssfe_data[i]);
 	}
+
 	fprintf(stderr, ".\n");
 	return;
 }
@@ -878,6 +1024,7 @@ static void handle_adaptation_indication(struct sctp_adaptation_event* sai, cons
 	*/
 	std::shared_ptr<SCTPServer::Config> cfg_ = s.cfg_;
 	/* from here on we can use log macros */
+
 	char buf[BUFFERSIZE] = { '\0' };
 	snprintf(buf, sizeof buf, "Adaptation indication: %x.\n", sai-> sai_adaptation_ind);
 	DEBUG(buf);
@@ -971,7 +1118,7 @@ static void handle_remote_error_event(struct sctp_remote_error* sre, const SCTPS
 	return;
 }
 
-void SCTPServer::handle_notification(union sctp_notification *notif, size_t n) {
+void SCTPServer::handle_notification(union sctp_notification* notif, size_t n) {
 	TRACE_func_entry();
 
 	if (notif->sn_header.sn_length != (uint32_t) n) {
