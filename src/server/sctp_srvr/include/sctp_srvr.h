@@ -169,7 +169,7 @@ protected:
 private:
 	void accept_loop();
 
-	void handle_notification(union sctp_notification* buf, size_t n);
+	void handle_notification(std::shared_ptr<IClient>&, union sctp_notification*, size_t);
 
 	void handle_client_data(std::shared_ptr<IClient>& c, const void* buffer, ssize_t n,
 		 const struct sockaddr_in& addr, const struct sctp_recvv_rn& rcv_info, unsigned int infotype, int flags);

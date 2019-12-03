@@ -78,7 +78,6 @@ void Client::set_state(Client::State new_state) {
 				ERROR("usrsctp_set_upcall for " + to_string());
 				throw std::runtime_error(strerror(errno));
 			}
-
 		}
 			break;
 		case SCTP_CONNECTED:

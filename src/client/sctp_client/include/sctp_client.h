@@ -91,8 +91,9 @@ public:
 
 	friend std::ostream& operator<<(std::ostream&, const SCTPClient&);
 
-private:
 	std::shared_ptr<Config> cfg_;
+
+private:
 
 	SSL_h ssl_obj { SSL_h::CLIENT };
 
@@ -121,7 +122,18 @@ private:
 
 	void handle_server_data(void* buffer, ssize_t n, const struct sockaddr_in& addr,
 		const struct sctp_recvv_rn& rcv_info, unsigned int infotype, int flags);
-	
+
+	void handle_notification(union sctp_notification* notif, size_t n);
+	void handle_association_change_event(struct sctp_assoc_change* sac);
+	void handle_remote_error_event(struct sctp_remote_error* sre);
+	void handle_stream_change_event(struct sctp_stream_change_event* strchg);
+	void handle_stream_reset_event(struct sctp_stream_reset_event* strrst);
+	void handle_shutdown_event(struct sctp_shutdown_event*);
+	void handle_adaptation_indication(struct sctp_adaptation_event* sai);
+	void handle_send_failed_event(struct sctp_send_failed_event* ssfe);
+	void handle_peer_address_change_event(struct sctp_paddr_change* spc);
+
+
 	void set_state(SCTPClient::State new_state);
 
 	void udp_loop();
