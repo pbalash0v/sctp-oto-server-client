@@ -18,7 +18,8 @@
 std::atomic_bool running { true };
 
 //
-class BrokenSCTPServer_usrsctp_socket : public SCTPServer {
+class BrokenSCTPServer_usrsctp_socket : public SCTPServer
+{
 public:
 	BrokenSCTPServer_usrsctp_socket(std::shared_ptr<SCTPServer::Config> ptr) 
 	: SCTPServer(ptr) {};
@@ -28,44 +29,51 @@ protected:
                int (*)(struct socket* sock, union sctp_sockstore addr, void *data,
                                  size_t datalen, struct sctp_rcvinfo, int flags, void *ulp_info),
                int (*)(struct socket *sock, uint32_t sb_free),
-               uint32_t , void*) override {
+               uint32_t , void*) override
+	{
 		return NULL;
 	};
 };
 
 //
-class BrokenSCTPServer_usrsctp_bind : public SCTPServer {
+class BrokenSCTPServer_usrsctp_bind : public SCTPServer
+{
 public:
 	BrokenSCTPServer_usrsctp_bind(std::shared_ptr<SCTPServer::Config> ptr) 
 	: SCTPServer(ptr) {};
 
 protected:
-	int usrsctp_bind(struct socket*, struct sockaddr*, socklen_t) override {
+	int usrsctp_bind(struct socket*, struct sockaddr*, socklen_t) override
+	{
 		std::cerr << "in usrsctp_bind override" << std::endl;
 		return -1;
 	};
 };
 
 //
-class BrokenSCTPServer_usrsctp_listen : public SCTPServer {
+class BrokenSCTPServer_usrsctp_listen : public SCTPServer
+{
 public:
 	BrokenSCTPServer_usrsctp_listen(std::shared_ptr<SCTPServer::Config> ptr) 
 	: SCTPServer(ptr) {};
 
 protected:
-	int usrsctp_listen(struct socket*, int) override {
+	int usrsctp_listen(struct socket*, int) override
+	{
 		return -1;
 	};
 };
 
 //
-class BrokenSCTPServer_bad_SSL_fname : public SCTPServer {
+class BrokenSCTPServer_bad_SSL_fname : public SCTPServer
+{
 public:
 	BrokenSCTPServer_bad_SSL_fname(std::shared_ptr<SCTPServer::Config> ptr) 
 	: SCTPServer(ptr) {};
 };
 
-std::shared_ptr<SCTPServer::Config> get_cfg() {
+std::shared_ptr<SCTPServer::Config> get_cfg()
+{
 	auto serv_cfg = std::make_shared<SCTPServer::Config>();
 	serv_cfg->cert_filename = "../src/certs/server-cert.pem";
 	serv_cfg->key_filename = "../src/certs/server-key.pem";
@@ -74,7 +82,8 @@ std::shared_ptr<SCTPServer::Config> get_cfg() {
 }
 
 
-int main(int, char const**) {
+int main(int, char const**)
+{
 	std::cerr << "***BrokenSCTPServer_bad_SSL_fname cert_filename" << std::endl;
 	{
 		BrokenSCTPServer_bad_SSL_fname server { get_cfg() };
@@ -120,7 +129,7 @@ int main(int, char const**) {
 		}
 	}
 
-	std::cerr << "BrokenSCTPServer_usrsctp_bind" << std::endl;
+	std::cerr << "***BrokenSCTPServer_usrsctp_bind" << std::endl;
 	{
 		BrokenSCTPServer_usrsctp_listen server { get_cfg() };
 

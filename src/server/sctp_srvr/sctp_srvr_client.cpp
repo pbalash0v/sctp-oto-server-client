@@ -28,6 +28,11 @@ void Client::init()
 	SSL_set_bio(ssl, input_bio, output_bio);
 
 	SSL_set_accept_state(ssl);
+
+	void* buf = calloc(BUFFERSIZE, sizeof(char));
+	if (not buf) throw std::runtime_error("Calloc failed.");
+
+	buff = std::move(std::unique_ptr<void, decltype(&std::free)> (buf, std::free));
 }
 
 

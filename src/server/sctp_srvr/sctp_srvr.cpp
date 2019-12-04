@@ -202,17 +202,11 @@ void SCTPServer::broadcast(const void* data, size_t len)
 	TRACE_func_entry();
 
 	std::lock_guard<std::mutex> lock(clients_mutex_);
-	for (auto c : clients_) {
+	for (auto& c : clients_) {
 		send(c, data, len);
 	}
 
 	TRACE_func_left();
-}
-
-
-void SCTPServer::broadcast(const std::string& message)
-{
-	broadcast(message.c_str(), message.size());
 }
 
 
@@ -222,13 +216,6 @@ void SCTPServer::send(std::shared_ptr<IClient>& c, const void* data, size_t len)
 		send_raw(c, data, len);
 	}
 }
-
-
-void SCTPServer::send(std::shared_ptr<IClient>& c, const std::string& message)
-{
-	send(c, message.c_str(), message.size());
-}
-
 
 /*
 	Private. Accounts for client state.
@@ -347,49 +334,58 @@ void SCTPServer::handle_serv_upcall(struct socket* serv_sock, void* arg, int)
 */
 void SCTPServer::handle_upcall(struct socket* upcall_sock, void* arg, int)
 {
-	SCTPServer* s = (SCTPServer*) arg; assert(s);
-
+	assert(arg);
+	SCTPServer* s = (SCTPServer*) arg; 
 	/* 
 		log macros depend on local object named cfg_.
 		Getting it here explicitly.
 	*/
 	std::shared_ptr<SCTPServer::Config> cfg_ = s->cfg_;
-	
 	/* from here on we can use log macros */
+
 	TRACE_func_entry();
-
-	auto& clients = s->clients_;
-
-	std::shared_ptr<IClient> c;
-	{
-		std::lock_guard<std::mutex> lock(s->clients_mutex_);
-
-		auto it = std::find_if(clients.cbegin(), clients.cend(), [&] (const auto& s_ptr) {
-			return s_ptr->sock == upcall_sock;
-		});
-
-		if (it != clients.cend()) {
-			c = *it;
-		} else {
-			ERROR("handle_upcall: client socket not found ?");
-			return;
-		}
-	}
-	
 
 	int events = usrsctp_get_events(upcall_sock);
 
-	std::string m { "Socket events: "};
-	if (events & SCTP_EVENT_ERROR) {
-		m += "SCTP_EVENT_ERROR";
+	std::shared_ptr<IClient> client;
+	try {
+		client = ([&]
+		{
+			auto& clients = s->clients_;
+
+			{
+				std::lock_guard<std::mutex> lock(s->clients_mutex_);
+
+				auto it = std::find_if(clients.cbegin(), clients.cend(), [&] (const auto& s_ptr) {
+					return s_ptr->sock == upcall_sock;
+				});
+
+				if (it != clients.cend()) {
+					 return *it;
+				} else {
+					throw std::runtime_error("client socket not found");
+				}
+			}
+		})();
+	} catch (const std::runtime_error& exc) {
+		ERROR(exc.what());
+		return;
 	}
-	if (events & SCTP_EVENT_WRITE) {
-		m += " SCTP_EVENT_WRITE";
-	}
-	if (events & SCTP_EVENT_READ) {
-		m += " SCTP_EVENT_READ";
-	}
-	TRACE(m);
+
+	auto log_message = ([&] {
+		std::string m { "Socket events: "};
+		if (events & SCTP_EVENT_ERROR) {
+			m += "SCTP_EVENT_ERROR";
+		}
+		if (events & SCTP_EVENT_WRITE) {
+			m += " SCTP_EVENT_WRITE";
+		}
+		if (events & SCTP_EVENT_READ) {
+			m += " SCTP_EVENT_READ";
+		}
+		return m;
+	})();
+	TRACE(log_message);
 
 	/*
 		In usrsctp user_socket.c SCTP_EVENT_ERROR appears to be one of
@@ -397,12 +393,12 @@ void SCTPServer::handle_upcall(struct socket* upcall_sock, void* arg, int)
 		No idea what does it mean.
 	*/
 	if (events & SCTP_EVENT_ERROR) {
-		ERROR("SCTP_EVENT_ERROR: " + c->to_string());
+		ERROR("SCTP_EVENT_ERROR: " + client->to_string());
 	}
 
 	/* client sent data */
 	if (events & SCTP_EVENT_READ) {
-		TRACE(std::string("SCTP_EVENT_READ for: ") + c->to_string());
+		TRACE(std::string("SCTP_EVENT_READ for: ") + client->to_string());
 
 		struct sctp_recvv_rn rn;
 		memset(&rn, 0, sizeof(struct sctp_recvv_rn));
@@ -410,48 +406,44 @@ void SCTPServer::handle_upcall(struct socket* upcall_sock, void* arg, int)
 		//struct sctp_rcvinfo rcv_info;
 		ssize_t n;
 		struct sockaddr_in addr;
-		void* buf = calloc(1, BUFFERSIZE);
 		int flags = 0;
 		socklen_t from_len = (socklen_t) sizeof(struct sockaddr_in);
 		unsigned int infotype;
 		socklen_t infolen = sizeof(struct sctp_recvv_rn);
 		//infolen = (socklen_t) sizeof(struct sctp_rcvinfo);
 
-		while ((n = usrsctp_recvv(upcall_sock, buf, BUFFERSIZE, (struct sockaddr*) &addr, &from_len, (void *) &rn,
+		while ((n = usrsctp_recvv(upcall_sock, client->buff.get(), BUFFERSIZE, (struct sockaddr*) &addr, &from_len, (void *) &rn,
 								&infolen, &infotype, &flags)) > 0) {
 			/* got data */
 			if (n > 0) {
 				if (flags & MSG_NOTIFICATION) {
 					TRACE(std::string("Notification of length ") + std::to_string(n) + std::string(" received."));
-					s->handle_notification(c, (union sctp_notification*) buf, n);
+					s->handle_notification(client, (union sctp_notification*) client->buff.get(), n);
 				} else {
 					TRACE(std::string("Socket data of length ") + std::to_string(n) + std::string(" received."));
 					try {
-						c->server_.handle_client_data(c, buf, n, addr, rn, infotype, flags);
+						client->server_.handle_client_data(client, client->buff.get(), n, addr, rn, infotype, flags);
 					} catch (const std::runtime_error& exc) {
-						log_client_error("handle_client_data", c);
+						log_client_error("handle_client_data", client);
 					}
 				}
 			/* client disconnected */
 			} else if (n == 0) {
-				ERROR(c->to_string() + std::string(" disconnected."));
-				c->set_state(Client::PURGE);
-				s->drop_client(c);
+				ERROR(client->to_string() + std::string(" disconnected."));
+				client->set_state(Client::PURGE);
+				s->drop_client(client);
 			/* client disconnected */
 			} else { // wtf ?
-				free(buf);
-				log_client_error("usrsctp_recvv", c);
+				log_client_error("usrsctp_recvv", client);
 			}
 
-			memset(buf, 0, BUFFERSIZE);
+			memset(client->buff.get(), 0, BUFFERSIZE);
 		}
-
-		free(buf);
 	}
 
 
 	if (events & SCTP_EVENT_WRITE) {
-		TRACE(std::string("SCTP_EVENT_WRITE for: ") + c->to_string());
+		TRACE(std::string("SCTP_EVENT_WRITE for: ") + client->to_string());
 	}
 
 	TRACE_func_left();
@@ -644,9 +636,12 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 
 				DEBUG(message);
 
+
 				if (cfg_->data_cback_f) {
 					try {
-						cfg_->data_cback_f(c, outbuf);
+						cfg_->data_cback_f(c, std::make_shared<IClient::Data>(outbuf, read));
+					} catch (const std::runtime_error& exc) {
+						ERROR(exc.what());
 					} catch (...) {
 						CRITICAL("data_cback_f");
 					}
@@ -667,7 +662,6 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 /*
 	Functions to handle assoc notifications
 */
-
 static void handle_association_change_event(std::shared_ptr<IClient>& c, struct sctp_assoc_change* sac)
 {
 	/* 
@@ -679,87 +673,83 @@ static void handle_association_change_event(std::shared_ptr<IClient>& c, struct 
 
 	unsigned int i, n;
 
-	/*
-		Preapre debug message for association change
-	*/
-	{
-		std::string message { "Association change " };
+	auto log_message = ([&]
+		{
+			std::string message { "Association change " };
 
-		switch (sac->sac_state) {
-			case SCTP_COMM_UP:
-				message += "SCTP_COMM_UP";
-				break;
-			case SCTP_COMM_LOST:
-				message += "SCTP_COMM_LOST";
-				break;
-			case SCTP_RESTART:
-				message += "SCTP_RESTART";
-				break;
-			case SCTP_SHUTDOWN_COMP:
-				message += "SCTP_SHUTDOWN_COMP";
-				break;
-			case SCTP_CANT_STR_ASSOC:
-				message += "SCTP_CANT_STR_ASSOC";
-				break;
-			default:
-				message += "UNKNOWN";
-				break;
-		}
-
-
-		message += ", streams (in/out) = (";
-		message += std::to_string(sac->sac_inbound_streams);
-		message += "/";
-		message += std::to_string(sac->sac_outbound_streams);
-		message += ")";
-
-
-		n = sac->sac_length - sizeof(struct sctp_assoc_change);
-
-		if (((sac->sac_state == SCTP_COMM_UP) or
-		     (sac->sac_state == SCTP_RESTART)) and (n > 0)) {
-			message += ", supports";
-			for (i = 0; i < n; i++) {
-				switch (sac->sac_info[i]) {
-				case SCTP_ASSOC_SUPPORTS_PR:
-					message += " PR";
+			switch (sac->sac_state) {
+				case SCTP_COMM_UP:
+					message += "SCTP_COMM_UP";
 					break;
-				case SCTP_ASSOC_SUPPORTS_AUTH:
-					message += " AUTH";
+				case SCTP_COMM_LOST:
+					message += "SCTP_COMM_LOST";
 					break;
-				case SCTP_ASSOC_SUPPORTS_ASCONF:
-					message += " ASCONF";
+				case SCTP_RESTART:
+					message += "SCTP_RESTART";
 					break;
-				case SCTP_ASSOC_SUPPORTS_MULTIBUF:
-					message += " MULTIBUF";
+				case SCTP_SHUTDOWN_COMP:
+					message += "SCTP_SHUTDOWN_COMP";
 					break;
-				case SCTP_ASSOC_SUPPORTS_RE_CONFIG:
-					message += " RE-CONFIG";
+				case SCTP_CANT_STR_ASSOC:
+					message += "SCTP_CANT_STR_ASSOC";
 					break;
 				default:
-					message += " UNKNOWN(0x";
-					message += std::to_string(sac->sac_info[i]);
-					message += ")";
+					message += "UNKNOWN";
 					break;
+			}
+
+			message += ", streams (in/out) = (";
+			message += std::to_string(sac->sac_inbound_streams);
+			message += "/";
+			message += std::to_string(sac->sac_outbound_streams);
+			message += ")";
+
+			n = sac->sac_length - sizeof(struct sctp_assoc_change);
+
+			if (((sac->sac_state == SCTP_COMM_UP) or
+			     (sac->sac_state == SCTP_RESTART)) and (n > 0)) {
+				message += ", supports";
+				for (i = 0; i < n; i++) {
+					switch (sac->sac_info[i]) {
+					case SCTP_ASSOC_SUPPORTS_PR:
+						message += " PR";
+						break;
+					case SCTP_ASSOC_SUPPORTS_AUTH:
+						message += " AUTH";
+						break;
+					case SCTP_ASSOC_SUPPORTS_ASCONF:
+						message += " ASCONF";
+						break;
+					case SCTP_ASSOC_SUPPORTS_MULTIBUF:
+						message += " MULTIBUF";
+						break;
+					case SCTP_ASSOC_SUPPORTS_RE_CONFIG:
+						message += " RE-CONFIG";
+						break;
+					default:
+						message += " UNKNOWN(0x";
+						message += std::to_string(sac->sac_info[i]);
+						message += ")";
+						break;
+					}
+				}
+			} else if (((sac->sac_state == SCTP_COMM_LOST) or
+			            (sac->sac_state == SCTP_CANT_STR_ASSOC)) and (n > 0)) {
+				message += ", ABORT =";
+				for (i = 0; i < n; i++) {
+					message += " 0x";
+					message += std::to_string(sac->sac_info[i]);
 				}
 			}
-		} else if (((sac->sac_state == SCTP_COMM_LOST) or
-		            (sac->sac_state == SCTP_CANT_STR_ASSOC)) and (n > 0)) {
-			message += ", ABORT =";
-			for (i = 0; i < n; i++) {
-				message += " 0x";
-				message += std::to_string(sac->sac_info[i]);
-			}
-		}
 
-		message += ".";
+			message += ".";
 
-		DEBUG(message);
-	}
-
+			return message;
+		})();
+	TRACE(log_message);
 
 	/*
-		Real association change handling
+		Association change handling
 	*/
 	switch (sac->sac_state) {
 		case SCTP_COMM_UP:

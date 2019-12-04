@@ -4,7 +4,8 @@ AUTOMAKE_OPTIONS = subdir-objects
 bin_PROGRAMS = server
 server_SOURCES = main.cpp \
 				sctp_srvr/sctp_srvr_client.cpp \
-				sctp_srvr/sctp_srvr.cpp
+				sctp_srvr/sctp_srvr.cpp \
+				sctp_srvr/sctp_srvr_i_client_data.cpp
 
 				
 server_CXXFLAGS = $(AM_CXXFLAGS)

@@ -121,9 +121,10 @@ int main([[maybe_unused]] int argc, char* argv[]) {
 
 	SCTPServer srv { cfg };
 
-	auto cback = [&]([[maybe_unused]] auto client, const auto& s) { 
-		spdlog::info("{}", s);
-		srv.broadcast(s);
+	auto cback = [&]([[maybe_unused]] auto client, const auto& s) {
+		std::string message { static_cast<const char*> (s->data) };
+		spdlog::info("{}", message);
+		srv.broadcast(message.c_str(), message.size());
 	};
 
 	auto debug_cback = [&](auto level, const auto& s) {

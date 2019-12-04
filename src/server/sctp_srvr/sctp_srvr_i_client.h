@@ -1,6 +1,7 @@
 #pragma once
 
 #include <iostream>
+#include <memory>
 
 #include <usrsctp.h>
 
@@ -8,6 +9,8 @@
 
 
 class SCTPServer;
+
+#define BUFFERSIZE (1<<16)
 
 class IClient {
 public:
@@ -20,6 +23,19 @@ public:
 		SSL_SHUTDOWN,
 		PURGE
    };
+
+   struct Data {
+   	Data (const void*, size_t);
+   	
+		Data(const Data& oth) = delete;
+	
+		Data& operator=(const Data& oth) = delete;
+
+		virtual ~Data();
+
+   	void* data { nullptr };
+   	size_t size { 0 };
+	};
 
 	IClient(struct socket* s, SCTPServer& srv)
 	 : sock(s), server_(srv) {};
@@ -35,6 +51,8 @@ public:
 	SCTPServer& server_;
 
 	State state = NONE;
+
+	std::unique_ptr<void, decltype(&std::free)> buff { nullptr, std::free };
 
 	SSL* ssl = nullptr;
 	BIO* output_bio = nullptr;

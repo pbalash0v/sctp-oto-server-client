@@ -17,8 +17,8 @@ constexpr const char* TEST_STRING = "HELLO";
 constexpr const char* START_SIGNAL = "START_SIGNAL";
 
 
-int main(int, char const**) {
-
+int main(int, char const**)
+{
 	/*
 		we need two processes since using 
 		two instanes of usrsctp seems to be impossible
@@ -73,7 +73,7 @@ int main(int, char const**) {
 		serv_cfg->cert_filename = "../src/certs/server-cert.pem";
 		serv_cfg->key_filename = "../src/certs/server-key.pem";
 		serv_cfg->data_cback_f = [&](auto, const auto& s) {
-			assert(s == TEST_STRING);
+			assert(std::string(static_cast<const char*> (s->data)) == TEST_STRING);
 		 	running = false;
 		};
 

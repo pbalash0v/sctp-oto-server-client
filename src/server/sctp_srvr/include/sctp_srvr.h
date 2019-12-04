@@ -48,7 +48,6 @@
 constexpr uint16_t DEFAULT_UDP_ENCAPS_PORT = 9899;
 constexpr uint16_t DEFAULT_SCTP_PORT = 5001;
 
-
 class SCTPServer {
 public:
 
@@ -61,7 +60,8 @@ public:
 		CRITICAL
    };
 
-	using SCTPServer_cback_t = std::function<void(const std::shared_ptr<IClient>, const std::string&)>;
+	//using SCTPServer_cback_t = std::function<void(const std::shared_ptr<IClient>, const std::string&)>;
+	using SCTPServer_cback_t = std::function<void(const std::shared_ptr<IClient>, std::shared_ptr<IClient::Data>)>;
 	using SCTPServer_debug_t = std::function<void(SCTPServer::LogLevel, const std::string&)>;	
 	using SCTPServer_client_factory_t = 
 		std::function<std::shared_ptr<IClient>(struct socket*, SCTPServer&)>;
@@ -110,20 +110,11 @@ public:
 	*/
 	void send(std::shared_ptr<IClient>& c, const void* data, size_t len);
 
-	/*
-		Convenience wrapper.
-	*/
-	void send(std::shared_ptr<IClient>& c, const std::string& message);
 
 	/*
 		Sends message to all clients.
 	*/
 	void broadcast(const void* data, size_t len);
-
-	/*
-		Convenience wrapper.
-	*/
-	void broadcast(const std::string& message);
 
 
 	/* 
@@ -137,7 +128,7 @@ public:
 
 
 	/* 
-		Static object may be used for embedding to dyn library
+		Static object which may be used for embedding to dyn library
 		(having FreeSWITCH module in mind in particular) for RAII on dlopen/dlclose
 		(for future use mainly)
  	*/
@@ -154,7 +145,7 @@ protected:
 	/* 
 		MAYBE_VIRTUAL is a macro.
 		Such function declarations used for unit testing as a "seam" point.
-		In real code scope-resolved to usrsctp lib functions.
+		In real code scope-resolved to calls of usrsctp lib functions.
 	 */
 	MAYBE_VIRTUAL struct socket* usrsctp_socket(int domain, int type, int protocol,
                int (*receive_cb)(struct socket *sock, union sctp_sockstore addr, void *data,
@@ -167,8 +158,6 @@ protected:
 	MAYBE_VIRTUAL struct socket* usrsctp_accept(struct socket*, struct sockaddr*, socklen_t*);
 
 private:
-	void accept_loop();
-
 	void handle_notification(std::shared_ptr<IClient>&, union sctp_notification*, size_t);
 
 	void handle_client_data(std::shared_ptr<IClient>& c, const void* buffer, ssize_t n,
@@ -187,7 +176,7 @@ private:
 
 	std::atomic_bool initialized { false };
 
-	//holds main SSL context etc
+	/* holds main SSL context etc */
 	SSL_h ssl_obj_ { SSL_h::SERVER };
 
 	struct socket* serv_sock_ { nullptr };
