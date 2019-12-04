@@ -13,8 +13,8 @@ Client::Client(struct socket* sctp_sock, SCTPServer& s)
 	: IClient(sctp_sock, s) {};
 
 
-void Client::init()  {
-
+void Client::init()
+{
 	ssl = SSL_new(server_.ssl_obj_.ctx_);
 	assert(ssl);
 
@@ -31,7 +31,8 @@ void Client::init()  {
 }
 
 
-void Client::set_state(Client::State new_state) {
+void Client::set_state(Client::State new_state)
+{
 	/* 
 		log macros depend on local object named cfg_.
 		Getting it here explicitly.
@@ -68,11 +69,6 @@ void Client::set_state(Client::State new_state) {
 					throw std::runtime_error(std::string("setsockopt SCTP_EVENT: ") + strerror(errno));
 				}
 			}
-			
-			// if (usrsctp_set_non_blocking(sock, 1) < 0) {
-			// 	ERROR("usrsctp_set_non_blocking for " + to_string());
-			// 	throw std::runtime_error(strerror(errno));
-			// }
 
 			if (usrsctp_set_upcall(sock, &SCTPServer::handle_upcall, &server_)) {
 				ERROR("usrsctp_set_upcall for " + to_string());
@@ -95,24 +91,30 @@ void Client::set_state(Client::State new_state) {
 }
 
 
-Client::~Client() {
+Client::~Client()
+{
 	if (nullptr != ssl) SSL_free(ssl);
 };
 
 
-std::string Client::to_string() const {
+std::string Client::to_string() const
+{
 	std::ostringstream oss;
 	oss << *this;
 	return oss.str();
 }
 
-std::ostream& operator<<(std::ostream &out, const Client& c) {
+
+std::ostream& operator<<(std::ostream &out, const Client& c)
+{
 	out << std::string("Client: socket: ") << ((const void*) c.sock) << ", ";
 	out << c.state;
 	return out;
 }
 
-std::ostream& operator<<(std::ostream &out, const Client::State s) {
+
+std::ostream& operator<<(std::ostream &out, const Client::State s)
+{
 	std::string state_name;
 
 	switch (s) {

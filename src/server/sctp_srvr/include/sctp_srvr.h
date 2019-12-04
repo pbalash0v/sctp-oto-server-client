@@ -190,7 +190,6 @@ private:
 	//holds main SSL context etc
 	SSL_h ssl_obj_ { SSL_h::SERVER };
 
-	std::thread accept_thr_;
 	struct socket* serv_sock_ { nullptr };
 
 	std::mutex clients_mutex_;

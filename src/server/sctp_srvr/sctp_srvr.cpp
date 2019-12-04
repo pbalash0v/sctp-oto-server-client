@@ -44,21 +44,9 @@ static void log_client_error_and_throw(const char* func, std::shared_ptr<IClient
 }
 
 
-
 std::shared_ptr<SCTPServer> SCTPServer::s_ = std::make_shared<SCTPServer>();
 
 constexpr auto BUFFER_SIZE = 1 << 16;
-
-/* 
-	function wakeup_one is not in any usrsctp lib header 
-	(but also is not static)
-	hence need to explicitly declare it to use 
-	for cancelling stcp_accept blocking call
-*/
-extern "C" {
-	void wakeup_one(void *ident);
-}
-
 
 
 
@@ -78,7 +66,7 @@ SCTPServer::~SCTPServer()
 
 	cleanup();
 
-	DEBUG("before usrsctp_finish loop");
+	TRACE("before usrsctp_finish loop");
 	while (usrsctp_finish() != 0) {
 		std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 	}
@@ -147,14 +135,6 @@ void SCTPServer::init()
 		throw std::runtime_error(std::string("usrsctp_bind: ") + strerror(errno));
 	}
 
-	/* set listen on server socket*/
-	if (usrsctp_listen(serv_sock_, 1) < 0) {
-		CRITICAL(strerror(errno));
-		throw std::runtime_error(std::string("usrsctp_listen: ") + strerror(errno));
-	}
-
-	usrsctp_set_upcall(serv_sock_, &SCTPServer::handle_serv_upcall, this);
-
 	initialized = true;
 
 	TRACE_func_left();
@@ -165,7 +145,14 @@ void SCTPServer::init()
 void SCTPServer::run()
 {
 	if (not initialized) throw std::logic_error("Server not initialized.");
-	//accept_thr_ = std::thread(&SCTPServer::accept_loop, this);
+
+	/* set listen on server socket*/
+	if (usrsctp_listen(serv_sock_, 1) < 0) {
+		CRITICAL(strerror(errno));
+		throw std::runtime_error(std::string("usrsctp_listen: ") + strerror(errno));
+	}
+
+	usrsctp_set_upcall(serv_sock_, &SCTPServer::handle_serv_upcall, this);
 }
 
 
@@ -173,39 +160,28 @@ void SCTPServer::cleanup()
 {
 	TRACE_func_entry();
 
-	std::lock_guard<std::mutex> lock(clients_mutex_);
+	{
+		std::lock_guard<std::mutex> lock(clients_mutex_);
 
-	if (serv_sock_) {
-		TRACE("before serv_sock_ usrsctp_shutdown");
-		usrsctp_shutdown(serv_sock_, SHUT_RDWR);
+		if (serv_sock_) {
+			TRACE("before serv_sock_ usrsctp_shutdown");
+			usrsctp_shutdown(serv_sock_, SHUT_RDWR);
+		}
+
+		if (serv_sock_) {
+			TRACE("server socket usrsctp_close");
+			usrsctp_close(serv_sock_);
+			TRACE("server socket closed");
+		}
+
+		/* shutdown and cleanup clients */
+		TRACE("before clients shutdown");
+		for (auto& c : clients_) {
+			c->set_state(Client::PURGE);
+		}
+		clients_.clear();
+		TRACE("clients shutdown done");
 	}
-
-	/* signal on usrsctp lib's accept thread cond variable
-		no idea how to unblock blocking accept in any other way */
-	wakeup_one(NULL);
-	TRACE("usrsctp_shutdown done");
-
-	/* Stop and clean up on accepting thread */
-	if (accept_thr_.joinable()) {
-		TRACE("before accept_thr_.join()");
-		accept_thr_.join();
-		TRACE("accept_thr_ joined");
-	}
-
-	if (serv_sock_) {
-		TRACE("server socket usrsctp_close");
-		usrsctp_close(serv_sock_);
-		TRACE("server socket closed");
-	}
-
-	/* shutdown and cleanup clients */
-	TRACE("before clients shutdown");
-	for (auto c : clients_) {
-		c->set_state(Client::PURGE);
-	}
-	clients_.clear();
-	TRACE("clients shutdown done");
-
 
 	TRACE_func_left();
 }
@@ -295,67 +271,12 @@ ssize_t SCTPServer::send_raw(std::shared_ptr<IClient>& c, const void* buf, size_
 }
 
 
-/*
-	Accepting new connections with blocking sctp accept.
-	Runs in own thread.
-*/
-void SCTPServer::accept_loop()
-{
-	TRACE_func_entry();
-
-	struct sockaddr_in remote_addr;
-	socklen_t addr_len = sizeof(struct sockaddr_in);
-	struct socket* conn_sock;
-
-	try {
-		while (true) {
-			DEBUG("Accepting new connections...");
-			
-			memset(&remote_addr, 0, sizeof(struct sockaddr_in));
-			if ((conn_sock = usrsctp_accept(serv_sock_, (struct sockaddr *) &remote_addr, &addr_len)) == NULL) {
-				DEBUG(strerror(errno));
-				throw std::runtime_error(strerror(errno));
-			}
-
-			DEBUG("New connection accepted.");
-
-			{
-				std::lock_guard<std::mutex> lock(clients_mutex_);
-
-				clients_.push_back(cfg_->client_factory(conn_sock, *this));
-
-				try {
-					clients_.back()->init();
-					clients_.back()->set_state(Client::SCTP_ACCEPTED);
-				} catch (const std::runtime_error& exc) {
-					ERROR(std::string("Dropping client: ") + exc.what());
-					clients_.back()->set_state(Client::PURGE);
-					drop_client(clients_.back());
-					continue;
-				}
-
-				INFO("Accepted: " + clients_.back()->to_string());
-			}
-		}
-
-	/* at this point accept loop has ended
-		but there still could be client to serve */
-	} catch (const std::runtime_error& exc) {
-		CRITICAL(std::string("Not accepting new clients anymore: ") + exc.what());
-	}
-
-	TRACE_func_left();
-}
-
-
 void SCTPServer::drop_client(std::shared_ptr<IClient>& c)
 {
 	std::lock_guard<std::mutex> lock(clients_mutex_);
 	clients_.erase(std::remove_if(clients_.begin(), clients_.end(),
 	 [&] (auto s_ptr) { return s_ptr->sock == c->sock;}), clients_.end());
 }
-
-
 
 
 void SCTPServer::handle_serv_upcall(struct socket* serv_sock, void* arg, int)
@@ -545,6 +466,8 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 {
 	TRACE(std::string("handle_client_data of ") + c->to_string());
 
+	char outbuf[BUFFER_SIZE] = {0};
+
 	switch (c->state) {
 
 		case Client::SCTP_CONNECTED:
@@ -561,7 +484,6 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 					log_client_error_and_throw("SSL_do_handshake", c);
 				}
 
-				char outbuf[BUFFER_SIZE] = {0};
 				int read = BIO_read(c->output_bio, outbuf, sizeof outbuf);
 				if (SSL_ERROR_NONE != SSL_get_error(c->ssl, read)) {
 					log_client_error_and_throw("BIO_read", c);
@@ -586,7 +508,6 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 		case Client::SSL_HANDSHAKING:
 			{
 				TRACE("Client::SSL_HANDSHAKING");
-				char outbuf[BUFFER_SIZE] = {0};
 
 				int written = BIO_write(c->input_bio, buffer, n);
 				if (SSL_ERROR_NONE != SSL_get_error(c->ssl, written)) {
@@ -676,7 +597,7 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 		case Client::SSL_CONNECTED:
 			{
 				TRACE("Client::SSL_CONNECTED");
-				DEBUG(std::string("n: ") + std::to_string(n));
+				TRACE(std::string("n: ") + std::to_string(n));
 
 				char name[INET_ADDRSTRLEN] = {'\0'};
 
@@ -685,7 +606,6 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 					log_client_error_and_throw("BIO_write", c);
 				}
 
-				char outbuf[BUFFER_SIZE] = {'\0'};
 				int read = SSL_read(c->ssl, outbuf, sizeof outbuf);
 				if (SSL_ERROR_NONE != SSL_get_error(c->ssl, read)) {
 					log_client_error_and_throw("SSL_read", c);
@@ -848,7 +768,7 @@ static void handle_association_change_event(std::shared_ptr<IClient>& c, struct 
 			} catch (const std::runtime_error& exc) {
 				ERROR(std::string("Dropping client: ") + exc.what());
 				c->set_state(Client::PURGE);
-				//(c->server_).drop_client(c);
+				//(c->server_).drop_client(c); //TODO: should it also be done here ???
 				return;
 			}
 			INFO("Connected: " + c->to_string());		

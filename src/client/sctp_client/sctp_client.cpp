@@ -75,7 +75,6 @@ SCTPClient::~SCTPClient()
 {
 	TRACE_func_entry();
 
-
 	TRACE("About to join udp thread");
 	if (udp_thr.joinable()) udp_thr.join();
 	TRACE("udp thread joined");
@@ -118,6 +117,7 @@ void SCTPClient::handle_upcall(struct socket* sock, void* arg, [[maybe_unused]] 
 {
 	SCTPClient* c = (SCTPClient *) arg;
 	std::shared_ptr<SCTPClient::Config> cfg_ = c->cfg_;
+	/* from here on we can use log macros */
 
 	TRACE_func_entry();
 
@@ -172,9 +172,9 @@ void SCTPClient::handle_upcall(struct socket* sock, void* arg, [[maybe_unused]] 
 
 		if (n == 0) {
 			TRACE("Socket shutdown");
-			usrsctp_deregister_address(c); // ?
-			usrsctp_close(c->sock);
-			shutdown(c->udp_sock_fd, SHUT_RDWR);			
+			//usrsctp_deregister_address(c); // ?
+			//usrsctp_close(c->sock);
+			//shutdown(c->udp_sock_fd, SHUT_RDWR);			
 		}
 
 		if (n < 0) {
@@ -448,8 +448,11 @@ void SCTPClient::stop()
 	TRACE_func_entry();
 
 	TRACE("About to usrsctp_shutdown");
-	/* async, should wait for ACK and handle rest in upcall */
-	usrsctp_shutdown(sock, SHUT_RDWR);
+	/* 
+		(we are not going to send anythin more, so SHUT_WR)
+		Call is async, should handle assoc notification in upcall.
+	 */
+	usrsctp_shutdown(sock, SHUT_WR);
 
 	if (state == SCTP_CONNECTING) shutdown(udp_sock_fd, SHUT_RDWR);			
 
@@ -657,8 +660,6 @@ void SCTPClient::handle_server_data(void* buffer, ssize_t n, const struct sockad
 
 void SCTPClient::handle_association_change_event(struct sctp_assoc_change* sac)
 {
-	TRACE("Association change event.");
-
 	unsigned int i, n;
 
 	/*
@@ -782,8 +783,10 @@ void SCTPClient::handle_association_change_event(struct sctp_assoc_change* sac)
 		case SCTP_RESTART:
 			break;
 		case SCTP_SHUTDOWN_COMP:
+
 			usrsctp_deregister_address(this); // ?
 			usrsctp_close(sock);
+			 /* this should wake recv in udp thread */
 			shutdown(udp_sock_fd, SHUT_RDWR);
 			break;
 		case SCTP_CANT_STR_ASSOC:
