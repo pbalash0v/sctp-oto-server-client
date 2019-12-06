@@ -1,8 +1,4 @@
-#include <string>
-#include <thread>
 #include <memory>
-
-#include <cstring>
 #include <cassert>
 
 #include "sctp_srvr.h"
@@ -24,7 +20,7 @@ int main(int, char const**)
 		s.run();
 	}
 
-	/* two simultaneous servers, shoudln't run */
+	/* two simultaneous servers, second shoudln fail */
 	{
 		SCTPServer s1 { serv_cfg };
 		SCTPServer s2 { serv_cfg };

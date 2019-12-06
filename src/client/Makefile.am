@@ -5,6 +5,10 @@ bin_PROGRAMS = client
 
 client_SOURCES = main.cpp \
 				sctp_client/sctp_client.cpp \
+				sctp_client/include/sctp_client.h \
+				tui/include/i_tui.h \
+				tui/include/tui.h \
+				tui/include/simple_tui.h \
 				tui/tui.cpp \
 				tui/simple_tui.cpp
 				

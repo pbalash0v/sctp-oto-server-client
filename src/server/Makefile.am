@@ -5,8 +5,11 @@ bin_PROGRAMS = server
 server_SOURCES = main.cpp \
 				sctp_srvr/sctp_srvr_client.cpp \
 				sctp_srvr/sctp_srvr.cpp \
-				sctp_srvr/sctp_srvr_i_client_data.cpp
-
+				sctp_srvr/sctp_srvr_i_client_data.cpp \
+				sctp_srvr/include/sctp_srvr.h \
+				sctp_srvr/sctp_srvr_i_client.h \
+				sctp_srvr/sctp_srvr_client.h
+								
 				
 server_CXXFLAGS = $(AM_CXXFLAGS)
 
