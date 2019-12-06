@@ -21,12 +21,13 @@ public:
       SSL_HANDSHAKING,
       SSL_CONNECTED,
 		SSL_SHUTDOWN,
+		SCTP_SRV_INITIATED_SHUTDOWN,
 		PURGE
    };
 
    struct Data {
    	Data (const void*, size_t);
-   	
+
 		Data(const Data& oth) = delete;
 	
 		Data& operator=(const Data& oth) = delete;

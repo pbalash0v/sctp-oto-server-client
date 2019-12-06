@@ -783,7 +783,6 @@ void SCTPClient::handle_association_change_event(struct sctp_assoc_change* sac)
 		case SCTP_RESTART:
 			break;
 		case SCTP_SHUTDOWN_COMP:
-
 			usrsctp_deregister_address(this); // ?
 			usrsctp_close(sock);
 			 /* this should wake recv in udp thread */
@@ -795,6 +794,15 @@ void SCTPClient::handle_association_change_event(struct sctp_assoc_change* sac)
 			break;
 	}
 
+	return;
+}
+
+void SCTPClient::handle_shutdown_event(struct sctp_shutdown_event*)
+{
+	char buf[BUFFERSIZE] = { '\0' };
+	snprintf(buf, sizeof buf, "Shutdown event.\n");
+	DEBUG(buf);
+	/* XXX: notify all channels. */
 	return;
 }
 
@@ -896,14 +904,7 @@ void SCTPClient::handle_adaptation_indication(struct sctp_adaptation_event* sai)
 	return;
 }
 
-void SCTPClient::handle_shutdown_event(struct sctp_shutdown_event*)
-{
-	char buf[BUFFERSIZE] = { '\0' };
-	snprintf(buf, sizeof buf, "Shutdown event.\n");
-	DEBUG(buf);
-	/* XXX: notify all channels. */
-	return;
-}
+
 
 void SCTPClient::handle_stream_reset_event(struct sctp_stream_reset_event* strrst)
 {

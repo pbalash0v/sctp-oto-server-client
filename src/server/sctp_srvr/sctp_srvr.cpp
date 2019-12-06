@@ -59,16 +59,82 @@ SCTPServer::SCTPServer(std::shared_ptr<SCTPServer::Config> ptr) : cfg_(ptr)
 	};
 }
 
-
+/*
+	From usrsctp lib author's github on calling usrsctp_close() after usrsctp_shutdown(SHUT_RDWR):
+	"...only calling usrsctp_close() has the same effect. However, you won't be able to receive any notifications,
+	since you have closed the socket. This is normal socket API behaviour."
+*/
 SCTPServer::~SCTPServer()
 {
 	TRACE_func_entry();
 
 	cleanup();
 
-	TRACE("before usrsctp_finish loop");
-	while (usrsctp_finish() != 0) {
-		std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+	bool needs_force_close = false;
+
+	TRACE("before first usrsctp_finish loop");
+	for (size_t i = 0; i < 3; i++) {
+		if (usrsctp_finish() != 0) {
+			needs_force_close = true;
+			TRACE("waiting to retry usrsctp_finish()...");
+			std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+		} else {
+			needs_force_close = false;
+			break;
+		}
+	}
+	TRACE("after first usrsctp_finish loop");
+
+	if (needs_force_close) {
+		TRACE("before force close of clients");
+		for (auto& c : clients_) {
+			c->set_state(Client::PURGE);
+		}
+		TRACE("force close of clients done");
+
+		TRACE("before final usrsctp_finish loop");
+		if (usrsctp_finish() != 0) {
+			ERROR(std::string("usrsctp_finish failed: ") + strerror(errno));
+		}
+		TRACE("before usrsctp_finish loop");
+	}
+
+	TRACE_func_left();
+}
+
+/*
+	(1) This closes accepting server socket, which should always succeed immediately (?).
+	(2) This also sets SCTP_SRV_INITIATED_SHUTDOWN state for every connected client,
+	which leads to SCTP SHUTDOWN being sent to all clients.
+	In perfect scenario every connected client replys with SHUTDOWN_ACK
+	which leads to notification SCTP_ASSOC_CHANGE SCTP_SHUTDOWN_COMP in a handle_client_upcall
+	and finally usrsctp_recvv resulting in 0, where it is removed from clients_ vec.
+*/
+void SCTPServer::cleanup()
+{
+	TRACE_func_entry();
+
+	{
+		std::lock_guard<std::mutex> lock(clients_mutex_);
+
+		if (serv_sock_) {
+			TRACE("before serv_sock_ usrsctp_shutdown");
+			usrsctp_shutdown(serv_sock_, SHUT_RDWR);
+			TRACE("serv_sock_ usrsctp_shutdown complete");
+		}
+
+		if (serv_sock_) {
+			TRACE("server socket usrsctp_close");
+			usrsctp_close(serv_sock_);
+			TRACE("server socket closed");
+		}
+
+		/* shutdown and cleanup clients */
+		TRACE("before clients shutdown");
+		for (auto& c : clients_) {
+			c->set_state(Client::SCTP_SRV_INITIATED_SHUTDOWN);
+		}
+		TRACE("clients shutdown done");
 	}
 
 	TRACE_func_left();
@@ -84,22 +150,59 @@ void SCTPServer::init()
 	usrsctp_init(cfg_->udp_encaps_port,
 		/* should udp socket be handled by usrsctp */ NULL, /* SCTP lib's debug cback */ NULL);
 
-	usrsctp_sysctl_set_sctp_blackhole(2); // TODO: ?
-	usrsctp_sysctl_set_sctp_no_csum_on_loopback(0); // TODO: ?
+	/*
+		Do not send ABORTs in response to INITs (1).
+		Do not send ABORTs for received Out of the Blue packets (2).
+	*/
+	usrsctp_sysctl_set_sctp_blackhole(2);
 
+	// TODO: ?
+	usrsctp_sysctl_set_sctp_no_csum_on_loopback(0);
+
+	/*
+     // Disable the Explicit Congestion Notification extension
+     usrsctp_sysctl_set_sctp_ecn_enable(0);
+
+     // Disable the Address Reconfiguration extension
+     usrsctp_sysctl_set_sctp_asconf_enable(0);
+
+     // Disable the Authentication extension
+     usrsctp_sysctl_set_sctp_auth_enable(0);
+
+     // Disable the NR-SACK extension (not standardised)
+     usrsctp_sysctl_set_sctp_nrsack_enable(0);
+
+     // Disable the Packet Drop Report extension (not standardised)
+     usrsctp_sysctl_set_sctp_pktdrop_enable(0);
+
+     // Enable the Partial Reliability extension
+     usrsctp_sysctl_set_sctp_pr_enable(1);
+
+     // Set amount of incoming streams
+     usrsctp_sysctl_set_sctp_nr_incoming_streams_default((uint32_t) n_channels);
+
+     // Set amount of outgoing streams
+     usrsctp_sysctl_set_sctp_nr_outgoing_streams_default((uint32_t) n_channels);
+
+     // Enable interleaving messages for different streams (incoming)
+     // See: https://tools.ietf.org/html/rfc6458#section-8.1.20
+     usrsctp_sysctl_set_sctp_default_frag_interleave(2);
+	*/
+
+	/* create SCTP socket */
 	int (*receive_cb)(struct socket*, union sctp_sockstore, 
 		void*, size_t, struct sctp_rcvinfo, int, void*) = NULL;
 	int (*send_cb)(struct socket *sock, uint32_t sb_free)	= NULL;
 	uint32_t sb_threshold = 0;
 	void* recv_cback_data = NULL;
 
-	/* create SCTP socket */
 	if ((serv_sock_ = usrsctp_socket(PF_INET, SOCK_STREAM, IPPROTO_SCTP,
-		 receive_cb = NULL, send_cb = NULL, sb_threshold, recv_cback_data = NULL)) == NULL) {
+		 receive_cb, send_cb, sb_threshold, recv_cback_data)) == NULL) {
 		CRITICAL(strerror(errno));
 		throw std::runtime_error(std::string("usrsctp_socket: ") + strerror(errno));
 	}
 
+	/* subscribe to sctp stack events */
 	uint16_t event_types[] = {	SCTP_ASSOC_CHANGE,
                        			SCTP_PEER_ADDR_CHANGE,
                        			SCTP_REMOTE_ERROR,
@@ -146,45 +249,17 @@ void SCTPServer::run()
 {
 	if (not initialized) throw std::logic_error("Server not initialized.");
 
-	/* set listen on server socket*/
+	/* set listen on server socket */
 	if (usrsctp_listen(serv_sock_, 1) < 0) {
 		CRITICAL(strerror(errno));
 		throw std::runtime_error(std::string("usrsctp_listen: ") + strerror(errno));
 	}
 
-	usrsctp_set_upcall(serv_sock_, &SCTPServer::handle_serv_upcall, this);
+	usrsctp_set_upcall(serv_sock_, &SCTPServer::handle_server_upcall, this);
 }
 
 
-void SCTPServer::cleanup()
-{
-	TRACE_func_entry();
 
-	{
-		std::lock_guard<std::mutex> lock(clients_mutex_);
-
-		if (serv_sock_) {
-			TRACE("before serv_sock_ usrsctp_shutdown");
-			usrsctp_shutdown(serv_sock_, SHUT_RDWR);
-		}
-
-		if (serv_sock_) {
-			TRACE("server socket usrsctp_close");
-			usrsctp_close(serv_sock_);
-			TRACE("server socket closed");
-		}
-
-		/* shutdown and cleanup clients */
-		TRACE("before clients shutdown");
-		for (auto& c : clients_) {
-			c->set_state(Client::PURGE);
-		}
-		clients_.clear();
-		TRACE("clients shutdown done");
-	}
-
-	TRACE_func_left();
-}
 
 
 void SCTPServer::stop()
@@ -260,13 +335,18 @@ ssize_t SCTPServer::send_raw(std::shared_ptr<IClient>& c, const void* buf, size_
 
 void SCTPServer::drop_client(std::shared_ptr<IClient>& c)
 {
+	TRACE_func_entry();
+
 	std::lock_guard<std::mutex> lock(clients_mutex_);
 	clients_.erase(std::remove_if(clients_.begin(), clients_.end(),
 	 [&] (auto s_ptr) { return s_ptr->sock == c->sock;}), clients_.end());
+
+	TRACE("Number of clients: " + std::to_string(clients_.size()));
+	TRACE_func_left();
 }
 
 
-void SCTPServer::handle_serv_upcall(struct socket* serv_sock, void* arg, int)
+void SCTPServer::handle_server_upcall(struct socket* serv_sock, void* arg, int)
 {
 	SCTPServer* s = (SCTPServer*) arg; assert(s);
 	/* 
@@ -279,13 +359,6 @@ void SCTPServer::handle_serv_upcall(struct socket* serv_sock, void* arg, int)
 	TRACE_func_entry();
 
 	int events = usrsctp_get_events(serv_sock);
-
-	if (events & SCTP_EVENT_ERROR) {
-		ERROR("SCTP_EVENT_ERROR on server socket.");
-	}
-	if (events & SCTP_EVENT_WRITE) {
-		ERROR("SCTP_EVENT_WRITE on server socket.");
-	}
 
 	if (events & SCTP_EVENT_READ) {
 		struct sockaddr_in remote_addr;
@@ -320,19 +393,28 @@ void SCTPServer::handle_serv_upcall(struct socket* serv_sock, void* arg, int)
 			INFO("Accepted: " + new_client->to_string());
 		}
 	}
+
+	if (events & SCTP_EVENT_ERROR) {
+		ERROR("SCTP_EVENT_ERROR on server socket.");
+	}
+
+	if (events & SCTP_EVENT_WRITE) {
+		ERROR("SCTP_EVENT_WRITE on server socket.");
+	}
+
 }
 
 
 /*
-	handle_upcall is called by usrsctp engine on *client* socket event,
+	handle_client_upcall is called by usrsctp engine on *client* socket event,
 	such as : SCTP_EVENT_ERROR, SCTP_EVENT_WRITE, SCTP_EVENT_READ.
-	handle_upcall is registered with any new client socket in accept thread
+	handle_client_upcall is registered with any new client socket in accept thread
 
 	struct socket* sock: client socket.
 	void* arg : pointer to SCTPServer instance, supplied on new socket init.
 	last int argument: supposed to be upcall_flags, haven't seen it's usage in examples
 */
-void SCTPServer::handle_upcall(struct socket* upcall_sock, void* arg, int)
+void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int)
 {
 	assert(arg);
 	SCTPServer* s = (SCTPServer*) arg; 
@@ -412,38 +494,51 @@ void SCTPServer::handle_upcall(struct socket* upcall_sock, void* arg, int)
 		socklen_t infolen = sizeof(struct sctp_recvv_rn);
 		//infolen = (socklen_t) sizeof(struct sctp_rcvinfo);
 
+		/* got data or socket api notification */
 		while ((n = usrsctp_recvv(upcall_sock, client->buff.get(), BUFFERSIZE, (struct sockaddr*) &addr, &from_len, (void *) &rn,
 								&infolen, &infotype, &flags)) > 0) {
-			/* got data */
-			if (n > 0) {
-				if (flags & MSG_NOTIFICATION) {
-					TRACE(std::string("Notification of length ") + std::to_string(n) + std::string(" received."));
-					s->handle_notification(client, (union sctp_notification*) client->buff.get(), n);
-				} else {
-					TRACE(std::string("Socket data of length ") + std::to_string(n) + std::string(" received."));
-					try {
-						client->server_.handle_client_data(client, client->buff.get(), n, addr, rn, infotype, flags);
-					} catch (const std::runtime_error& exc) {
-						log_client_error("handle_client_data", client);
-					}
+			if (flags & MSG_NOTIFICATION) {
+				TRACE(std::string("Notification of length ") + std::to_string(n) + std::string(" received."));
+				s->handle_notification(client, (union sctp_notification*) client->buff.get(), n);
+			} else {
+				TRACE(std::string("Socket data of length ") + std::to_string(n) + std::string(" received."));
+				try {
+					client->server_.handle_client_data(client, client->buff.get(), n, addr, rn, infotype, flags);
+				} catch (const std::runtime_error& exc) {
+					log_client_error("handle_client_data", client);
 				}
-			/* client disconnected */
-			} else if (n == 0) {
-				ERROR(client->to_string() + std::string(" disconnected."));
-				client->set_state(Client::PURGE);
-				s->drop_client(client);
-			/* client disconnected */
-			} else { // wtf ?
-				log_client_error("usrsctp_recvv", client);
 			}
-
 			memset(client->buff.get(), 0, BUFFERSIZE);
 		}
+
+		/* 
+			We are subscribed to all assoc notifications
+			SCTP_ASSOC_CHANGE event with SCTP_SHUTDOWN_COMP,
+			delivered by usrsctp and processed in notification handler 
+			before we get here.
+			This is the last point we deal with client.
+			So we drop client here.
+		 */
+		if (n == 0) {
+			INFO(client->to_string() + std::string(" disconnected."));
+			usrsctp_close(client->sock);
+			s->drop_client(client);
+		}
+
+		// some socket error
+		if (n < 0) {
+			if ((errno == EAGAIN) or 
+				(errno == EWOULDBLOCK) or 
+				(errno == EINTR)) {
+				TRACE(strerror(errno));
+			} else {
+				log_client_error("usrsctp_recvv: ", client);
+			}
+		}		
 	}
 
-
 	if (events & SCTP_EVENT_WRITE) {
-		TRACE(std::string("SCTP_EVENT_WRITE for: ") + client->to_string());
+		//TRACE(std::string("SCTP_EVENT_WRITE for: ") + client->to_string());
 	}
 
 	TRACE_func_left();
@@ -758,7 +853,6 @@ static void handle_association_change_event(std::shared_ptr<IClient>& c, struct 
 			} catch (const std::runtime_error& exc) {
 				ERROR(std::string("Dropping client: ") + exc.what());
 				c->set_state(Client::PURGE);
-				//(c->server_).drop_client(c); //TODO: should it also be done here ???
 				return;
 			}
 			INFO("Connected: " + c->to_string());		

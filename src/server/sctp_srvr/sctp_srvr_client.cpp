@@ -47,9 +47,12 @@ void Client::set_state(Client::State new_state)
 	/* from here on we can use log macros */
 	TRACE_func_entry();
 
-	if (new_state != PURGE) {
-		assert(new_state != state);
+	if (new_state == PURGE and state == PURGE) {
+		WARNING("PURGE to PURGE transition.");
+		return;
 	}
+
+	assert(new_state != state);
 
 	state = new_state;
 	
@@ -75,7 +78,7 @@ void Client::set_state(Client::State new_state)
 				}
 			}
 
-			if (usrsctp_set_upcall(sock, &SCTPServer::handle_upcall, &server_)) {
+			if (usrsctp_set_upcall(sock, &SCTPServer::handle_client_upcall, &server_)) {
 				ERROR("usrsctp_set_upcall for " + to_string());
 				throw std::runtime_error(strerror(errno));
 			}
@@ -83,11 +86,21 @@ void Client::set_state(Client::State new_state)
 			break;
 		case SCTP_CONNECTED:
 			break;
+		case SCTP_SRV_INITIATED_SHUTDOWN:
+			usrsctp_shutdown(sock, SHUT_WR);
+			break;
 		case PURGE:
-			usrsctp_shutdown(sock, SHUT_RDWR);
+			struct linger linger_option;
+			linger_option.l_onoff = 1;
+			linger_option.l_linger = 0;
+			if (usrsctp_setsockopt(sock, SOL_SOCKET,
+					 SO_LINGER, &linger_option, sizeof(linger_option))) {
+				ERROR("Could not set linger options for: "
+						 + to_string() 
+						 + std::string(strerror(errno)));
+			}
 			usrsctp_close(sock);
 			break;
-
 		default:
 			break;
 	}
@@ -140,7 +153,10 @@ std::ostream& operator<<(std::ostream &out, const Client::State s)
 			break;
 		case Client::SSL_SHUTDOWN:
 			state_name = "SSL_SHUTDOWN";
-			break;				
+			break;
+		case Client::SCTP_SRV_INITIATED_SHUTDOWN:
+			state_name = "SCTP_SRV_INITIATED_SHUTDOWN";
+			break;
 		case Client::PURGE:
 			state_name = "PURGE";
 			break;

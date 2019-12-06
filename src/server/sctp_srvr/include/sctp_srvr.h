@@ -48,10 +48,12 @@
 constexpr uint16_t DEFAULT_UDP_ENCAPS_PORT = 9899;
 constexpr uint16_t DEFAULT_SCTP_PORT = 5001;
 
-class SCTPServer {
+class SCTPServer
+{
 public:
 
-   enum LogLevel {
+   enum LogLevel
+   {
    	TRACE,
       DEBUG,
       INFO,
@@ -66,7 +68,8 @@ public:
 	using SCTPServer_client_factory_t = 
 		std::function<std::shared_ptr<IClient>(struct socket*, SCTPServer&)>;
 
-	struct Config {
+	struct Config
+	{
 		Config() = default;
 		virtual ~Config() = default;
 		Config(const Config& oth) = delete;
@@ -108,13 +111,13 @@ public:
 	/*
 		Sends message to client.
 	*/
-	void send(std::shared_ptr<IClient>& c, const void* data, size_t len);
+	void send(std::shared_ptr<IClient>&, const void*, size_t);
 
 
 	/*
 		Sends message to all clients.
 	*/
-	void broadcast(const void* data, size_t len);
+	void broadcast(const void*, size_t);
 
 
 	/* 
@@ -136,14 +139,14 @@ public:
 
 	std::shared_ptr<Config> cfg_;
 
- 	friend std::ostream& operator<<(std::ostream &out, const SCTPServer &s);
+ 	friend std::ostream& operator<<(std::ostream&, const SCTPServer&);
 
 	friend class Client;
 	friend class IClient;
 
 protected:
 	/* 
-		MAYBE_VIRTUAL is a macro.
+		MAYBE_VIRTUAL is a macro, which expands to virtual keyword on test builds.
 		Such function declarations used for unit testing as a "seam" point.
 		In real code scope-resolved to calls of usrsctp lib functions.
 	 */
@@ -163,13 +166,13 @@ private:
 	void handle_client_data(std::shared_ptr<IClient>& c, const void* buffer, ssize_t n,
 		 const struct sockaddr_in& addr, const struct sctp_recvv_rn& rcv_info, unsigned int infotype, int flags);
 
-	static void handle_upcall(struct socket* sock, void* arg, [[maybe_unused]] int flgs);
+	static void handle_client_upcall(struct socket* sock, void* arg, [[maybe_unused]] int flgs);
 
-	static void handle_serv_upcall(struct socket* sock, void* arg, [[maybe_unused]] int flgs);
+	static void handle_server_upcall(struct socket* sock, void* arg, [[maybe_unused]] int flgs);
 
 	void cleanup();
 
-	ssize_t send_raw(std::shared_ptr<IClient>& c, const void* buf, size_t len);
+	ssize_t send_raw(std::shared_ptr<IClient>&, const void*, size_t);
 
 	void drop_client(std::shared_ptr<IClient>&);
 
