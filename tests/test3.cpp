@@ -45,7 +45,6 @@ int main(int, char const**)
 		cli_cfg->state_f = [&](auto state) {
 			if (state == SCTPClient::SSL_CONNECTED) {
 				client.sctp_send(TEST_STRING);
-				std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 			 	running = false;
 			}
 
@@ -61,10 +60,9 @@ int main(int, char const**)
 		client.run();
 
 		while (running) {
-			std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+			std::this_thread::sleep_for(std::chrono::milliseconds(100));
 		}
 
-		client.stop();
 
  	} else if (pid > 0) {      // server process
 		std::atomic_bool running { true };
@@ -75,6 +73,9 @@ int main(int, char const**)
 		serv_cfg->data_cback_f = [&](auto, const auto& s) {
 			assert(std::string(static_cast<const char*> (s->data)) == TEST_STRING);
 		 	running = false;
+		};
+		serv_cfg->debug_f = [&](auto, const auto& s) {
+			std::cout << s << std::endl;
 		};
 
 		SCTPServer server { serv_cfg };
@@ -87,7 +88,7 @@ int main(int, char const**)
    	assert(write(fd[1], START_SIGNAL, strlen(START_SIGNAL)));
 
 		while (running) {
-			std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+			std::this_thread::sleep_for(std::chrono::milliseconds(100));
 		}
  	}
 
