@@ -161,6 +161,8 @@ protected:
 	MAYBE_VIRTUAL struct socket* usrsctp_accept(struct socket*, struct sockaddr*, socklen_t*);
 
 private:
+	void try_init_local_UDP();
+
 	void handle_notification(std::shared_ptr<IClient>&, union sctp_notification*, size_t);
 
 	void handle_client_data(std::shared_ptr<IClient>& c, const void* buffer, ssize_t n,

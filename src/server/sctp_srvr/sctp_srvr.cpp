@@ -10,6 +10,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <pthread.h>
+#include <unistd.h>
 
 #include <usrsctp.h>
 
@@ -140,12 +141,62 @@ void SCTPServer::cleanup()
 	TRACE_func_left();
 }
 
+/* 
+	usrsctp lib allows to call usrsctp_init for two simulteneously running processes
+	without error (maybe there is some param exists to prevent this that I miss ?)
+	This is some kind of hack to try manually creating UDP socket and see if we can do this.
+	Will throw runtime_error if udp encaps port already in use.
+*/
+void SCTPServer::try_init_local_UDP()
+{
+	/* will point to the result */
+	struct addrinfo* serv_info = NULL;
+	/* RAII for serv_info */
+	std::shared_ptr<struct addrinfo*> ptr (&serv_info,
+					 [&](struct addrinfo** s) { if (*s) freeaddrinfo(*s); });
+
+	struct addrinfo hints;
+
+	memset(&hints, 0, sizeof hints); // make sure the struct is empty
+	hints.ai_family = AF_INET;			// IPV4 only
+	hints.ai_socktype = SOCK_DGRAM;  // UDP socket
+	hints.ai_flags = AI_PASSIVE;     // fill in my IP for me
+
+	int status;
+	if ((status = getaddrinfo(NULL, std::to_string(cfg_->udp_encaps_port).c_str(),
+		 &hints, &serv_info)) != 0) {
+		throw std::runtime_error(gai_strerror(status));
+	}
+
+	char ipstr[INET_ADDRSTRLEN];
+	for (struct addrinfo* p = serv_info; p; p = p->ai_next) {
+      struct sockaddr_in* ipv4 = (struct sockaddr_in *) p->ai_addr;
+      void* addr = &(ipv4->sin_addr);
+		inet_ntop(p->ai_family, addr, ipstr, sizeof ipstr);
+	}
+
+	int temp_sock_fd;
+	if ((temp_sock_fd = socket(serv_info->ai_family, serv_info->ai_socktype, serv_info->ai_protocol)) <= 0) {
+		throw std::runtime_error(strerror(errno));
+	}
+
+	if (bind(temp_sock_fd, serv_info->ai_addr, serv_info->ai_addrlen) < 0) {
+		throw std::runtime_error(strerror(errno));
+	}
+
+	if (close(temp_sock_fd) < 0) {
+		throw std::runtime_error(strerror(errno));
+	}
+	
+}
 
 void SCTPServer::init()
 {
 	TRACE_func_entry();
 
 	ssl_obj_.init(cfg_->cert_filename, cfg_->key_filename);
+
+	try_init_local_UDP();
 
 	usrsctp_init(cfg_->udp_encaps_port,
 		/* should udp socket be handled by usrsctp */ NULL, /* SCTP lib's debug cback */ NULL);
@@ -244,7 +295,6 @@ void SCTPServer::init()
 }
 
 
-
 void SCTPServer::run()
 {
 	if (not initialized) throw std::logic_error("Server not initialized.");
@@ -257,9 +307,6 @@ void SCTPServer::run()
 
 	usrsctp_set_upcall(serv_sock_, &SCTPServer::handle_server_upcall, this);
 }
-
-
-
 
 
 void SCTPServer::stop()
