@@ -297,6 +297,8 @@ void SCTPServer::init()
 
 void SCTPServer::run()
 {
+	TRACE_func_entry();
+
 	if (not initialized) throw std::logic_error("Server not initialized.");
 
 	/* set listen on server socket */
@@ -306,6 +308,8 @@ void SCTPServer::run()
 	}
 
 	usrsctp_set_upcall(serv_sock_, &SCTPServer::handle_server_upcall, this);
+	
+	TRACE_func_left();
 }
 
 

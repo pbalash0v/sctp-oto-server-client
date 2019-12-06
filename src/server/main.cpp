@@ -158,13 +158,13 @@ int main([[maybe_unused]] int argc, char* argv[]) {
 
 	try {
 		srv.init();
+		srv.run();
 	} catch (const std::runtime_error& ex) {
  		spdlog::critical("{}", ex.what());
 		return EXIT_FAILURE;
 	}
 
 	spdlog::info("{}", srv);
-	srv.run();
 	spdlog::info("Serving. Press ctrl-D to terminate.");
 
 	while (true) {

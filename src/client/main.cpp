@@ -210,8 +210,13 @@ int main([[maybe_unused]] int argc, char* argv[]) {
 
 	tui->put_message("Starting...press ctrl-D to stop.\n");
 
-	client.init();
-	client.run(); /* this is async, starts separate thread */
+	try {
+		client.init();
+		client.run(); /* this is async, starts separate thread */
+	} catch (const std::runtime_error& exc) {
+		tui->put_message(std::string(exc.what()) + std::string("\n"));
+		return EXIT_FAILURE;
+	}
 
 	tui->loop(); /* this blocks main thread */
 

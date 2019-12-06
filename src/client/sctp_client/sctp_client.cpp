@@ -338,7 +338,9 @@ void SCTPClient::init_SCTP()
 
 	usrsctp_sysctl_set_sctp_blackhole(2); // TODO: ?
 	usrsctp_sysctl_set_sctp_no_csum_on_loopback(0); // TODO: ?
-	usrsctp_sysctl_set_sctp_ecn_enable(0); // TODO: ?
+
+  	/* Disable the Explicit Congestion Notification extension */
+	usrsctp_sysctl_set_sctp_ecn_enable(0);
 	usrsctp_register_address((void *) this); // TODO: ?
 
 	int (*receive_cb)(struct socket*, union sctp_sockstore, void*, size_t, struct sctp_rcvinfo, int, void*) = NULL;
@@ -347,7 +349,7 @@ void SCTPClient::init_SCTP()
 	void* recv_cback_data = NULL;
 
 	if ((sock = usrsctp_socket(AF_CONN, SOCK_STREAM, IPPROTO_SCTP, 
-					receive_cb = NULL, send_cb = NULL, sb_threshold, recv_cback_data = NULL)) == NULL) {
+					receive_cb, send_cb, sb_threshold, recv_cback_data)) == NULL) {
 		throw std::runtime_error(strerror(errno));
 	}
 
@@ -408,6 +410,7 @@ void SCTPClient::init()
 	} catch (const std::runtime_error& exc) {
 		CRITICAL(exc.what());
 		set_state(PURGE);
+		throw;
 	}
 
 	TRACE_func_left();
