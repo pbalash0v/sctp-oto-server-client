@@ -50,7 +50,6 @@ std::shared_ptr<SCTPServer> SCTPServer::s_ = std::make_shared<SCTPServer>();
 constexpr auto BUFFER_SIZE = 1 << 16;
 
 
-
 SCTPServer::SCTPServer() : SCTPServer(std::make_shared<SCTPServer::Config>()) {}
 
 SCTPServer::SCTPServer(std::shared_ptr<SCTPServer::Config> ptr) : cfg_(ptr)
@@ -62,7 +61,8 @@ SCTPServer::SCTPServer(std::shared_ptr<SCTPServer::Config> ptr) : cfg_(ptr)
 
 /*
 	From usrsctp lib author's github on calling usrsctp_close() after usrsctp_shutdown(SHUT_RDWR):
-	"...only calling usrsctp_close() has the same effect. However, you won't be able to receive any notifications,
+	"...only calling usrsctp_close() has the same effect.
+	However, you won't be able to receive any notifications,
 	since you have closed the socket. This is normal socket API behaviour."
 */
 SCTPServer::~SCTPServer()
@@ -199,7 +199,8 @@ void SCTPServer::init()
 	try_init_local_UDP();
 
 	usrsctp_init(cfg_->udp_encaps_port,
-		/* should udp socket be handled by usrsctp */ NULL, /* SCTP lib's debug cback */ NULL);
+					/* should udp socket be handled by usrsctp */ NULL,
+		 			/* SCTP lib's debug cback */ NULL);
 
 	/*
 		Do not send ABORTs in response to INITs (1).
@@ -308,7 +309,7 @@ void SCTPServer::run()
 	}
 
 	usrsctp_set_upcall(serv_sock_, &SCTPServer::handle_server_upcall, this);
-	
+
 	TRACE_func_left();
 }
 
@@ -393,6 +394,7 @@ void SCTPServer::drop_client(std::shared_ptr<IClient>& c)
 	 [&] (auto s_ptr) { return s_ptr->sock == c->sock;}), clients_.end());
 
 	TRACE("Number of clients: " + std::to_string(clients_.size()));
+
 	TRACE_func_left();
 }
 
@@ -1002,28 +1004,35 @@ static void handle_send_failed_event(std::shared_ptr<IClient>& c, struct sctp_se
 
 	size_t i, n;
 
+	char buf[BUFFERSIZE] = { '\0' };
+
+	int written	= 0;
 	if (ssfe->ssfe_flags & SCTP_DATA_UNSENT) {
-		fprintf(stderr, "Unsent ");
+		written += snprintf(buf + written, sizeof(buf)-written, "Unsent ");
 	}
 
 	if (ssfe->ssfe_flags & SCTP_DATA_SENT) {
-		fprintf(stderr, "Sent ");
+		written += snprintf(buf + written, sizeof(buf)-written, "Sent ");
 	}
 
 	if (ssfe->ssfe_flags & ~(SCTP_DATA_SENT | SCTP_DATA_UNSENT)) {
-		fprintf(stderr, "(flags = %x) ", ssfe->ssfe_flags);
+		written += snprintf(buf + written, sizeof(buf)-written, "(flags = %x) ", ssfe->ssfe_flags);
 	}
 
-	fprintf(stderr, "message with PPID = %u, SID = %u, flags: 0x%04x due to error = 0x%08x",
+	written += snprintf(buf + written, sizeof(buf)-written,
+			 "message with PPID = %u, SID = %u, flags: 0x%04x due to error = 0x%08x",
 	       ntohl(ssfe->ssfe_info.snd_ppid), ssfe->ssfe_info.snd_sid,
 	       ssfe->ssfe_info.snd_flags, ssfe->ssfe_error);
 
 	n = ssfe->ssfe_length - sizeof(struct sctp_send_failed_event);
 	for (i = 0; i < n; i++) {
-		fprintf(stderr, " 0x%02x", ssfe->ssfe_data[i]);
+		written += snprintf(buf + written, sizeof(buf)-written, " 0x%02x", ssfe->ssfe_data[i]);
 	}
 
-	fprintf(stderr, ".\n");
+	written += snprintf(buf + written, sizeof(buf)-written, ".\n");
+	
+	DEBUG(buf);
+
 	return;
 }
 
@@ -1070,24 +1079,32 @@ static void handle_stream_reset_event(std::shared_ptr<IClient>& c, struct sctp_s
 	uint32_t n, i;
 
 	n = (strrst->strreset_length - sizeof(struct sctp_stream_reset_event)) / sizeof(uint16_t);
-	fprintf(stderr, "Stream reset event: flags = %x, ", strrst->strreset_flags);
+
+	char buf[BUFFERSIZE] = { '\0' };
+	int written = snprintf(buf, sizeof buf, "Stream reset event: flags = %x, ", strrst->strreset_flags);
+
 	if (strrst->strreset_flags & SCTP_STREAM_RESET_INCOMING_SSN) {
 		if (strrst->strreset_flags & SCTP_STREAM_RESET_OUTGOING_SSN) {
-			fprintf(stderr, "incoming/");
+			written += snprintf(buf + written, sizeof(buf)-written, "incoming/");
 		}
-		fprintf(stderr, "incoming ");
+		written += snprintf(buf + written, sizeof(buf)-written, "incoming ");
 	}
 	if (strrst->strreset_flags & SCTP_STREAM_RESET_OUTGOING_SSN) {
-		fprintf(stderr, "outgoing ");
+		written += snprintf(buf + written, sizeof(buf)-written, "outgoing ");
 	}
-	fprintf(stderr, "stream ids = ");
+
+	written += snprintf(buf + written, sizeof(buf)-written, "stream ids = ");
 	for (i = 0; i < n; i++) {
 		if (i > 0) {
-			fprintf(stderr, ", ");
+			written += snprintf(buf + written, sizeof(buf)-written, ", ");
 		}
-		fprintf(stderr, "%d", strrst->strreset_stream_list[i]);
+		written += snprintf(buf + written, sizeof(buf)-written, "%d", strrst->strreset_stream_list[i]);
 	}
-	fprintf(stderr, ".\n");
+
+	written += snprintf(buf + written, sizeof(buf)-written, ".\n");
+
+	DEBUG(buf);
+
 	return;
 }
 
