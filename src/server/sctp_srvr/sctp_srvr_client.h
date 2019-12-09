@@ -28,7 +28,6 @@ public:
 
 	friend class SCTPServer;
 
-
 private:
 
 };

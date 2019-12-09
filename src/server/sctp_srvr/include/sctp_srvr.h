@@ -68,8 +68,9 @@ public:
 	using SCTPServer_client_factory_t = 
 		std::function<std::shared_ptr<IClient>(struct socket*, SCTPServer&)>;
 
-	struct Config
+	class Config
 	{
+	public:
 		Config() = default;
 		virtual ~Config() = default;
 		Config(const Config& oth) = delete;
@@ -81,9 +82,11 @@ public:
 		std::string key_filename { "../certs/server-key.pem" };
 		SCTPServer_cback_t data_cback_f { nullptr };
 		SCTPServer_debug_t debug_f { nullptr };
-		SCTPServer_client_factory_t client_factory { nullptr };
-
+		
+		friend class SCTPServer;
     	friend std::ostream& operator<<(std::ostream &out, const Config &c); 
+	private:			
+		SCTPServer_client_factory_t client_factory { nullptr };    	
 	};
 
 	/* 
