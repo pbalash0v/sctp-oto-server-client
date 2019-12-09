@@ -22,10 +22,10 @@ client_CPPFLAGS = -I$(srcdir)/sctp_client/include \
 				  -I$(srcdir)/../third_party/gopt-10.0 \
 				  -I$(srcdir)/../third_party/spdlog/include \
 				  @PTHREAD_CFLAGS@ \
-				  @OPENSSL_INCLUDES@ \
-				  @CURSES_CFLAGS@
+				  @OPENSSL_INCLUDES@ 
+				  ##@CURSES_CFLAGS@
 
-client_LDADD = @OPENSSL_LIBS@ @PTHREAD_LIBS@ @PTHREAD_CFLAGS@ @CURSES_LIBS@ \
+client_LDADD = @OPENSSL_LIBS@ @PTHREAD_LIBS@ @PTHREAD_CFLAGS@ @CURSES_LIB@ \
 				$(top_builddir)/src/third_party/usrsctp/usrsctplib/.libs/libusrsctp.a \
 				$(top_builddir)/src/third_party/gopt-10.0/libgopt.a \
 				$(top_builddir)/src/common/libcommon.a

@@ -19,15 +19,22 @@ AC_PROG_RANLIB
 # Checks for programs.
 AC_PROG_CC
 AC_PROG_CXX
-m4_ifdef([AX_CXX_COMPILE_STDCXX_14], [AX_CXX_COMPILE_STDCXX_14([noext],[mandatory])], [AC_MSG_ERROR([AX_CXX_COMPILE_STDCXX_14 macro missing. Install autoconf-archive package and run autoreconf again.])])
+#m4_ifdef([AX_CXX_COMPILE_STDCXX_14], [AX_CXX_COMPILE_STDCXX_14([noext],[mandatory])], AC_MSG_ERROR([AX_CXX_COMPILE_STDCXX_14 macro missing. Install autoconf-archive package and run autoreconf again.]))
+AX_CXX_COMPILE_STDCXX_14([noext],[mandatory])
 AC_PROG_CPP
 
 
 # Checks for libraries.
-m4_ifdef([AX_CHECK_OPENSSL], [AX_CHECK_OPENSSL], [AC_MSG_ERROR([AX_CHECK_OPENSSL macro missing. Install autoconf-archive package and run autoreconf again.])])
-m4_ifdef([AX_PTHREAD], [AX_PTHREAD], [AC_MSG_ERROR([AX_PTHREAD macro missing. Install autoconf-archive package and run autoreconf again.])])
-m4_ifdef([AX_WITH_CURSES], [AX_WITH_CURSES], [AC_MSG_ERROR([AX_WITH_CURSES macro missing. Install autoconf-archive package and run autoreconf again.])])
+#m4_ifdef([AX_CHECK_OPENSSL], [AX_CHECK_OPENSSL], AC_MSG_ERROR([AX_CHECK_OPENSSL macro missing. Install autoconf-archive package and run autoreconf again.]))
+#m4_ifdef([AX_PTHREAD], [AX_PTHREAD], AC_MSG_ERROR([AX_PTHREAD macro missing. Install autoconf-archive package and run autoreconf again.]))
+#m4_ifdef([AX_WITH_CURSES], [AX_WITH_CURSES], AC_MSG_ERROR([AX_WITH_CURSES macro missing. Install autoconf-archive package and run autoreconf again.]))
 
+AX_CHECK_OPENSSL
+AX_PTHREAD
+AX_WITH_CURSES
+if test "x$ax_cv_ncursesw" != xyes && test "x$ax_cv_ncurses" != xyes; then
+	AC_MSG_ERROR([requires either NcursesW or Ncurses library])
+fi
 
 # Checks for header files.
 AC_CHECK_HEADERS([arpa/inet.h netdb.h netinet/in.h sys/socket.h])
