@@ -11,7 +11,8 @@
 constexpr const char* END_SIGNAL = "e";
 
 
-TUI::TUI() {
+TUI::TUI()
+{
 	initscr(); /* initialize the curses library */
 
 	log_thr = std::thread(&TUI::display_func, this);
@@ -21,7 +22,8 @@ TUI::TUI() {
 	}
 }
 
-TUI::~TUI() {
+TUI::~TUI()
+{
 	/* wakeup & finish logger thread */
 	running_ = false;
 	put_message("");
@@ -37,14 +39,16 @@ TUI::~TUI() {
 /*
 	runs in separate thread, dequeues and renders text
 */
-void TUI::display_func() {
+void TUI::display_func()
+{
 	while (running_) {
 		printw(q.dequeue().c_str());
 		refresh();
 	}
 }
 
-void TUI::init(ITUI_cback_t cback) {
+void TUI::init(ITUI_cback_t cback)
+{
 	cback_ = cback;
 	
 	//nonl();         /* tell curses not to do NL->CR/NL on output */
@@ -70,7 +74,8 @@ void TUI::init(ITUI_cback_t cback) {
 }
 
 
-void TUI::loop() {
+void TUI::loop()
+{
 	fd_set set;
 	int res;
 	
@@ -113,23 +118,58 @@ void TUI::loop() {
 }
 
 
-void TUI::put_message(const std::string& s) {
+void TUI::put_message(const std::string& s)
+{
 	q.enqueue(s);
 }
 
+void TUI::put_log(ITUI::LogLevel l, const std::string& s)
+{
+	std::string s_ { s };
 
-void TUI::stop() {
+	switch (l) {
+	case ITUI::LogLevel::TRACE:
+		s_ = "[TRACE] " + s_;
+		break;
+	case ITUI::LogLevel::DEBUG:
+		s_ = "[DEBUG] " + s_;
+ 		break;
+	case ITUI::LogLevel::INFO:
+		s_ = "[INFO] " + s_;
+ 		break;
+	case ITUI::LogLevel::WARNING:
+		s_ = "[WARNING] " + s_;
+		break;
+	case ITUI::LogLevel::ERROR:
+		s_ = "[ERROR] " + s_;
+		break;
+	case ITUI::LogLevel::CRITICAL:
+		s_ = "[CRITICAL] " + s_;
+		break;
+	default:
+		s_ = "Unknown log level message: " + s_;
+ 		break;
+	}
+
+	q.enqueue(s_);
+}
+
+
+void TUI::stop()
+{
 	int written = write(pipefd[1], END_SIGNAL, strlen(END_SIGNAL));
 	if (written <= 0) throw std::runtime_error(strerror(errno));	
 }
 
 
-void TUI::handle_resize() {
+void TUI::handle_resize()
+{
 	refresh();
 };
 
 
-void TUI::handle_input() {
+void TUI::handle_input()
+{
 	int c = wgetch(stdscr);
 
 	switch (c) {
@@ -152,7 +192,4 @@ void TUI::handle_input() {
 			break;
 	}
 }
-
-
-
 

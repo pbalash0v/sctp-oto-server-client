@@ -60,7 +60,8 @@ static std::unordered_map<std::string, std::vector<SCTPClient::State>> state_all
 				SCTPClient::SSL_HANDSHAKING, SCTPClient::SSL_CONNECTED, SCTPClient::SSL_SHUTDOWN, }}
 	};
 
-static inline bool _check_state(const std::string& func_name, SCTPClient::State s) {
+static inline bool _check_state(const std::string& func_name, SCTPClient::State s)
+{
 	const auto& vec = state_allowed_funcs[func_name];
 	return (std::find(vec.cbegin(), vec.cend(), s) != vec.cend());
 }

@@ -7,7 +7,8 @@
 #include "i_tui.h"
 
 
-class SimpleTUI : public ITUI {
+class SimpleTUI : public ITUI
+{
 public:
 	SimpleTUI();
 
@@ -17,11 +18,13 @@ public:
 
 	virtual void init(ITUI_cback_t cback) override;
 
-	//does blocking select on stdin and evals input
+	/* does blocking select on stdin and evals input */
 	virtual void loop() override; 
 
-	//queues to internal string queue
+	/* queues to internal string queue */
 	virtual void put_message(const std::string&) override;
+
+	virtual void put_log(LogLevel, const std::string&) override;
 
 	virtual void stop() override;
 	

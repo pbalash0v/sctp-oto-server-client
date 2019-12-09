@@ -15,7 +15,8 @@
 #include "sctp_client.h"
 
 
-[[noreturn]] void onTerminate() noexcept {
+[[noreturn]] void onTerminate() noexcept
+{
 	if (auto exc = std::current_exception()) {
 		try {
          std::rethrow_exception(exc);
@@ -29,7 +30,8 @@
 	std::_Exit(EXIT_FAILURE);
 }
 
-static void parse_args(char* argv[], struct option options[], size_t opt_count) {
+static void parse_args(char* argv[], struct option options[], size_t opt_count)
+{
 	options[0].long_name  = "help";
 	options[0].short_name = 'h';
 	options[0].flags      = GOPT_ARGUMENT_FORBIDDEN;
@@ -67,7 +69,10 @@ static void parse_args(char* argv[], struct option options[], size_t opt_count) 
 constexpr uint16_t MIN_IP_PORT = std::numeric_limits<uint16_t>::min();
 constexpr uint16_t MAX_IP_PORT = std::numeric_limits<uint16_t>::max();
 
-int main([[maybe_unused]] int argc, char* argv[]) {
+#define DEFAULT_LOG_NAME "client_log.txt"
+
+int main([[maybe_unused]] int argc, char* argv[])
+{
 	std::set_terminate(&onTerminate);
 
 	struct option options[8];
@@ -79,15 +84,16 @@ int main([[maybe_unused]] int argc, char* argv[]) {
 		std::endl << \
 		"\t-s, --server\t\t -- server address" << std::endl << \
 		"\t-p, --port\t\t -- server port" << std::endl << \
-		"\t-l, --log\t\t -- enable rotating log" << std::endl << \
+		"\t-l, --log\t\t -- enable rotating log (defaults to " << DEFAULT_LOG_NAME << ")" << std::endl << \
 		"\t-t, --tui\t\t -- run TUI (unstable)" << std::endl << \
 		"\t-h, --help\t\t -- this message" << std::endl << \
-		"\t-v, --version\t\t -- print the version and exit" << std::endl << \
+		"\t-V, --version\t\t -- print the version and exit" << std::endl << \
 
 		std::endl;
 		exit(EXIT_SUCCESS);
 	}
 
+	/* version */
 	if (options[1].count) {
 		std::cout << "Version 0.01a" << std::endl;  	
 		exit(EXIT_SUCCESS);
@@ -98,11 +104,11 @@ int main([[maybe_unused]] int argc, char* argv[]) {
 		exit(EXIT_SUCCESS);
 	}
 
+	/* file logger */
 	if (options[5].count) {
 		try {
-			auto file_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>("log.txt", true);
-			file_sink->set_level(spdlog::level::trace);
-			spdlog::set_default_logger(std::make_shared<spdlog::logger>("main", file_sink));
+			auto file_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(DEFAULT_LOG_NAME, true);
+			spdlog::default_logger()->sinks().push_back(file_sink);
 			spdlog::set_level(spdlog::level::trace);
 		} catch (const spdlog::spdlog_ex& ex) {
 			std::cout << "Log initialization failed: " << ex.what() << std::endl;
@@ -144,34 +150,37 @@ int main([[maybe_unused]] int argc, char* argv[]) {
 	cfg->data_cback_f = [&](const auto& s) { 
 		tui->put_message("Server sent: " + s + "\n"); 
 	};
+
 	cfg->debug_f = [&](auto level, const auto& s) {
-		tui->put_message(std::string("[DEBUG] ") + s);
-		std::string s_ { s };
-		s_.erase(std::remove(s_.begin(), s_.end(), '\n'), s_.end());		
+		ITUI::LogLevel l = ITUI::LogLevel::TRACE;
+
 		switch (level) {
 			case SCTPClient::TRACE:
-				spdlog::trace("{}", s_);
+				l = ITUI::LogLevel::TRACE;
 				break;
 			case SCTPClient::DEBUG:
-	    		spdlog::debug("{}", s_);
+				l = ITUI::LogLevel::DEBUG;
 	    		break;
 			case SCTPClient::INFO:
-	    		spdlog::info("{}", s_);
+				l = ITUI::LogLevel::INFO;
 	    		break;
 			case SCTPClient::WARNING:
-	    		spdlog::warn("{}", s_);
+				l = ITUI::LogLevel::WARNING;
 				break;
 			case SCTPClient::ERROR:
-	    		spdlog::error("{}", s_);
+				l = ITUI::LogLevel::ERROR;
 				break;
 			case SCTPClient::CRITICAL:
-	    		spdlog::critical("{}", s_);
+				l = ITUI::LogLevel::CRITICAL;
 				break;
 			default:
-	    		spdlog::error("Unknown SCTPClient log level message. {}", s_);
+	    		std::cerr << "Unknown SCTPClient log level message. " <<  s << std::endl;
 	    		break;
-		}
+ 		}
+
+		tui->put_log(l, s);
 	};
+
 	cfg->state_f = [&](auto state) { 
 		std::string message;
 

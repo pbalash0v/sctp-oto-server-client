@@ -21,9 +21,11 @@ constexpr uint16_t DEFAULT_SERVER_SCTP_PORT = 5001;
 
 
 
-class SCTPClient {
+class SCTPClient
+{
 public:
-   enum LogLevel {
+   enum LogLevel
+   {
    	TRACE,
       DEBUG,
       INFO,
@@ -32,7 +34,8 @@ public:
 		CRITICAL
    };
 
-   enum State {
+   enum State
+   {
    	NONE,
       SCTP_CONNECTING,
       SCTP_CONNECTED,
@@ -46,7 +49,8 @@ public:
 	using SCTPClient_state_cback_t = std::function<void(State)>;
 	using SCTPServer_debug_t = std::function<void(SCTPClient::LogLevel, const std::string&)>;	
 
-	struct Config {
+	struct Config
+	{
 		Config() = default;
 		virtual ~Config() = default;
 		Config(const Config& oth) = delete;
