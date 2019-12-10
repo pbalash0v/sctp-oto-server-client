@@ -57,7 +57,7 @@ constexpr uint16_t MIN_IP_PORT = std::numeric_limits<uint16_t>::min();
 constexpr uint16_t MAX_IP_PORT = std::numeric_limits<uint16_t>::max();
 
 
-int main([[maybe_unused]] int argc, char* argv[]) {
+int main(int /* argc */, char* argv[]) {
 	std::set_terminate(&onTerminate);
 
 	auto cfg = std::make_shared<SCTPServer::Config>();
@@ -121,7 +121,7 @@ int main([[maybe_unused]] int argc, char* argv[]) {
 
 	SCTPServer srv { cfg };
 
-	auto cback = [&]([[maybe_unused]] auto client, const auto& s) {
+	auto cback = [&](auto /* client */, const auto& s) {
 		std::string message { static_cast<const char*> (s->data) };
 		spdlog::info("{}", message);
 		srv.broadcast(message.c_str(), message.size());

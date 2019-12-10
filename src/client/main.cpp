@@ -71,7 +71,7 @@ constexpr uint16_t MAX_IP_PORT = std::numeric_limits<uint16_t>::max();
 
 #define DEFAULT_LOG_NAME "client_log.txt"
 
-int main([[maybe_unused]] int argc, char* argv[])
+int main(int /* argc */, char* argv[])
 {
 	std::set_terminate(&onTerminate);
 

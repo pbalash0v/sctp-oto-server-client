@@ -114,7 +114,7 @@ void SCTPClient::set_state(SCTPClient::State new_state)
 }
 
 
-void SCTPClient::handle_upcall(struct socket* sock, void* arg, [[maybe_unused]] int flgs)
+void SCTPClient::handle_upcall(struct socket* sock, void* arg, int /* flgs */)
 {
 	SCTPClient* c = (SCTPClient *) arg;
 	std::shared_ptr<SCTPClient::Config> cfg_ = c->cfg_;
@@ -201,7 +201,9 @@ void SCTPClient::handle_upcall(struct socket* sock, void* arg, [[maybe_unused]] 
 /*
 	SCTP engine wants to send data
 */
-int SCTPClient::conn_output(void* arg, void *buf, size_t length, [[maybe_unused]] uint8_t tos, [[maybe_unused]] uint8_t set_df) {
+int SCTPClient::conn_output(void* arg, void *buf, size_t length,
+									 uint8_t /* tos */, uint8_t /* set_df */)
+{
 	SCTPClient* c = (SCTPClient *) arg;
 	std::shared_ptr<SCTPClient::Config> cfg_ = c->cfg_;
 

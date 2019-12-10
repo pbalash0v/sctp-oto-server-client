@@ -171,9 +171,9 @@ private:
 	void handle_client_data(std::shared_ptr<IClient>& c, const void* buffer, ssize_t n,
 		 const struct sockaddr_in& addr, const struct sctp_recvv_rn& rcv_info, unsigned int infotype, int flags);
 
-	static void handle_client_upcall(struct socket* sock, void* arg, [[maybe_unused]] int flgs);
+	static void handle_client_upcall(struct socket* sock, void* arg, int flgs);
 
-	static void handle_server_upcall(struct socket* sock, void* arg, [[maybe_unused]] int flgs);
+	static void handle_server_upcall(struct socket* sock, void* arg, int flgs);
 
 	void cleanup();
 
