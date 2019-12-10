@@ -194,6 +194,8 @@ void SCTPServer::init()
 {
 	TRACE_func_entry();
 
+	if (initialized) throw std::logic_error("Server is already initialized.");
+
 	ssl_obj_.init(cfg_->cert_filename, cfg_->key_filename);
 
 	try_init_local_UDP();
