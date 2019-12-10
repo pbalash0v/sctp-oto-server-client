@@ -71,9 +71,11 @@ public:
 std::shared_ptr<SCTPServer::Config> get_cfg()
 {
 	auto serv_cfg = std::make_shared<SCTPServer::Config>();
+	
 	serv_cfg->cert_filename = "../src/certs/server-cert.pem";
 	serv_cfg->key_filename = "../src/certs/server-key.pem";
 	serv_cfg->debug_f = [](auto, auto s) { std::cerr << s << std::endl; };
+
 	return serv_cfg;	
 }
 

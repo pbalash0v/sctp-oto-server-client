@@ -1,12 +1,16 @@
+/* 
+	minimum sanity client check
+*/
+
 #include <memory>
 #include <cassert>
 #include <exception>
 
 #include "sctp_client.h"
 
+
 int main(int, char const**)
 {
-	/* minimum sanity check */
 	auto cli_cfg = std::make_shared<SCTPClient::Config>();
 	cli_cfg->cert_filename = "../src/certs/client-cert.pem";
 	cli_cfg->key_filename = "../src/certs/client-key.pem";

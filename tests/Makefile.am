@@ -34,7 +34,7 @@ libtest_a_CPPFLAGS = $(TESTS_CPPFLAGS)
 				
 
 ## tests
-check_PROGRAMS = test1 test2 test3 test4
+check_PROGRAMS = test1 test2 test3 test4 test5
 AM_DEFAULT_SOURCE_EXT = .cpp
 
 TESTS = $(check_PROGRAMS)
@@ -62,3 +62,8 @@ test3_LDADD = 	$(TESTS_LDADD)
 test4_CXXFLAGS = $(AM_CXXFLAGS)
 test4_CPPFLAGS =$(TESTS_CPPFLAGS)
 test4_LDADD = 	$(TESTS_LDADD)
+
+## test5	
+test5_CXXFLAGS = $(AM_CXXFLAGS)
+test5_CPPFLAGS =$(TESTS_CPPFLAGS)
+test5_LDADD = 	$(TESTS_LDADD)

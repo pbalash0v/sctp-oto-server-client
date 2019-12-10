@@ -1,25 +1,65 @@
+#include <iostream>
 #include <string>
+#include <thread>
 #include <atomic>
+#include <cstring>
 #include <memory>
 #include <cassert>
+#include <limits>
+#include <unistd.h>
+#include <cstdio>
 
 #include <sys/prctl.h>
 #include <signal.h>
 
-#include <unistd.h>
-
 #include "sctp_srvr.h"
+#include "sctp_srvr_client.h"
 #include "sctp_client.h"
 
+std::atomic_bool running { true };
 
-constexpr const char* TEST_STRING = "HELLO";
-constexpr const char* START_SIGNAL = "START_SIGNAL";
 
-int main(int, char const**)
+class BrokenClient : public Client
 {
-	/*
-		we need two processes since using 
-		two instanes of usrsctp seems to be impossible
+public:
+	BrokenClient(struct socket* sctp_sock, SCTPServer& s)
+		: Client(sctp_sock, s) {};
+
+	virtual void set_state(Client::State)
+	{
+	 	running = false;
+		throw std::runtime_error("BrokenClient ");
+	};
+};
+
+
+//
+class BrokenSCTPServer : public SCTPServer
+{
+public:
+	static BrokenSCTPServer& get_instance()
+	{
+		static BrokenSCTPServer s;
+		return s;
+	}
+
+protected:
+	std::shared_ptr<IClient>client_factory(struct socket* s) override
+	{
+		return std::make_shared<BrokenClient>(s, *this);
+	};
+};
+
+
+constexpr static const char* TEST_STRING = "HELLO";
+constexpr static const char* START_SIGNAL = "START_SIGNAL";
+
+int main(int, char const**) {
+
+
+	/* 
+		we need two processes since simultaneously using 
+		two instances of usrsctp seems to be impossible
 	*/
 	int fd[2];
 	if (pipe(fd) != 0) {
@@ -31,9 +71,9 @@ int main(int, char const**)
 		return EXIT_FAILURE;
  	}
 
- 	if (pid == 0) { 	// child client process
- 		assert(prctl(PR_SET_PDEATHSIG, SIGHUP) >= 0);
-
+ 	/* in child process - run client */
+ 	if (pid == 0) {
+		assert(prctl(PR_SET_PDEATHSIG, SIGHUP) >= 0);
 		std::atomic_bool running { true };
 
 		auto cli_cfg = std::make_shared<SCTPClient::Config>();
@@ -45,6 +85,7 @@ int main(int, char const**)
 		cli_cfg->state_f = [&](auto state) {
 			if (state == SCTPClient::SSL_CONNECTED) {
 				client.sctp_send(TEST_STRING);
+				std::this_thread::sleep_for(std::chrono::milliseconds(100));
 			 	running = false;
 			}
 
@@ -57,28 +98,25 @@ int main(int, char const**)
 	   char buf[strlen(START_SIGNAL)];
 		assert(read(fd[0], buf, strlen(START_SIGNAL)) > 0);
 
-		
-
 		client.run();
 
 		while (running) {
 			std::this_thread::sleep_for(std::chrono::milliseconds(10));
 		}
 
+		client.stop();
 
- 	} else if (pid > 0) {      // server process
-		std::atomic_bool running { true };
+	/* in parent process - run server */
+ 	} else if (pid > 0) {
 
-		auto& server = SCTPServer::get_instance();
+		auto& server = BrokenSCTPServer::get_instance();
 
 		server.cfg_->cert_filename = "../src/certs/server-cert.pem";
 		server.cfg_->key_filename = "../src/certs/server-key.pem";
+
 		server.cfg_->data_cback_f = [&](auto, const auto& s) {
 			assert(std::string(static_cast<const char*> (s->data)) == TEST_STRING);
 		 	running = false;
-		};
-		server.cfg_->debug_f = [&](auto, const auto& s) {
-			std::cout << s << std::endl;
 		};
 
 		try {
@@ -94,10 +132,9 @@ int main(int, char const**)
    	std::cout << "signalled ready to client" << std::endl;
 
 		while (running) {
-			std::this_thread::sleep_for(std::chrono::milliseconds(10));
+			std::this_thread::sleep_for(std::chrono::milliseconds(100));
 		}
  	}
-
 
 	return EXIT_SUCCESS;
 }

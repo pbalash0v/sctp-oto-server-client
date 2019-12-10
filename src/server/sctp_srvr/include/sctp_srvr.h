@@ -62,7 +62,6 @@ public:
 		CRITICAL
    };
 
-	//using SCTPServer_cback_t = std::function<void(const std::shared_ptr<IClient>, const std::string&)>;
 	using SCTPServer_cback_t = std::function<void(const std::shared_ptr<IClient>, std::shared_ptr<IClient::Data>)>;
 	using SCTPServer_debug_t = std::function<void(SCTPServer::LogLevel, const std::string&)>;	
 	using SCTPServer_client_factory_t = 
@@ -85,16 +84,14 @@ public:
 		
 		friend class SCTPServer;
     	friend std::ostream& operator<<(std::ostream &out, const Config &c); 
-	private:			
-		SCTPServer_client_factory_t client_factory { nullptr };    	
+
 	};
 
-	/* 
-		Uses default cfg object.
-	*/
-	SCTPServer();
 
-	SCTPServer(std::shared_ptr<SCTPServer::Config> p);
+	static SCTPServer& get_instance() {
+		static SCTPServer s_;
+		return s_;
+	}
 
 	SCTPServer(const SCTPServer& oth) = delete;
 
@@ -133,12 +130,7 @@ public:
 	virtual ~SCTPServer();
 
 
-	/* 
-		Static object which may be used for embedding to dyn library
-		(having FreeSWITCH module in mind in particular) for RAII on dlopen/dlclose
-		(for future use mainly)
- 	*/
-	static std::shared_ptr<SCTPServer> s_;
+
 
 	std::shared_ptr<Config> cfg_;
 
@@ -148,6 +140,13 @@ public:
 	friend class IClient;
 
 protected:
+
+	SCTPServer();
+
+	SCTPServer(std::shared_ptr<SCTPServer::Config> p);
+
+	MAYBE_VIRTUAL std::shared_ptr<IClient> client_factory(struct socket*);
+
 	/* 
 		MAYBE_VIRTUAL is a macro, which expands to virtual keyword on test builds.
 		Such function declarations used for unit testing as a "seam" point.
@@ -164,6 +163,7 @@ protected:
 	MAYBE_VIRTUAL struct socket* usrsctp_accept(struct socket*, struct sockaddr*, socklen_t*);
 
 private:
+
 	void try_init_local_UDP();
 
 	void handle_notification(std::shared_ptr<IClient>&, union sctp_notification*, size_t);

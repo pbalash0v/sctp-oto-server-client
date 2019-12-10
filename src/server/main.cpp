@@ -119,7 +119,8 @@ int main(int /* argc */, char* argv[]) {
 		}		
 	}
 
-	SCTPServer srv { cfg };
+	auto& srv  = SCTPServer::get_instance();
+	srv.cfg_ = cfg;
 
 	auto cback = [&](auto /* client */, const auto& s) {
 		std::string message { static_cast<const char*> (s->data) };
@@ -153,8 +154,8 @@ int main(int /* argc */, char* argv[]) {
 		}
 	};
 
-	cfg->data_cback_f = cback;
-	cfg->debug_f = debug_cback;
+	srv.cfg_->data_cback_f = cback;
+	srv.cfg_->debug_f = debug_cback;
 
 	try {
 		srv.init();

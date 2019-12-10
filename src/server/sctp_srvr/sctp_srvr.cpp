@@ -45,8 +45,6 @@ static void log_client_error_and_throw(const char* func, std::shared_ptr<IClient
 }
 
 
-std::shared_ptr<SCTPServer> SCTPServer::s_ = std::make_shared<SCTPServer>();
-
 constexpr auto BUFFER_SIZE = 1 << 16;
 
 
@@ -54,10 +52,13 @@ SCTPServer::SCTPServer() : SCTPServer(std::make_shared<SCTPServer::Config>()) {}
 
 SCTPServer::SCTPServer(std::shared_ptr<SCTPServer::Config> ptr) : cfg_(ptr)
 {
-	cfg_->client_factory = [&] (struct socket* s, SCTPServer&) {
-		return std::make_shared<Client>(s, *this);
-	};
+
 }
+
+std::shared_ptr<IClient> SCTPServer::client_factory(struct socket* s)
+{
+		return std::make_shared<Client>(s, *this);
+};
 
 /*
 	From usrsctp lib author's github on calling usrsctp_close() after usrsctp_shutdown(SHUT_RDWR):
@@ -433,7 +434,7 @@ void SCTPServer::handle_server_upcall(struct socket* serv_sock, void* arg, int)
 		{
 			std::lock_guard<std::mutex> lock(s->clients_mutex_);
 
-			auto new_client = cfg_->client_factory(conn_sock, *s);
+			auto new_client = s->client_factory(conn_sock);
 			s->clients_.push_back(new_client);
 
 			try {

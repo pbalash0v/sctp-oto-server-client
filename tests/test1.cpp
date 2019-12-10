@@ -1,42 +1,25 @@
+/* 
+	minimum sanity server check test
+*/
+
 #include <memory>
 #include <cassert>
 
 #include "sctp_srvr.h"
 
+
 int main(int, char const**)
 {		
-	auto serv_cfg = std::make_shared<SCTPServer::Config>();
-	serv_cfg->cert_filename = "../src/certs/server-cert.pem";
-	serv_cfg->key_filename = "../src/certs/server-key.pem";
+	auto& s = SCTPServer::get_instance();
 
-	/* minimum sanity check */
-	{
-		SCTPServer s { serv_cfg };
-		try {
-			s.init();
-		} catch (const std::runtime_error& exc) {
-			assert(false);
-		}
+	s.cfg_->cert_filename = "../src/certs/server-cert.pem";
+	s.cfg_->key_filename = "../src/certs/server-key.pem";
+
+	try {
+		s.init();
 		s.run();
-	}
-
-	/* two simultaneous servers, second shoudln fail */
-	{
-		SCTPServer s1 { serv_cfg };
-		SCTPServer s2 { serv_cfg };
-
-		try {
-			s1.init();
-		} catch (const std::runtime_error& exc) {
-			assert(false);
-		}		
-		s1.run();
-
-		try {	
-			s2.init();
-		} catch (const std::runtime_error& exc) {
-			assert(true);
-		}
+	} catch (const std::runtime_error& exc) {
+		return EXIT_FAILURE;
 	}
 
 	return EXIT_SUCCESS;
