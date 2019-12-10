@@ -490,7 +490,7 @@ ssize_t SCTPClient::sctp_send_raw(const void* buf, size_t len)
 
 		assert(BIO_ctrl_pending(output_bio));
 
-		char outbuf[BIO_ctrl_pending(output_bio)] = {0}; //size (???)
+		char outbuf[BUFFERSIZE] = {0}; //size (???)
 
 		int read = BIO_read(output_bio, outbuf, sizeof(outbuf));
 		if (SSL_ERROR_NONE != SSL_get_error(ssl, read)) throw std::runtime_error("BIO_read");
@@ -771,7 +771,7 @@ void SCTPClient::handle_association_change_event(struct sctp_assoc_change* sac)
 
 				
 				if (SSL_ERROR_WANT_READ == SSL_get_error(ssl, res) and BIO_ctrl_pending(output_bio)) {
-						char outbuf[BIO_ctrl_pending(output_bio)] = { 0 };
+						char outbuf[BUFFERSIZE] = { 0 };
 						int read = BIO_read(output_bio, outbuf, sizeof(outbuf));
 						assert(SSL_ERROR_NONE == SSL_get_error(ssl, read));
 

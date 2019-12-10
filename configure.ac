@@ -18,7 +18,9 @@ AC_PROG_RANLIB
 
 # Checks for programs.
 AC_PROG_CC
-AC_PROG_CXX
+AC_PROG_CXX([clang++ g++])
+AC_LANG([C++])
+
 #m4_ifdef([AX_CXX_COMPILE_STDCXX_14], [AX_CXX_COMPILE_STDCXX_14([noext],[mandatory])], AC_MSG_ERROR([AX_CXX_COMPILE_STDCXX_14 macro missing. Install autoconf-archive package and run autoreconf again.]))
 AX_CXX_COMPILE_STDCXX_14([noext],[mandatory])
 AC_PROG_CPP
