@@ -4,7 +4,7 @@
 AC_PREREQ([2.69])
 AC_INIT([simple-sctp-server-client], [0.01a], [psb1979@hotmail.com])
 
-AC_CONFIG_SRCDIR([src/server/main.cpp])
+AC_CONFIG_SRCDIR([src/sctp_server/sctp_srvr.cpp])
 AC_CONFIG_AUX_DIR([build-aux])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_MACRO_DIRS([m4])
@@ -59,10 +59,14 @@ AC_CONFIG_SUBDIRS([src/third_party/usrsctp])
 
 AC_CONFIG_FILES([Makefile \
 				src/Makefile \
-				src/common/Makefile \
+				src/sctp_common/Makefile \
 				src/third_party/gopt-10.0/Makefile \
-				src/server/Makefile \
-				src/client/Makefile src/certs/Makefile \
+				src/certs/Makefile \
+				src/sctp_server/Makefile \
+				src/sctp_client/Makefile \
+				src/examples/Makefile \
+				src/examples/broadcast/Makefile \
+				src/examples/certs/Makefile \
 				tests/Makefile])
 
 AC_OUTPUT
