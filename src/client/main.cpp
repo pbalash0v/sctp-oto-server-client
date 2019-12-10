@@ -66,7 +66,6 @@ static void parse_args(char* argv[], struct option options[], size_t opt_count)
 }
 
 
-constexpr uint16_t MIN_IP_PORT = std::numeric_limits<uint16_t>::min();
 constexpr uint16_t MAX_IP_PORT = std::numeric_limits<uint16_t>::max();
 
 #define DEFAULT_LOG_NAME "client_log.txt"
@@ -119,16 +118,11 @@ int main(int /* argc */, char* argv[])
 	uint16_t port = DEFAULT_LOCAL_UDP_ENCAPS_PORT;
 	if (options[3].count) {
 		auto _port = std::strtoul(options[3].argument, NULL, 10);
-		if (errno == ERANGE) {
+		if (errno == ERANGE or _port > MAX_IP_PORT) {
 			std::cout << "UDP port " << _port << " is invalid." << std::endl;
 			exit(EXIT_FAILURE);	
 		}
-		if (_port <= MAX_IP_PORT) {
-			port = (uint16_t) _port;
-		} else {
-			std::cout << "UDP port " << _port << " is invalid." << std::endl;
-			exit(EXIT_FAILURE);
-		}
+		port = static_cast<uint16_t>(_port);
 	}
 
 	std::string server_address = DEFAULT_SERVER_ADDRESS;
@@ -138,9 +132,9 @@ int main(int /* argc */, char* argv[])
 
 	std::unique_ptr<ITUI> tui;
 	if (options[6].count) {
-		tui = std::move(std::make_unique<TUI>());
+		tui = std::make_unique<TUI>();
 	} else {
-		tui = std::move(std::make_unique<SimpleTUI>());
+		tui = std::make_unique<SimpleTUI>();
 	}
 
 	/* Pepare Config object for SCTPClient */

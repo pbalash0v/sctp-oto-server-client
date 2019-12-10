@@ -29,10 +29,10 @@ void Client::init()
 
 	SSL_set_accept_state(ssl);
 
-	void* buf = calloc(BUFFERSIZE, sizeof(char));
-	if (not buf) throw std::runtime_error("Calloc failed.");
+	void* buf_ = calloc(BUFFERSIZE, sizeof(char));
+	if (not buf_) throw std::runtime_error("Calloc failed.");
 
-	buff = std::move(std::unique_ptr<void, decltype(&std::free)> (buf, std::free));
+	buff = std::unique_ptr<void, decltype(&std::free)> (buf_, std::free);
 }
 
 

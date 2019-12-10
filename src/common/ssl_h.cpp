@@ -36,7 +36,7 @@ void SSL_h::init(const std::string& cert_file, const std::string& key_file) {
 	*/
 
 #ifndef TLS_MAX_VERSION
-	throw std::runtime_error("TLS not supported.");
+	Error: Your OpenSSL version does not support TLS.
 #endif
 
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
