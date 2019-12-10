@@ -32,19 +32,20 @@ void SSL_h::init(const std::string& cert_file, const std::string& key_file) {
 		create the SSL server context
 		SSLv23_client_method() or TLS_client_method()
 		SSLv23_server_method() or TLS_server_method()
+
 	*/
 
-	#if !defined TLS_MAX_VERSION
-		throw std::runtime_error("TLS not supported.");
-	#else
-		#if TLS_MAX_VERSION == TLS1_2_VERSION
-			#define CLIENT_METHOD TLSv1_2_client_method
-			#define SERVER_METHOD TLSv1_2_server_method
-		#else
-			#define CLIENT_METHOD TLS_client_method
-			#define SERVER_METHOD TLS_server_method
-		#endif
-	#endif
+#ifndef TLS_MAX_VERSION
+	throw std::runtime_error("TLS not supported.");
+#endif
+
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+	#define CLIENT_METHOD TLSv1_2_client_method
+	#define SERVER_METHOD TLSv1_2_server_method
+#else
+	#define CLIENT_METHOD TLS_client_method
+	#define SERVER_METHOD TLS_server_method
+#endif
 
 	ctx_ = SSL_CTX_new((type_ == SSL_h::CLIENT) ? CLIENT_METHOD() : SERVER_METHOD());
 
