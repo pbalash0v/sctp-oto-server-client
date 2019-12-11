@@ -1,4 +1,4 @@
-AM_CXXFLAGS = -std=c++14 -Wall -Werror -Wextra -g -O0
+AM_CXXFLAGS = -std=c++14 -Wall -Werror -Wextra -pedantic -g -O0
 AUTOMAKE_OPTIONS = subdir-objects
 
 bin_PROGRAMS = server client

@@ -12,8 +12,8 @@
 #include <sys/prctl.h>
 #include <signal.h>
 
-#include "sctp_srvr.h"
-#include "sctp_srvr_client.h"
+#include "sctp_server.h"
+#include "sctp_server_client.h"
 #include "sctp_client.h"
 
 std::atomic_bool running { true };

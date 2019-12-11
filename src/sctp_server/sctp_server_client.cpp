@@ -4,8 +4,10 @@
 
 #include <errno.h>
 
-#include "sctp_srvr_client.h"
-#include "sctp_srvr.h"
+#include <usrsctp.h>
+
+#include "sctp_server_client.h"
+#include "sctp_server.h"
 
 
 

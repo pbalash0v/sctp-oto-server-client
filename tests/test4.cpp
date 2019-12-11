@@ -8,7 +8,7 @@
 
 #include <unistd.h>
 
-#include "sctp_srvr.h"
+#include "sctp_server.h"
 #include "sctp_client.h"
 
 

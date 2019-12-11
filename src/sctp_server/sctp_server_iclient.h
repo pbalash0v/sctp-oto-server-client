@@ -3,8 +3,6 @@
 #include <iostream>
 #include <memory>
 
-#include <usrsctp.h>
-
 #include "ssl_h.h"
 
 

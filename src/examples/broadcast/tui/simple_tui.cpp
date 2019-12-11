@@ -1,8 +1,10 @@
 #include <iostream>
 #include <string>
 #include <cstring>
-#include <unistd.h>
+#include <cstdio>
+
 #include <errno.h>
+#include <unistd.h>
 #include <sys/select.h>
 
 #include "spdlog/spdlog.h"
@@ -12,6 +14,10 @@
 
 constexpr const char* END_SIGNAL = "e";
 
+static constexpr size_t length(const char* str)
+{
+    return *str ? 1 + length(str + 1) : 0;
+}
 
 SimpleTUI::SimpleTUI()
 {
@@ -74,7 +80,7 @@ void SimpleTUI::loop()
 		}
 
       if (FD_ISSET(pipefd[0], &set)) {
-      	char buf[strlen(END_SIGNAL)];
+      	char buf[length(END_SIGNAL)];
 
       	int bytes_read = read(pipefd[0], &buf, sizeof buf);
 

@@ -7,8 +7,8 @@
 #include <unistd.h>
 #include <cassert>
 
-#include "sctp_srvr.h"
-#include "sctp_srvr_client.h"
+#include "sctp_server.h"
+#include "sctp_server_client.h"
 
 
 std::atomic_bool running { true };
@@ -71,7 +71,7 @@ public:
 std::shared_ptr<SCTPServer::Config> get_cfg()
 {
 	auto serv_cfg = std::make_shared<SCTPServer::Config>();
-	
+
 	serv_cfg->cert_filename = "../src/certs/server-cert.pem";
 	serv_cfg->key_filename = "../src/certs/server-key.pem";
 	serv_cfg->debug_f = [](auto, auto s) { std::cerr << s << std::endl; };

@@ -1,12 +1,13 @@
 AM_CXXFLAGS = -std=c++14 -Wall -Werror -Wextra -g -O0
-AUTOMAKE_OPTIONS = subdir-objects	
+
+AUTOMAKE_OPTIONS = subdir-objects
 	
 noinst_LIBRARIES = libserver.a
 
 libserver_a_SOURCES =  \
-					sctp_srvr.cpp \
-					sctp_srvr_client.cpp \
-					sctp_srvr_i_client_data.cpp
+					sctp_server.cpp \
+					sctp_server_client.cpp \
+					sctp_server_iclient_data.cpp
 					
 				
 libserver_a_CPPFLAGS = \

@@ -4,7 +4,7 @@
 AC_PREREQ([2.69])
 AC_INIT([simple-sctp-server-client], [0.01a], [psb1979@hotmail.com])
 
-AC_CONFIG_SRCDIR([src/sctp_server/sctp_srvr.cpp])
+AC_CONFIG_SRCDIR([src/sctp_server/sctp_server.cpp])
 AC_CONFIG_AUX_DIR([build-aux])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_MACRO_DIRS([m4])

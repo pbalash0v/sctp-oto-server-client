@@ -1,5 +1,7 @@
 AM_CXXFLAGS = -std=c++14 -Wall -Werror -Wextra -g -O0
 
+#AUTOMAKE_OPTIONS = subdir-objects
+
 ##$(info srcdir is $(srcdir))
 ##$(info abs_srcdir is $(abs_srcdir))
 ##$(info top_srcdir is $(top_srcdir))
@@ -24,10 +26,10 @@ TESTS_CPPFLAGS = -DTEST_BUILD \
 ## test's helper lib
 check_LIBRARIES = libtest.a
 
-libtest_a_SOURCES = $(top_builddir)/src/sctp_server/sctp_srvr.cpp \
-					$(top_builddir)/src/sctp_server/sctp_srvr_client.cpp \
-					$(top_builddir)/src/sctp_server/sctp_srvr_i_client_data.cpp \
-					$(top_builddir)/src/sctp_client/sctp_client.cpp
+libtest_a_SOURCES = $(top_srcdir)/src/sctp_server/sctp_server.cpp \
+					$(top_srcdir)/src/sctp_server/sctp_server_client.cpp \
+					$(top_srcdir)/src/sctp_server/sctp_server_iclient_data.cpp \
+					$(top_srcdir)/src/sctp_client/sctp_client.cpp
 
 libtest_a_CXXFLAGS = $(AM_CXXFLAGS)
 libtest_a_CPPFLAGS = $(TESTS_CPPFLAGS)

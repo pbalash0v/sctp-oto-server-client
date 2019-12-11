@@ -8,7 +8,7 @@
 #include "spdlog/spdlog.h"
 #include "spdlog/fmt/ostr.h"
 
-#include "sctp_srvr.h"
+#include "sctp_server.h"
 #include "gopt.h"
 
 

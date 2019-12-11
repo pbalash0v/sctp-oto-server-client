@@ -8,8 +8,10 @@
 #include <mutex>
 #include <atomic>
 
+#include <sys/socket.h> //socklen_t
+
 #include "ssl_h.h"
-#include "sctp_srvr_client.h"
+#include "sctp_server_client.h"
 
 
 #ifdef TEST_BUILD

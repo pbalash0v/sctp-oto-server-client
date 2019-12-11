@@ -14,7 +14,7 @@
 
 #include <usrsctp.h>
 
-#include "sctp_srvr.h"
+#include "sctp_server.h"
 
 
 
