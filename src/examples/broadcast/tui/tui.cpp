@@ -10,8 +10,6 @@
 
 constexpr const char* END_SIGNAL = "e";
 
-//static constexpr size_t BUFFLEN(const char* s) { return strlen(s); };
-
 static constexpr size_t length(const char* str)
 {
     return *str ? 1 + length(str + 1) : 0;
@@ -131,35 +129,42 @@ void TUI::put_message(const std::string& s)
 
 void TUI::put_log(ITUI::LogLevel l, const std::string& s)
 {
+	if (l < verbosity) return;
+
 	std::string s_ { s };
 
 	switch (l) {
-	case ITUI::LogLevel::TRACE:
-		s_ = "[TRACE] " + s_;
-		break;
-	case ITUI::LogLevel::DEBUG:
-		s_ = "[DEBUG] " + s_;
- 		break;
-	case ITUI::LogLevel::INFO:
-		s_ = "[INFO] " + s_;
- 		break;
-	case ITUI::LogLevel::WARNING:
-		s_ = "[WARNING] " + s_;
-		break;
-	case ITUI::LogLevel::ERROR:
-		s_ = "[ERROR] " + s_;
-		break;
-	case ITUI::LogLevel::CRITICAL:
-		s_ = "[CRITICAL] " + s_;
-		break;
-	default:
-		s_ = "Unknown log level message: " + s_;
- 		break;
+		case ITUI::LogLevel::TRACE:
+
+			s_ = "[TRACE] " + s_;
+			break;
+		case ITUI::LogLevel::DEBUG:
+			s_ = "[DEBUG] " + s_;
+	 		break;
+		case ITUI::LogLevel::INFO:
+			s_ = "[INFO] " + s_;
+	 		break;
+		case ITUI::LogLevel::WARNING:
+			s_ = "[WARNING] " + s_;
+			break;
+		case ITUI::LogLevel::ERROR:
+			s_ = "[ERROR] " + s_;
+			break;
+		case ITUI::LogLevel::CRITICAL:
+			s_ = "[CRITICAL] " + s_;
+			break;
+		default:
+			s_ = "Unknown log level message: " + s_;
+	 		break;
 	}
 
 	q.enqueue(s_);
 }
 
+void TUI::set_log_level(ITUI::LogLevel l)
+{
+	verbosity = l;
+}
 
 void TUI::stop()
 {

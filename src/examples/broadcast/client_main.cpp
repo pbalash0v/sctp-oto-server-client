@@ -85,6 +85,7 @@ int main(int /* argc */, char* argv[])
 		"\t-p, --port\t\t -- server port" << std::endl << \
 		"\t-l, --log\t\t -- enable rotating log (defaults to " << DEFAULT_LOG_NAME << ")" << std::endl << \
 		"\t-t, --tui\t\t -- run TUI (unstable)" << std::endl << \
+		"\t-v, --verbose\t\t -- be verbose" << std::endl << \
 		"\t-h, --help\t\t -- this message" << std::endl << \
 		"\t-V, --version\t\t -- print the version and exit" << std::endl << \
 
@@ -98,10 +99,21 @@ int main(int /* argc */, char* argv[])
 		exit(EXIT_SUCCESS);
 	}
 
-	if (options[2].count) {
-		std::cout << "Verbosity is not supported atm." << std::endl;  	
-		exit(EXIT_SUCCESS);
-	}
+	/* Verbosity */
+	ITUI::LogLevel log_level = ([&]
+		{
+			ITUI::LogLevel log_lev = ITUI::INFO;
+
+			if (options[2].count == 1) {
+				log_lev = ITUI::DEBUG;
+			}
+			if (options[2].count > 1) {
+				log_lev = ITUI::TRACE;
+			}
+
+			return log_lev;
+		})();
+
 
 	/* file logger */
 	if (options[5].count) {
@@ -136,6 +148,8 @@ int main(int /* argc */, char* argv[])
 	} else {
 		tui = std::make_unique<SimpleTUI>();
 	}
+
+	tui->set_log_level(log_level);
 
 	/* Pepare Config object for SCTPClient */
 	auto cfg = std::make_shared<SCTPClient::Config>();

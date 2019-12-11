@@ -27,7 +27,9 @@ public:
 
 	virtual void put_log(ITUI::LogLevel, const std::string&) = 0;
 
+	virtual void set_log_level(ITUI::LogLevel) = 0;
+
 	virtual void stop() = 0;
-	
+
 	virtual ~ITUI() {};
 };	

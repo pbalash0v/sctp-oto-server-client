@@ -29,6 +29,8 @@ public:
 
 	virtual void put_log(LogLevel, const std::string&) override;
 
+	virtual void set_log_level(ITUI::LogLevel) override;
+
 	virtual void stop() override;
 	
 	virtual ~TUI();
@@ -41,6 +43,8 @@ private:
 	std::string message;
 	SyncQueue<std::string> q;
 	std::thread log_thr;
+
+	ITUI::LogLevel verbosity { ITUI::TRACE };
 
 	int pipefd[2];
 

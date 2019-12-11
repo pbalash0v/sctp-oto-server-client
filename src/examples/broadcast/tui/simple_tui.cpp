@@ -28,7 +28,7 @@ SimpleTUI::SimpleTUI()
 		throw std::runtime_error(strerror(errno));
 	}
 
-	spdlog::set_level(spdlog::level::trace);
+	spdlog::set_level(spdlog::level::info);
 }
 
 SimpleTUI::~SimpleTUI()
@@ -136,6 +136,22 @@ void SimpleTUI::put_log(ITUI::LogLevel l, const std::string& s)
     		break;
 	}
 }
+
+void SimpleTUI::set_log_level(ITUI::LogLevel l) {
+	switch (l) {
+		case ITUI::LogLevel::TRACE:
+			spdlog::set_level(spdlog::level::trace);
+			break;
+		case ITUI::LogLevel::DEBUG:
+			spdlog::set_level(spdlog::level::debug);
+    		break;
+		case ITUI::LogLevel::INFO:
+		default:
+			spdlog::set_level(spdlog::level::info);
+    		break;
+	}
+}
+
 
 void SimpleTUI::stop()
 {

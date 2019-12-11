@@ -25,6 +25,8 @@ public:
 	virtual void put_message(const std::string&) override;
 
 	virtual void put_log(LogLevel, const std::string&) override;
+	
+	virtual void set_log_level(ITUI::LogLevel) override;
 
 	virtual void stop() override;
 	
