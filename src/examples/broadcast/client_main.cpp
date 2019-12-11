@@ -127,20 +127,31 @@ int main(int /* argc */, char* argv[])
 		}
 	}
 
-	uint16_t port = DEFAULT_LOCAL_UDP_ENCAPS_PORT;
-	if (options[3].count) {
-		auto _port = std::strtoul(options[3].argument, NULL, 10);
-		if (errno == ERANGE or _port > MAX_IP_PORT) {
-			std::cout << "UDP port " << _port << " is invalid." << std::endl;
-			exit(EXIT_FAILURE);	
-		}
-		port = static_cast<uint16_t>(_port);
-	}
+	uint16_t port = ([&]
+		{
+			uint16_t _port =  DEFAULT_LOCAL_UDP_ENCAPS_PORT;
 
-	std::string server_address = DEFAULT_SERVER_ADDRESS;
-	if (options[4].count) {
-		server_address = options[4].argument;
-	}
+			if (options[3].count) {
+				auto _port = std::strtoul(options[3].argument, NULL, 10);
+				if (errno == ERANGE or _port > MAX_IP_PORT) {
+					std::cout << "UDP port " << _port << " is invalid." << std::endl;
+					exit(EXIT_FAILURE);	
+				}
+			}
+
+			return static_cast<uint16_t>(_port);
+		})();
+
+	auto server_address = ([&]
+		{
+			std::string serv_addr = DEFAULT_SERVER_ADDRESS;
+
+			if (options[4].count) {
+				serv_addr = options[4].argument;
+			}
+
+			return serv_addr;
+		})();
 
 	std::unique_ptr<ITUI> tui;
 	if (options[6].count) {
