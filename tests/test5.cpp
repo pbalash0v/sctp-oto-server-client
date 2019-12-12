@@ -84,7 +84,8 @@ int main(int, char const**) {
 
 		cli_cfg->state_f = [&](auto state) {
 			if (state == SCTPClient::SSL_CONNECTED) {
-				client.sctp_send(TEST_STRING);
+				std::string _s = std::string(TEST_STRING);
+				client.send(_s.c_str(), _s.size());
 				std::this_thread::sleep_for(std::chrono::milliseconds(100));
 			 	running = false;
 			}

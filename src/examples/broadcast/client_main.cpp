@@ -265,7 +265,7 @@ int main(int /* argc */, char* argv[])
 
 	tui->init([&](const auto& s)
 	{
-		if (client.connected()) client.sctp_send(s);
+		if (client.connected()) client.send(s.c_str(), s.size());
 		else tui->put_message("\n" + s + " not sent (client not connected).\n");
 	});
 

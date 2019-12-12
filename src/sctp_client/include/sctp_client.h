@@ -86,9 +86,7 @@ public:
 
 	bool connected() const { return state == SSL_CONNECTED; };
 
-	ssize_t sctp_send(const std::string&);
-
-	ssize_t sctp_send(const void* buf, size_t len);
+	ssize_t send(const void* buf, size_t len);
 
 	void stop();
 
@@ -137,7 +135,6 @@ private:
 	void handle_adaptation_indication(struct sctp_adaptation_event* sai);
 	void handle_send_failed_event(struct sctp_send_failed_event* ssfe);
 	void handle_peer_address_change_event(struct sctp_paddr_change* spc);
-
 
 	void set_state(SCTPClient::State new_state);
 

@@ -1,11 +1,13 @@
 #include <iostream>
 #include <sstream>
-#include <cassert>
+#include <unordered_map>
+#include <algorithm>
+
 #include <usrsctp.h>
 #include <netdb.h>
 
-#include <unordered_map>
-#include <algorithm>
+#include <cassert>
+#include <cstring>
 
 #include "sctp_client.h"
 
@@ -117,7 +119,7 @@ void SCTPClient::set_state(SCTPClient::State new_state)
 
 void SCTPClient::handle_upcall(struct socket* sock, void* arg, int /* flgs */)
 {
-	SCTPClient* c = (SCTPClient *) arg;
+	SCTPClient* c = static_cast<SCTPClient*>(arg);
 	std::shared_ptr<SCTPClient::Config> cfg_ = c->cfg_;
 	/* from here on we can use log macros */
 
@@ -125,17 +127,31 @@ void SCTPClient::handle_upcall(struct socket* sock, void* arg, int /* flgs */)
 
 	int events = usrsctp_get_events(sock);
 
-	std::string m { "Socket events: "};
-	if (events & SCTP_EVENT_ERROR) {
-		m += "SCTP_EVENT_ERROR";
-	}
+	TRACE(([&]
+	{
+		std::string s = { "Socket events: " };
+
+		if (events & SCTP_EVENT_ERROR) {
+			s += "SCTP_EVENT_ERROR";
+		}
+		if (events & SCTP_EVENT_WRITE) {
+			s += " SCTP_EVENT_WRITE";
+		}
+		if (events & SCTP_EVENT_READ) {
+			s += " SCTP_EVENT_READ";
+		}
+
+		return s;
+	})());
+
 	if (events & SCTP_EVENT_WRITE) {
-		m += " SCTP_EVENT_WRITE";
+		TRACE("SCTP_EVENT_WRITE: unhandled.");
 	}
-	if (events & SCTP_EVENT_READ) {
-		m += " SCTP_EVENT_READ";
+
+	/* handling ??? */
+	if (events & SCTP_EVENT_ERROR) {
+		ERROR("SCTP_EVENT_ERROR: " + std::string(strerror(errno)));
 	}
-	TRACE(m);
 
 	if (events & SCTP_EVENT_READ) {
 		TRACE("handling SCTP_EVENT_READ");
@@ -146,13 +162,14 @@ void SCTPClient::handle_upcall(struct socket* sock, void* arg, int /* flgs */)
 		//struct sctp_rcvinfo rcv_info;
 		ssize_t n;
 		struct sockaddr_in addr;
-		void* buf = calloc(1, BUFFERSIZE);
+		void* buf = calloc(BUFFERSIZE, sizeof (char));
 		int flags = 0;
 		socklen_t from_len = (socklen_t) sizeof(struct sockaddr_in);
 		unsigned int infotype;
 		socklen_t infolen = sizeof(struct sctp_recvv_rn);
 		//infolen = (socklen_t) sizeof(struct sctp_rcvinfo);
 
+		/* we can have several notifications waiting. process them all */
 		while ((n = usrsctp_recvv(sock, buf, BUFFERSIZE, (struct sockaddr*) &addr, &from_len, (void *) &rn,
 								&infolen, &infotype, &flags)) > 0) {
 
@@ -192,20 +209,19 @@ void SCTPClient::handle_upcall(struct socket* sock, void* arg, int /* flgs */)
 		free(buf);
 	}
 
-	if (events & SCTP_EVENT_WRITE) {
-		TRACE("SCTP_EVENT_WRITE: unhandled.");
-	}
+
 
 	TRACE_func_left();
 }
 
 /*
-	SCTP engine wants to send data
+	SCTP engine wants to send data.
+	We send through our udp socket.
 */
 int SCTPClient::conn_output(void* arg, void *buf, size_t length,
 									 uint8_t /* tos */, uint8_t /* set_df */)
 {
-	SCTPClient* c = (SCTPClient *) arg;
+	SCTPClient* c = static_cast<SCTPClient*>(arg);
 	std::shared_ptr<SCTPClient::Config> cfg_ = c->cfg_;
 
 #if 0
@@ -216,13 +232,13 @@ int SCTPClient::conn_output(void* arg, void *buf, size_t length,
 	}
 #endif
 
-	int numbytes = send(c->udp_sock_fd, buf, length, 0);
+	int numbytes = ::send(c->udp_sock_fd, buf, length, 0);
 
 	if (numbytes < 0) {
 		CRITICAL(strerror(errno));
-		return (errno);
+		return errno;
 	} else {
-		return (0);
+		return 0;
 	}
 }
 
@@ -231,10 +247,10 @@ int SCTPClient::conn_output(void* arg, void *buf, size_t length,
 void SCTPClient::init_local_UDP()
 {
 	int status;
-	struct addrinfo* cli_info = NULL;   /* will point to the result */
+	struct addrinfo* cli_info = NULL; /* will point to the result */
+	/* RAII for cli_info */
 	std::shared_ptr<struct addrinfo*> ptr (&cli_info,
-					 [&](struct addrinfo** s) { if (*s) freeaddrinfo(*s); }); /* RAII for cli_info */
-
+					 [&](struct addrinfo** s) { if (*s) freeaddrinfo(*s); });
 	struct addrinfo hints;
 
 	memset(&hints, 0, sizeof hints); // make sure the struct is empty
@@ -264,6 +280,8 @@ void SCTPClient::init_local_UDP()
       struct sockaddr_in* ipv4 = (struct sockaddr_in *) p->ai_addr;
       void* addr = &(ipv4->sin_addr);
 		inet_ntop(p->ai_family, addr, ipstr, sizeof ipstr);
+		TRACE(ipstr);
+		memset(ipstr, 0, sizeof ipstr);
 	}
 	
 	if ((udp_sock_fd = socket(cli_info->ai_family, cli_info->ai_socktype, cli_info->ai_protocol)) <= 0) {
@@ -281,11 +299,12 @@ void SCTPClient::init_remote_UDP()
 	TRACE_func_entry();
 
 	int status;
-	struct addrinfo hints;
-	struct addrinfo* serv_info;  // will point to the results
+
+	struct addrinfo* serv_info = nullptr;  // will point to the results
 	std::shared_ptr<struct addrinfo*> ptr (&serv_info,
 					 [&](struct addrinfo** s) { freeaddrinfo(*s); }); //RAII for servinfo
 
+	struct addrinfo hints;
 	memset(&hints, 0, sizeof hints); // make sure the struct is empty
 	hints.ai_family = AF_INET;     // don't care IPv4 or IPv6
 	hints.ai_socktype = SOCK_DGRAM; // TCP stream sockets
@@ -295,7 +314,7 @@ void SCTPClient::init_remote_UDP()
 		throw std::runtime_error(gai_strerror(status));
 	}
 
-	TRACE(std::to_string(cfg_->server_udp_port));
+	TRACE(cfg_->server_address + " " + std::to_string(cfg_->server_udp_port));
 
 	struct sockaddr* ipv4 = nullptr;
 	bool found = false; //todo: this is ugly, need to look for sock API way
@@ -509,12 +528,7 @@ ssize_t SCTPClient::sctp_send_raw(const void* buf, size_t len)
 }
 
 
-ssize_t SCTPClient::sctp_send(const std::string& s)
-{
-	return sctp_send_raw((void*)s.c_str(), s.size());
-}
-
-ssize_t SCTPClient::sctp_send(const void* buf, size_t len)
+ssize_t SCTPClient::send(const void* buf, size_t len)
 {
 	return sctp_send_raw(buf, len);
 }
@@ -622,36 +636,39 @@ void SCTPClient::handle_server_data(void* buffer, ssize_t n, const struct sockad
 		char outbuf[BUFFERSIZE] = { 0 }; /*  size (?) */
 		int read = SSL_read(ssl, outbuf, sizeof outbuf);
 
-		if (!read && SSL_ERROR_ZERO_RETURN == SSL_get_error(ssl, read)) {
+		if (not read && SSL_ERROR_ZERO_RETURN == SSL_get_error(ssl, read)) {
 			set_state(SCTPClient::SSL_SHUTDOWN);
 			break;
 		}
 
 		if (read < 0 && (SSL_ERROR_WANT_READ == SSL_get_error(ssl, read))) {
-			DEBUG("SSL_ERROR_WANT_READ");
+			TRACE("SSL_ERROR_WANT_READ");
 			break;
 		}
 
-		char message[BUFFERSIZE] = {'\0'};
+		DEBUG(([&]
+		{
+			char message[BUFFERSIZE] = {'\0'};
 
-		if (infotype == SCTP_RECVV_RCVINFO) {
-			snprintf(message, sizeof message,
-						"Msg %s of length %llu received from %s:%u on stream %u with SSN %u and TSN %u, PPID %u, context %u, complete %d.\n",
-						(char*) outbuf,
-						(unsigned long long) read,
-						inet_ntop(AF_INET, &addr.sin_addr, name, INET_ADDRSTRLEN), ntohs(addr.sin_port),
-						rcv_info.recvv_rcvinfo.rcv_sid,	rcv_info.recvv_rcvinfo.rcv_ssn,	rcv_info.recvv_rcvinfo.rcv_tsn,
-						ntohl(rcv_info.recvv_rcvinfo.rcv_ppid), rcv_info.recvv_rcvinfo.rcv_context,
-						(flags & MSG_EOR) ? 1 : 0);
-		} else {
-			snprintf(message, sizeof message, "Msg %s of length %llu received from %s:%u, complete %d.\n",
-				(char*) outbuf,
-				(unsigned long long) read,
-				inet_ntop(AF_INET, &addr.sin_addr, name, INET_ADDRSTRLEN), ntohs(addr.sin_port),
-				(flags & MSG_EOR) ? 1 : 0);
-		}
+			if (infotype == SCTP_RECVV_RCVINFO) {
+				snprintf(message, sizeof message,
+							"Msg %s of length %llu received from %s:%u on stream %u with SSN %u and TSN %u, PPID %u, context %u, complete %d.\n",
+							(char*) outbuf,
+							(unsigned long long) read,
+							inet_ntop(AF_INET, &addr.sin_addr, name, INET_ADDRSTRLEN), ntohs(addr.sin_port),
+							rcv_info.recvv_rcvinfo.rcv_sid,	rcv_info.recvv_rcvinfo.rcv_ssn,	rcv_info.recvv_rcvinfo.rcv_tsn,
+							ntohl(rcv_info.recvv_rcvinfo.rcv_ppid), rcv_info.recvv_rcvinfo.rcv_context,
+							(flags & MSG_EOR) ? 1 : 0);
+			} else {
+				snprintf(message, sizeof message, "Msg %s of length %llu received from %s:%u, complete %d.\n",
+					(char*) outbuf,
+					(unsigned long long) read,
+					inet_ntop(AF_INET, &addr.sin_addr, name, INET_ADDRSTRLEN), ntohs(addr.sin_port),
+					(flags & MSG_EOR) ? 1 : 0);
+			}
 
-		DEBUG(message);
+			return std::string(message);
+		})());
 
 		if (cfg_->data_cback_f) cfg_->data_cback_f(outbuf);
 	}
@@ -674,6 +691,7 @@ void SCTPClient::handle_association_change_event(struct sctp_assoc_change* sac)
 	/*
 		Preapre debug message for association change
 	*/
+	auto message = ([&]
 	{
 		std::string message { "Association change " };
 
@@ -746,8 +764,10 @@ void SCTPClient::handle_association_change_event(struct sctp_assoc_change* sac)
 
 		message += ".\n";
 
-		DEBUG(message);
-	}
+		return message;
+	})();
+	DEBUG(message);
+
 
 
 	/*

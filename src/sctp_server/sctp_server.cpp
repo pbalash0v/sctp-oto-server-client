@@ -528,10 +528,11 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 	/*
 		In usrsctp user_socket.c SCTP_EVENT_ERROR appears to be one of
 		the available event types.
-		No idea what does it mean.
+		No idea what does it mean and how to react properly.
 	*/
 	if (events & SCTP_EVENT_ERROR) {
-		ERROR("SCTP_EVENT_ERROR: " + client->to_string());
+		ERROR("SCTP_EVENT_ERROR: " + std::string(strerror(errno))
+				 + " " + client->to_string());
 	}
 
 	/* client sent data */
