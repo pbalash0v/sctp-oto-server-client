@@ -37,16 +37,19 @@ libtest_a_CPPFLAGS = $(TESTS_CPPFLAGS)
 
 ## tests
 check_PROGRAMS = test1 test2 test3 test4 test5
+check_PROGRAMS_FAIL = test5
+
 AM_DEFAULT_SOURCE_EXT = .cpp
 
 TESTS = $(check_PROGRAMS)
+XFAIL_TESTS = $(check_PROGRAMS_FAIL)
 
 TESTS_LDADD = \
 			$(top_builddir)/tests/libtest.a \
 			$(top_builddir)/src/sctp_common/libcommon.a \
 			$(top_builddir)/src/third_party/usrsctp/usrsctplib/.libs/libusrsctp.a \
 			@OPENSSL_LIBS@ @PTHREAD_LIBS@ @PTHREAD_CFLAGS@
-				
+							
 ## test1
 test1_CXXFLAGS = $(AM_CXXFLAGS)		
 test1_CPPFLAGS = $(TESTS_CPPFLAGS)
