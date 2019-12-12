@@ -1,4 +1,5 @@
 #include <iostream>
+#include <sstream>
 #include <cassert>
 #include <usrsctp.h>
 #include <netdb.h>
@@ -294,8 +295,10 @@ void SCTPClient::init_remote_UDP()
 		throw std::runtime_error(gai_strerror(status));
 	}
 
+	TRACE(std::to_string(cfg_->server_udp_port));
+
 	struct sockaddr* ipv4 = nullptr;
-	bool found = false; //todo: ugly, need to look for sock API way
+	bool found = false; //todo: this is ugly, need to look for sock API way
 	for (struct addrinfo* p = serv_info; p; p = p->ai_next) {
 		if (p->ai_family == AF_INET) {
 			ipv4 = serv_info->ai_addr;
@@ -1045,6 +1048,13 @@ void SCTPClient::handle_notification(union sctp_notification* notif, size_t n)
 }
 
 
+std::string SCTPClient::to_string() const
+{
+	std::ostringstream oss;
+	oss << *this;
+	return oss.str();
+}
+
 
 std::ostream& operator<<(std::ostream& out, const SCTPClient::Config& c)
 {
@@ -1060,6 +1070,7 @@ std::ostream& operator<<(std::ostream& out, const SCTPClient::Config& c)
 	
 	return out;
 }
+
 
 std::ostream& operator<<(std::ostream& out, const SCTPClient& s)
 {

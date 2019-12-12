@@ -28,7 +28,7 @@ cd src/examples/broadcast
 To run client(s) (from **build** directory, in separate shell or tmux, terminate client with ctrl-d):
 ```console
 cd src/examples/broadcast
-	./client
+./client
 ```
 
 

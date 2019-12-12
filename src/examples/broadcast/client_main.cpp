@@ -1,7 +1,5 @@
 #include <iostream>
 #include <memory>
-#include <cassert>
-#include <csignal> 
 #include <limits>
 #include <algorithm>
 #include <string>
@@ -10,9 +8,28 @@
 #include "spdlog/sinks/basic_file_sink.h"
 
 #include "gopt.h"
+
 #include "tui.h"
 #include "simple_tui.h"
+
 #include "sctp_client.h"
+
+
+enum CLIOptions
+{
+	HELP,
+	VERSION,
+	VERBOSITY,
+	SERVER_UDP_PORT,
+	SERVER_ADDRESS,
+	LOG_TO_FILE,
+	RUN_TUI,
+	/* do not put any options below this comment */
+	OPTIONS_COUNT
+};
+
+constexpr uint16_t MAX_IP_PORT = std::numeric_limits<uint16_t>::max();
+constexpr const char* DEFAULT_LOG_FILENAME = "client_log.txt";
 
 
 [[noreturn]] void onTerminate() noexcept
@@ -24,66 +41,58 @@
 			std::cerr << "Uncaught exception: " << exc.what() << std::endl;
 		}
 	}
-
 	//endwin();
-
 	std::_Exit(EXIT_FAILURE);
 }
 
-static void parse_args(char* argv[], struct option options[], size_t opt_count)
+static void parse_args(char* argv[], struct option options[])
 {
-	options[0].long_name  = "help";
-	options[0].short_name = 'h';
-	options[0].flags      = GOPT_ARGUMENT_FORBIDDEN;
+	options[CLIOptions::HELP].long_name  = "help";
+	options[CLIOptions::HELP].short_name = 'h';
+	options[CLIOptions::HELP].flags      = GOPT_ARGUMENT_FORBIDDEN;
 
-	options[1].long_name  = "version";
-	options[1].short_name = 'V';
-	options[1].flags      = GOPT_ARGUMENT_FORBIDDEN;
+	options[CLIOptions::VERSION].long_name  = "version";
+	options[CLIOptions::VERSION].short_name = 'V';
+	options[CLIOptions::VERSION].flags      = GOPT_ARGUMENT_FORBIDDEN;
 
-	options[2].long_name  = "verbose";
-	options[2].short_name = 'v';
-	options[2].flags      = GOPT_ARGUMENT_FORBIDDEN;
+	options[CLIOptions::VERBOSITY].long_name  = "verbose";
+	options[CLIOptions::VERBOSITY].short_name = 'v';
+	options[CLIOptions::VERBOSITY].flags      = GOPT_ARGUMENT_FORBIDDEN;
 
-	options[3].long_name  = "port";
-	options[3].short_name = 'p';
-	options[3].flags      = GOPT_ARGUMENT_REQUIRED;
+	options[CLIOptions::SERVER_UDP_PORT].long_name  = "port";
+	options[CLIOptions::SERVER_UDP_PORT].short_name = 'p';
+	options[CLIOptions::SERVER_UDP_PORT].flags      = GOPT_ARGUMENT_REQUIRED;
 
-	options[4].long_name  = "server";
-	options[4].short_name = 's';
-	options[4].flags      = GOPT_ARGUMENT_REQUIRED;
+	options[CLIOptions::SERVER_ADDRESS].long_name  = "server";
+	options[CLIOptions::SERVER_ADDRESS].short_name = 's';
+	options[CLIOptions::SERVER_ADDRESS].flags      = GOPT_ARGUMENT_REQUIRED;
 
-	options[5].long_name  = "log";
-	options[5].short_name = 'l';
-	options[5].flags      = GOPT_ARGUMENT_FORBIDDEN;
+	options[CLIOptions::LOG_TO_FILE].long_name  = "log";
+	options[CLIOptions::LOG_TO_FILE].short_name = 'l';
+	options[CLIOptions::LOG_TO_FILE].flags      = GOPT_ARGUMENT_FORBIDDEN;
 
-	options[6].long_name  = "tui";
-	options[6].short_name = 't';
-	options[6].flags      = GOPT_ARGUMENT_FORBIDDEN;
+	options[CLIOptions::RUN_TUI].long_name  = "tui";
+	options[CLIOptions::RUN_TUI].short_name = 't';
+	options[CLIOptions::RUN_TUI].flags      = GOPT_ARGUMENT_FORBIDDEN;
 
-	options[opt_count-1].flags      = GOPT_LAST;
+	options[CLIOptions::OPTIONS_COUNT].flags = GOPT_LAST;
 
 	gopt(argv, options);
 }
 
-
-constexpr uint16_t MAX_IP_PORT = std::numeric_limits<uint16_t>::max();
-
-#define DEFAULT_LOG_NAME "client_log.txt"
-
-int main(int /* argc */, char* argv[])
+static std::shared_ptr<SCTPClient::Config> get_cfg_or_die(char* argv[], struct option options[])
 {
-	std::set_terminate(&onTerminate);
+	/* Pepare Config object for SCTPClient */
+	auto cfg = std::make_shared<SCTPClient::Config>();
 
-	struct option options[8];
-	parse_args(argv, options, sizeof options / sizeof options[0]);
 
-	if (options[0].count) {
+	if (options[CLIOptions::HELP].count) {
 		std::cout << \
 		"Usage: " << basename(argv[0]) << " [OPTIONS]" << std::endl << \
 		std::endl << \
 		"\t-s, --server\t\t -- server address" << std::endl << \
-		"\t-p, --port\t\t -- server port" << std::endl << \
-		"\t-l, --log\t\t -- enable rotating log (defaults to " << DEFAULT_LOG_NAME << ")" << std::endl << \
+		"\t-p, --port\t\t -- server UDP encapsulation port" << std::endl << \
+		"\t-l, --log\t\t -- enable rotating log (defaults to " << DEFAULT_LOG_FILENAME << ")" << std::endl << \
 		"\t-t, --tui\t\t -- run TUI (unstable)" << std::endl << \
 		"\t-v, --verbose\t\t -- be verbose" << std::endl << \
 		"\t-h, --help\t\t -- this message" << std::endl << \
@@ -94,31 +103,15 @@ int main(int /* argc */, char* argv[])
 	}
 
 	/* version */
-	if (options[1].count) {
+	if (options[CLIOptions::VERSION].count) {
 		std::cout << "Version 0.01a" << std::endl;  	
 		exit(EXIT_SUCCESS);
 	}
 
-	/* Verbosity */
-	ITUI::LogLevel log_level = ([&]
-		{
-			ITUI::LogLevel log_lev = ITUI::INFO;
-
-			if (options[2].count == 1) {
-				log_lev = ITUI::DEBUG;
-			}
-			if (options[2].count > 1) {
-				log_lev = ITUI::TRACE;
-			}
-
-			return log_lev;
-		})();
-
-
 	/* file logger */
-	if (options[5].count) {
+	if (options[CLIOptions::LOG_TO_FILE].count) {
 		try {
-			auto file_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(DEFAULT_LOG_NAME, true);
+			auto file_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(DEFAULT_LOG_FILENAME, true);
 			spdlog::default_logger()->sinks().push_back(file_sink);
 			spdlog::set_level(spdlog::level::trace);
 		} catch (const spdlog::spdlog_ex& ex) {
@@ -127,50 +120,87 @@ int main(int /* argc */, char* argv[])
 		}
 	}
 
-	uint16_t port = ([&]
-		{
-			uint16_t _port =  DEFAULT_LOCAL_UDP_ENCAPS_PORT;
+	cfg->server_udp_port = ([&]
+	{
+		auto _port = DEFAULT_SERVER_UDP_ENCAPS_PORT;
 
-			if (options[3].count) {
-				auto _port = std::strtoul(options[3].argument, NULL, 10);
-				if (errno == ERANGE or _port > MAX_IP_PORT) {
-					std::cout << "UDP port " << _port << " is invalid." << std::endl;
-					exit(EXIT_FAILURE);	
-				}
+		if (options[CLIOptions::SERVER_UDP_PORT].count) {
+			auto _p = std::strtoul(options[CLIOptions::SERVER_UDP_PORT].argument, NULL, 10);
+			if (errno == ERANGE or _p > MAX_IP_PORT or _p == 0) {
+				std::cout << "Supplied UDP port " << options[CLIOptions::SERVER_UDP_PORT].argument
+							 << " is invalid." << std::endl;
+				exit(EXIT_FAILURE);	
 			}
+			_port = _p;
+		}
 
-			return static_cast<uint16_t>(_port);
-		})();
+		return static_cast<uint16_t>(_port);
+	})();
 
-	auto server_address = ([&]
-		{
-			std::string serv_addr = DEFAULT_SERVER_ADDRESS;
+	cfg->server_address = ([&]
+	{
+		std::string serv_addr = DEFAULT_SERVER_ADDRESS;
 
-			if (options[4].count) {
-				serv_addr = options[4].argument;
-			}
+		if (options[CLIOptions::SERVER_ADDRESS].count) {
+			serv_addr = options[CLIOptions::SERVER_ADDRESS].argument;
+		}
 
-			return serv_addr;
-		})();
+		return serv_addr;
+	})();
 
-	std::unique_ptr<ITUI> tui;
-	if (options[6].count) {
-		tui = std::make_unique<TUI>();
-	} else {
-		tui = std::make_unique<SimpleTUI>();
-	}
+	return cfg;
+}
 
+
+
+
+
+int main(int /* argc */, char* argv[])
+{
+	std::set_terminate(&onTerminate);
+
+	struct option options[CLIOptions::OPTIONS_COUNT];
+	parse_args(argv, options);
+
+	std::unique_ptr<ITUI> tui = ([&]
+	{
+		std::unique_ptr<ITUI> tui_;
+
+		if (options[CLIOptions::RUN_TUI].count) {
+			tui_ = std::make_unique<TUI>();
+		} else {
+			tui_ = std::make_unique<SimpleTUI>();
+		}
+
+		return tui_;
+	})();
+
+	/* TUI verbosity */
+	ITUI::LogLevel log_level = ([&]
+	{
+		ITUI::LogLevel log_lev = ITUI::INFO;
+
+		if (options[CLIOptions::VERBOSITY].count == 1) {
+			log_lev = ITUI::DEBUG;
+		}
+		if (options[CLIOptions::VERBOSITY].count > 1) {
+			log_lev = ITUI::TRACE;
+		}
+
+		return log_lev;
+	})();
 	tui->set_log_level(log_level);
 
-	/* Pepare Config object for SCTPClient */
-	auto cfg = std::make_shared<SCTPClient::Config>();
-	cfg->udp_encaps_port = port;
-	cfg->server_address = server_address;
-	cfg->data_cback_f = [&](const auto& s) { 
+	/* Client config */
+	auto cfg = get_cfg_or_die(argv, options);
+
+	cfg->data_cback_f = [&](const auto& s)
+	{ 
 		tui->put_message("Server sent: " + s + "\n"); 
 	};
 
-	cfg->debug_f = [&](auto level, const auto& s) {
+	cfg->debug_f = [&](auto level, const auto& s)
+	{
 		ITUI::LogLevel l = ITUI::LogLevel::TRACE;
 
 		switch (level) {
@@ -194,13 +224,15 @@ int main(int /* argc */, char* argv[])
 				break;
 			default:
 	    		std::cerr << "Unknown SCTPClient log level message. " <<  s << std::endl;
+				l = ITUI::LogLevel::WARNING;
 	    		break;
  		}
 
 		tui->put_log(l, s);
 	};
 
-	cfg->state_f = [&](auto state) { 
+	cfg->state_f = [&](auto state)
+	{ 
 		std::string message;
 
 		switch (state) {
@@ -231,12 +263,11 @@ int main(int /* argc */, char* argv[])
 
 	SCTPClient client { cfg };
 
-	tui->init([&](const auto& s) {
+	tui->init([&](const auto& s)
+	{
 		if (client.connected()) client.sctp_send(s);
 		else tui->put_message("\n" + s + " not sent (client not connected).\n");
 	});
-
-	tui->put_message("Starting...press ctrl-D to stop.\n");
 
 	try {
 		client.init();
@@ -245,6 +276,9 @@ int main(int /* argc */, char* argv[])
 		tui->put_message(std::string(exc.what()) + std::string("\n"));
 		return EXIT_FAILURE;
 	}
+
+	tui->put_log(ITUI::LogLevel::INFO, client.to_string());
+	tui->put_message("Starting...press ctrl-D to stop.\n");
 
 	tui->loop(); /* this blocks main thread */
 

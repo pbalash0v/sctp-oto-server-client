@@ -24,7 +24,7 @@ public:
    };
 
    struct Data {
-   	Data (const void*, size_t);
+   	Data(const void*, size_t);
 
 		Data(const Data& oth) = delete;
 	
@@ -36,8 +36,7 @@ public:
    	size_t size { 0 };
 	};
 
-	IClient(struct socket* s, SCTPServer& srv)
-	 : sock(s), server_(srv) {};
+	IClient(struct socket* s, SCTPServer& srv) : sock(s), server_(srv) {};
 
 	virtual ~IClient() {};
 

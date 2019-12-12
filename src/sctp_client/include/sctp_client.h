@@ -13,12 +13,14 @@
 #include "ssl_h.h"
 
 
-constexpr uint16_t DEFAULT_LOCAL_UDP_ENCAPS_PORT = 0;
+constexpr uint16_t DEFAULT_LOCAL_UDP_ENCAPS_PORT = 0; //ephemeral
 
 constexpr const char* DEFAULT_SERVER_ADDRESS = "127.0.0.1";
 constexpr uint16_t DEFAULT_SERVER_UDP_ENCAPS_PORT = 9899;
 constexpr uint16_t DEFAULT_SERVER_SCTP_PORT = 5001;
 
+constexpr const char* DEFAULT_CERT_FILENAME = "../certs/client-cert.pem";
+constexpr const char* DEFAULT_KEY_FILENAME = "../certs/client-key.pem";
 
 
 class SCTPClient
@@ -47,35 +49,34 @@ public:
 
 	using SCTPClient_data_cback_t = std::function<void(const std::string&)>;
 	using SCTPClient_state_cback_t = std::function<void(State)>;
-	using SCTPServer_debug_t = std::function<void(SCTPClient::LogLevel, const std::string&)>;	
+	using SCTPClient_debug_t = std::function<void(SCTPClient::LogLevel, const std::string&)>;	
 
 	struct Config
 	{
 		Config() = default;
-		virtual ~Config() = default;
 		Config(const Config& oth) = delete;
 		Config& operator=(const Config& oth) = delete;
+		virtual ~Config() = default;
 
 		uint16_t udp_encaps_port { DEFAULT_LOCAL_UDP_ENCAPS_PORT };
 		uint16_t server_udp_port { DEFAULT_SERVER_UDP_ENCAPS_PORT };
 		uint16_t server_sctp_port { DEFAULT_SERVER_SCTP_PORT };
 		std::string server_address { DEFAULT_SERVER_ADDRESS };
 
-		std::string cert_filename { "../certs/client-cert.pem" };
-		std::string key_filename { "../certs/client-key.pem" };
+		std::string cert_filename { DEFAULT_CERT_FILENAME };
+		std::string key_filename { DEFAULT_KEY_FILENAME };
 
 		SCTPClient_data_cback_t data_cback_f = nullptr;
-		SCTPServer_debug_t debug_f = nullptr;
+		SCTPClient_debug_t debug_f = nullptr;
 		SCTPClient_state_cback_t state_f = nullptr;
+
 	};
 
 	SCTPClient();
-
 	SCTPClient(std::shared_ptr<SCTPClient::Config> p);
-
 	SCTPClient(const SCTPClient& oth) = delete;
-
 	SCTPClient& operator=(const SCTPClient& oth) = delete;
+	virtual ~SCTPClient();
 
 	/* sync */
 	void init();
@@ -91,7 +92,7 @@ public:
 
 	void stop();
 
-	virtual ~SCTPClient();
+	std::string to_string() const;
 
 	friend std::ostream& operator<<(std::ostream&, const SCTPClient&);
 
@@ -144,4 +145,4 @@ private:
 };
 
 
-std::ostream& operator<<(std::ostream& out, const SCTPClient::Config& c);
+std::ostream& operator<<(std::ostream& out, const SCTPClient::Config& c);		

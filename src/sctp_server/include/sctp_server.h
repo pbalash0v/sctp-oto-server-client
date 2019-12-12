@@ -86,18 +86,17 @@ public:
 		
 		friend class SCTPServer;
     	friend std::ostream& operator<<(std::ostream &out, const Config &c); 
-
 	};
 
-
+	/* Singleton */
 	static SCTPServer& get_instance() {
 		static SCTPServer s_;
 		return s_;
 	}
 
 	SCTPServer(const SCTPServer& oth) = delete;
-
 	SCTPServer& operator=(const SCTPServer& oth) = delete;
+	virtual ~SCTPServer();
 
 	/*
 		Usrsctp lib, SSL etc initializations. (synchronous).
@@ -115,12 +114,10 @@ public:
 	*/
 	void send(std::shared_ptr<IClient>&, const void*, size_t);
 
-
 	/*
 		Sends message to all clients.
 	*/
 	void broadcast(const void*, size_t);
-
 
 	/* 
 		might not be called explicitly
@@ -128,12 +125,6 @@ public:
 	*/
 	void stop();
 	
-
-	virtual ~SCTPServer();
-
-
-
-
 	std::shared_ptr<Config> cfg_;
 
  	friend std::ostream& operator<<(std::ostream&, const SCTPServer&);
@@ -142,7 +133,6 @@ public:
 	friend class IClient;
 
 protected:
-
 	SCTPServer();
 
 	SCTPServer(std::shared_ptr<SCTPServer::Config> p);
