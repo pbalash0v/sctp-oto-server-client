@@ -76,13 +76,18 @@ int main(int, char const**) {
 		assert(prctl(PR_SET_PDEATHSIG, SIGHUP) >= 0);
 		std::atomic_bool running { true };
 
-		auto cli_cfg = std::make_shared<SCTPClient::Config>();
-		cli_cfg->cert_filename = "../src/certs/client-cert.pem";
-		cli_cfg->key_filename = "../src/certs/client-key.pem";
+		auto cli_cfg = ([]
+		{
+			auto cfg = std::make_shared<SCTPClient::Config>();
+			cfg->cert_filename = "../src/certs/client-cert.pem";
+			cfg->key_filename = "../src/certs/client-key.pem";
+			return cfg;
+		})();
 
-		SCTPClient client { cli_cfg };
+		auto& client = SCTPClient::get_instance();
+		client.cfg_ =  cli_cfg;
 
-		cli_cfg->state_f = [&](auto state) {
+		client.cfg_->state_f = [&](auto state) {
 			if (state == SCTPClient::SSL_CONNECTED) {
 				std::string _s = std::string(TEST_STRING);
 				client.send(_s.c_str(), _s.size());

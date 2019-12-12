@@ -72,8 +72,11 @@ public:
 
 	};
 
-	SCTPClient();
-	SCTPClient(std::shared_ptr<SCTPClient::Config> p);
+	/* Singleton */
+	static SCTPClient& get_instance() {
+		static SCTPClient c_;
+		return c_;
+	}
 	SCTPClient(const SCTPClient& oth) = delete;
 	SCTPClient& operator=(const SCTPClient& oth) = delete;
 	virtual ~SCTPClient();
@@ -97,6 +100,8 @@ public:
 	std::shared_ptr<Config> cfg_;
 
 private:
+	SCTPClient();
+	SCTPClient(std::shared_ptr<SCTPClient::Config> p);
 
 	SSL_h ssl_obj { SSL_h::CLIENT };
 

@@ -217,6 +217,7 @@ void SCTPClient::handle_upcall(struct socket* sock, void* arg, int /* flgs */)
 /*
 	SCTP engine wants to send data.
 	We send through our udp socket.
+	Return value, probably, handled by usrsctp (?)
 */
 int SCTPClient::conn_output(void* arg, void *buf, size_t length,
 									 uint8_t /* tos */, uint8_t /* set_df */)
@@ -475,12 +476,14 @@ void SCTPClient::stop()
 {
 	TRACE_func_entry();
 
-	TRACE("About to usrsctp_shutdown");
-	/* 
-		(we are not going to send anythin more, so SHUT_WR)
-		Call is async, should handle assoc notification in upcall.
-	 */
-	usrsctp_shutdown(sock, SHUT_WR);
+	if (sock) {
+		TRACE("About to usrsctp_shutdown SHUT_WR");
+		/* 
+			(we are not going to send anything more, so SHUT_WR)
+			Call is async, we should handle assoc notification in upcall.
+		 */
+		usrsctp_shutdown(sock, SHUT_WR);
+	}
 
 	if (state == SCTP_CONNECTING) shutdown(udp_sock_fd, SHUT_RDWR);			
 

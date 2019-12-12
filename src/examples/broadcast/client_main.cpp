@@ -14,6 +14,8 @@
 
 #include "sctp_client.h"
 
+constexpr uint16_t MAX_IP_PORT = std::numeric_limits<uint16_t>::max();
+constexpr const char* DEFAULT_LOG_FILENAME = "client_log.txt";
 
 enum CLIOptions
 {
@@ -27,10 +29,6 @@ enum CLIOptions
 	/* do not put any options below this comment */
 	OPTIONS_COUNT
 };
-
-constexpr uint16_t MAX_IP_PORT = std::numeric_limits<uint16_t>::max();
-constexpr const char* DEFAULT_LOG_FILENAME = "client_log.txt";
-
 
 [[noreturn]] void onTerminate() noexcept
 {
@@ -162,7 +160,7 @@ int main(int /* argc */, char* argv[])
 	struct option options[CLIOptions::OPTIONS_COUNT];
 	parse_args(argv, options);
 
-	std::unique_ptr<ITUI> tui = ([&]
+	static std::unique_ptr<ITUI> tui = ([&]
 	{
 		std::unique_ptr<ITUI> tui_;
 
@@ -176,7 +174,7 @@ int main(int /* argc */, char* argv[])
 	})();
 
 	/* TUI verbosity */
-	ITUI::LogLevel log_level = ([&]
+	tui->set_log_level(([&]
 	{
 		ITUI::LogLevel log_lev = ITUI::INFO;
 
@@ -188,8 +186,8 @@ int main(int /* argc */, char* argv[])
 		}
 
 		return log_lev;
-	})();
-	tui->set_log_level(log_level);
+	})());
+	
 
 	/* Client config */
 	auto cfg = get_cfg_or_die(argv, options);
@@ -261,7 +259,8 @@ int main(int /* argc */, char* argv[])
 		tui->put_message(message + "\n"); 
 	};
 
-	SCTPClient client { cfg };
+	auto& client = SCTPClient::get_instance();
+	client.cfg_ = cfg;
 
 	tui->init([&](const auto& s)
 	{

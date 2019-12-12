@@ -11,11 +11,17 @@
 
 int main(int, char const**)
 {
-	auto cli_cfg = std::make_shared<SCTPClient::Config>();
-	cli_cfg->cert_filename = "../src/certs/client-cert.pem";
-	cli_cfg->key_filename = "../src/certs/client-key.pem";
+	auto cli_cfg = ([]
+	{
+		auto cfg = std::make_shared<SCTPClient::Config>();
+		cfg->cert_filename = "../src/certs/client-cert.pem";
+		cfg->key_filename = "../src/certs/client-key.pem";
+		return cfg;
+	})();
 
-	SCTPClient client { cli_cfg };
+
+	auto& client = SCTPClient::get_instance();
+	client.cfg_ = cli_cfg;
 
 	try {	
 		client.init();
