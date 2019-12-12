@@ -13,14 +13,14 @@
 #include "ssl_h.h"
 
 
-constexpr uint16_t DEFAULT_LOCAL_UDP_ENCAPS_PORT = 0; //ephemeral
+constexpr uint16_t DEFAULT_LOCAL_UDP_ENCAPS_PORT = 0; //choose ephemeral
 
 constexpr const char* DEFAULT_SERVER_ADDRESS = "127.0.0.1";
 constexpr uint16_t DEFAULT_SERVER_UDP_ENCAPS_PORT = 9899;
 constexpr uint16_t DEFAULT_SERVER_SCTP_PORT = 5001;
 
-constexpr const char* DEFAULT_CERT_FILENAME = "../certs/client-cert.pem";
-constexpr const char* DEFAULT_KEY_FILENAME = "../certs/client-key.pem";
+constexpr const char* DEFAULT_CLIENT_CERT_FILENAME = "../certs/client-cert.pem";
+constexpr const char* DEFAULT_CLIENT_KEY_FILENAME = "../certs/client-key.pem";
 
 
 class SCTPClient
@@ -63,8 +63,8 @@ public:
 		uint16_t server_sctp_port { DEFAULT_SERVER_SCTP_PORT };
 		std::string server_address { DEFAULT_SERVER_ADDRESS };
 
-		std::string cert_filename { DEFAULT_CERT_FILENAME };
-		std::string key_filename { DEFAULT_KEY_FILENAME };
+		std::string cert_filename { DEFAULT_CLIENT_CERT_FILENAME };
+		std::string key_filename { DEFAULT_CLIENT_KEY_FILENAME };
 
 		SCTPClient_data_cback_t data_cback_f = nullptr;
 		SCTPClient_debug_t debug_f = nullptr;
