@@ -160,6 +160,10 @@ int main(int /* argc */, char* argv[])
 	struct option options[CLIOptions::OPTIONS_COUNT];
 	parse_args(argv, options);
 
+	/* 
+		TUI made static for proper dtor call order
+		since Client instance is also static singleton
+	*/
 	static std::unique_ptr<ITUI> tui = ([&]
 	{
 		std::unique_ptr<ITUI> tui_;

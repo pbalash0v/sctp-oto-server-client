@@ -510,7 +510,7 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 		return;
 	}
 
-	auto log_message = ([&] {
+	TRACE(([&] {
 		std::string m { "Socket events: "};
 		if (events & SCTP_EVENT_ERROR) {
 			m += "SCTP_EVENT_ERROR";
@@ -522,8 +522,7 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 			m += " SCTP_EVENT_READ";
 		}
 		return m;
-	})();
-	TRACE(log_message);
+	})());
 
 	/*
 		In usrsctp user_socket.c SCTP_EVENT_ERROR appears to be one of
@@ -533,6 +532,10 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 	if (events & SCTP_EVENT_ERROR) {
 		ERROR("SCTP_EVENT_ERROR: " + std::string(strerror(errno))
 				 + " " + client->to_string());
+	}
+
+	if (events & SCTP_EVENT_WRITE) {
+		//TRACE(std::string("SCTP_EVENT_WRITE for: ") + client->to_string());
 	}
 
 	/* client sent data */
@@ -594,9 +597,7 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 		}		
 	}
 
-	if (events & SCTP_EVENT_WRITE) {
-		//TRACE(std::string("SCTP_EVENT_WRITE for: ") + client->to_string());
-	}
+
 
 	TRACE_func_left();
 
@@ -767,27 +768,32 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 					break;
 				}
 
-				char message[BUFFER_SIZE] = {'\0'};
+				DEBUG(([&]
+				{
+					char message[BUFFER_SIZE] = {'\0'};
 
-				if (infotype == SCTP_RECVV_RCVINFO) {
-					snprintf(message, sizeof message,
-								"Msg %s of length %llu received from %s:%u on stream %u with SSN %u and TSN %u, PPID %u, context %u, complete %d.",
-								(char*) outbuf,
-								(unsigned long long) read,
-								inet_ntop(AF_INET, &addr.sin_addr, name, INET_ADDRSTRLEN), ntohs(addr.sin_port),
-								rcv_info.recvv_rcvinfo.rcv_sid,	rcv_info.recvv_rcvinfo.rcv_ssn,	rcv_info.recvv_rcvinfo.rcv_tsn,
-								ntohl(rcv_info.recvv_rcvinfo.rcv_ppid), rcv_info.recvv_rcvinfo.rcv_context,
-								(flags & MSG_EOR) ? 1 : 0);
-				} else {
-					snprintf(message, sizeof message, "Msg %s of length %llu received from %s:%u, complete %d.",
-						(char*) outbuf,
-						(unsigned long long) read,
-						inet_ntop(AF_INET, &addr.sin_addr, name, INET_ADDRSTRLEN), ntohs(addr.sin_port),
-						(flags & MSG_EOR) ? 1 : 0);
-				}
+					if (infotype == SCTP_RECVV_RCVINFO) {
+						snprintf(message, sizeof message,
+									"Msg %s of length %llu received from %s:%u on stream %u with SSN %u and TSN %u, PPID %u, context %u, complete %d.",
+									(char*) outbuf,
+									(unsigned long long) read,
+									inet_ntop(AF_INET, &addr.sin_addr, name, INET_ADDRSTRLEN),
+									ntohs(addr.sin_port),
+									rcv_info.recvv_rcvinfo.rcv_sid,	rcv_info.recvv_rcvinfo.rcv_ssn,
+									rcv_info.recvv_rcvinfo.rcv_tsn,
+									ntohl(rcv_info.recvv_rcvinfo.rcv_ppid), rcv_info.recvv_rcvinfo.rcv_context,
+									(flags & MSG_EOR) ? 1 : 0);
+					} else {
+						snprintf(message, sizeof message, "Msg %s of length %llu received from %s:%u, complete %d.",
+							(char*) outbuf,
+							(unsigned long long) read,
+							inet_ntop(AF_INET, &addr.sin_addr, name, INET_ADDRSTRLEN),
+							ntohs(addr.sin_port),
+							(flags & MSG_EOR) ? 1 : 0);
+					}
 
-				DEBUG(message);
-
+					return std::string(message);
+				})());
 
 				if (cfg_->data_cback_f) {
 					try {

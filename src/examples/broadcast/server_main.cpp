@@ -12,7 +12,21 @@
 #include "gopt.h"
 
 
-[[noreturn]] void onTerminate() noexcept {
+constexpr uint16_t MAX_IP_PORT = std::numeric_limits<uint16_t>::max();
+
+enum CLIOptions
+{
+	HELP,
+	VERSION,
+	VERBOSITY,
+	UDP_ENCAPS_PORT,
+	SCTP_PORT,
+	/* do not put any options below this comment */
+	OPTIONS_COUNT
+};
+
+[[noreturn]] void onTerminate() noexcept
+{
 	if (auto exc = std::current_exception()) {
 		try {
          std::rethrow_exception(exc);
@@ -26,47 +40,40 @@
 	std::_Exit(EXIT_FAILURE);
 }
 
-static void parse_args(char* argv[], struct option options[], size_t opt_count) {
-	options[0].long_name  = "help";
-	options[0].short_name = 'h';
-	options[0].flags      = GOPT_ARGUMENT_FORBIDDEN;
 
-	options[1].long_name  = "version";
-	options[1].short_name = 'V';
-	options[1].flags      = GOPT_ARGUMENT_FORBIDDEN;
+static void parse_args(char* argv[], struct option options[])
+{
+	options[CLIOptions::HELP].long_name  = "help";
+	options[CLIOptions::HELP].short_name = 'h';
+	options[CLIOptions::HELP].flags      = GOPT_ARGUMENT_FORBIDDEN;
 
-	options[2].long_name  = "verbose";
-	options[2].short_name = 'v';
-	options[2].flags      = GOPT_ARGUMENT_FORBIDDEN;
+	options[CLIOptions::VERSION].long_name  = "version";
+	options[CLIOptions::VERSION].short_name = 'V';
+	options[CLIOptions::VERSION].flags      = GOPT_ARGUMENT_FORBIDDEN;
 
-	options[3].long_name  = "udp-port";
-	options[3].short_name = 'p';
-	options[3].flags      = GOPT_ARGUMENT_REQUIRED;
+	options[CLIOptions::VERBOSITY].long_name  = "verbose";
+	options[CLIOptions::VERBOSITY].short_name = 'v';
+	options[CLIOptions::VERBOSITY].flags      = GOPT_ARGUMENT_FORBIDDEN;
 
-	options[4].long_name  = "sctp-port";
-	options[4].short_name = 's';
-	options[4].flags      = GOPT_ARGUMENT_REQUIRED;
+	options[CLIOptions::UDP_ENCAPS_PORT].long_name  = "udp-port";
+	options[CLIOptions::UDP_ENCAPS_PORT].short_name = 'p';
+	options[CLIOptions::UDP_ENCAPS_PORT].flags      = GOPT_ARGUMENT_REQUIRED;
 
-	options[opt_count-1].flags      = GOPT_LAST;
+	options[CLIOptions::SCTP_PORT].long_name  = "sctp-port";
+	options[CLIOptions::SCTP_PORT].short_name = 's';
+	options[CLIOptions::SCTP_PORT].flags      = GOPT_ARGUMENT_REQUIRED;
+
+	options[CLIOptions::OPTIONS_COUNT].flags = GOPT_LAST;
 
 	gopt(argv, options);
 }
 
-
-constexpr uint16_t MIN_IP_PORT = std::numeric_limits<uint16_t>::min();
-constexpr uint16_t MAX_IP_PORT = std::numeric_limits<uint16_t>::max();
-
-
-int main(int /* argc */, char* argv[]) {
-	std::set_terminate(&onTerminate);
-
+static std::shared_ptr<SCTPServer::Config> get_cfg_or_die(char* argv[], struct option options[])
+{
 	auto cfg = std::make_shared<SCTPServer::Config>();
 
-	struct option options[6];
-	parse_args(argv, options, sizeof options / sizeof options[0]);
-
 	/* help */
-	if (options[0].count) {
+	if (options[CLIOptions::HELP].count) {
 		std::cout << \
 		"Usage: " << basename(argv[0]) << " [OPTIONS]" << std::endl << \
 		std::endl << \
@@ -83,52 +90,75 @@ int main(int /* argc */, char* argv[]) {
 	}
 
 	/* version */
-	if (options[1].count) {
+	if (options[CLIOptions::VERSION].count) {
 		std::cout << "Version 0.01a" << std::endl;  	
 		exit(EXIT_SUCCESS);
 	}
 
+	cfg->udp_encaps_port = ([&]
+	{
+		auto _port = DEFAULT_UDP_ENCAPS_PORT;
+	
+		if (options[CLIOptions::UDP_ENCAPS_PORT].count) {
+			auto _p = std::strtoul(options[CLIOptions::UDP_ENCAPS_PORT].argument, NULL, 10);
+			if (errno == ERANGE or _p > MAX_IP_PORT or _p == 0) {
+				std::cout << "Supplied UDP port " << options[CLIOptions::UDP_ENCAPS_PORT].argument
+							 << " is invalid." << std::endl;
+				exit(EXIT_FAILURE);
+			}
+			_port = _p;
+		}
+
+		return static_cast<uint16_t>(_port);
+	})();
+
+	cfg->sctp_port = ([&]
+	{
+		auto _port = DEFAULT_SCTP_PORT;
+
+		if (options[CLIOptions::SCTP_PORT].count) {
+			auto _p = std::strtoul(options[CLIOptions::SCTP_PORT].argument, NULL, 10);
+			if (errno == ERANGE or _p > MAX_IP_PORT or _p == 0) {
+				std::cout << "Supplied SCTP port " << options[CLIOptions::SCTP_PORT].argument
+							 << " is invalid." << std::endl;
+				exit(EXIT_FAILURE);
+			}
+			_port = _p;		
+		}
+
+		return static_cast<uint16_t>(_port);
+	})();
+
+	return cfg;
+}
+
+
+
+int main(int /* argc */, char* argv[]) {
+	std::set_terminate(&onTerminate);
+
+	struct option options[CLIOptions::OPTIONS_COUNT];
+	parse_args(argv, options);
+
 	/* verbosity */
-	if (options[2].count) {
-		if (options[2].count == 1) {
+	if (options[CLIOptions::VERBOSITY].count) {
+		if (options[CLIOptions::VERBOSITY].count == 1) {
 			spdlog::set_level(spdlog::level::debug);
 		} else {
 			spdlog::set_level(spdlog::level::trace);
 		}
 	}
 
-	/* udp encaps port */
-	if (options[3].count) {
-		auto _port = std::strtoul(options[3].argument, NULL, 10);
-		if (_port > MIN_IP_PORT && _port <= MAX_IP_PORT) {
-			cfg->udp_encaps_port = (uint16_t) _port;
-		} else {
-			std::cout << "Error. UDP port " << _port << " is invalid." << std::endl;
-			exit(EXIT_FAILURE);
-		}		
-	}
-
-	/* sctp serving port */
-	if (options[4].count) {
-		auto _port = std::strtoul(options[4].argument, NULL, 10);
-		if (_port > MIN_IP_PORT && _port < MAX_IP_PORT) {
-			cfg->sctp_port = (uint16_t) _port;
-		} else {
-			std::cout << "Error. SCTP port " << _port << " is invalid." << std::endl;
-			exit(EXIT_FAILURE);
-		}		
-	}
-
 	auto& srv  = SCTPServer::get_instance();
-	srv.cfg_ = cfg;
+	srv.cfg_ = get_cfg_or_die(argv, options);
 
-	auto cback = [&](auto /* client */, const auto& s) {
+	srv.cfg_->data_cback_f = [&](auto /* client */, const auto& s) {
 		std::string message { static_cast<const char*> (s->data) };
 		spdlog::info("{}", message);
 		srv.broadcast(message.c_str(), message.size());
 	};
 
-	auto debug_cback = [&](auto level, const auto& s) {
+	srv.cfg_->debug_f = [&](auto level, const auto& s) {
 		switch (level) {
 			case SCTPServer::TRACE:
 				spdlog::trace("{}", s);
@@ -154,8 +184,6 @@ int main(int /* argc */, char* argv[]) {
 		}
 	};
 
-	srv.cfg_->data_cback_f = cback;
-	srv.cfg_->debug_f = debug_cback;
 
 	try {
 		srv.init();
