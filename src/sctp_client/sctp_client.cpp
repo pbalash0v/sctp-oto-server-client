@@ -38,7 +38,7 @@
 #endif
 
 #define TRACE(text) log(SCTPClient::TRACE, text)
-#define DEBUG(text) log(SCTPClient::DEBUG, text)
+ #define DEBUG(text) log(SCTPClient::DEBUG, text)
 #define INFO(text) log(SCTPClient::INFO, text)
 #define WARNING(text) log(SCTPClient::WARNING, text)
 #define ERROR(text) log(SCTPClient::ERROR, text)
@@ -215,7 +215,8 @@ void SCTPClient::handle_upcall(struct socket* sock, void* arg, int /* flgs */)
 }
 
 /*
-	SCTP engine wants to send data.
+	Callback for SCTP engine data 
+	(e.g. when it wants to send data it calls this func).
 	We send through our udp socket.
 	Return value, probably, handled by usrsctp (?)
 */
@@ -458,7 +459,7 @@ void SCTPClient::run()
 #ifdef HAVE_SCONN_LEN
 	sconn.sconn_len = sizeof(struct sockaddr_conn);
 #endif
-	sconn.sconn_port = htons(5001);
+	sconn.sconn_port = htons(cfg_->server_sctp_port);
 	//sconn.sconn_addr = &fd;
 	sconn.sconn_addr = this; // ?
 

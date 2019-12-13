@@ -69,7 +69,6 @@ public:
 		SCTPClient_data_cback_t data_cback_f = nullptr;
 		SCTPClient_debug_t debug_f = nullptr;
 		SCTPClient_state_cback_t state_f = nullptr;
-
 	};
 
 	/* Singleton */
@@ -115,9 +114,8 @@ private:
 
 	struct socket* sock = nullptr;
 
-	std::atomic_bool isConnected { false };
-
 	std::thread udp_thr;
+	void udp_loop();
 
 	void init_local_UDP();
 	void init_remote_UDP();
@@ -143,7 +141,6 @@ private:
 
 	void set_state(SCTPClient::State new_state);
 
-	void udp_loop();
 };
 
 

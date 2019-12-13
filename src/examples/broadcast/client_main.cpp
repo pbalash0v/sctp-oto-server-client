@@ -23,6 +23,7 @@ enum CLIOptions
 	VERSION,
 	VERBOSITY,
 	SERVER_UDP_PORT,
+	SERVER_SCTP_PORT,
 	SERVER_ADDRESS,
 	LOG_TO_FILE,
 	RUN_TUI,
@@ -57,9 +58,13 @@ static void parse_args(char* argv[], struct option options[])
 	options[CLIOptions::VERBOSITY].short_name = 'v';
 	options[CLIOptions::VERBOSITY].flags      = GOPT_ARGUMENT_FORBIDDEN;
 
-	options[CLIOptions::SERVER_UDP_PORT].long_name  = "port";
-	options[CLIOptions::SERVER_UDP_PORT].short_name = 'p';
+	options[CLIOptions::SERVER_UDP_PORT].long_name  = "udp-port";
+	options[CLIOptions::SERVER_UDP_PORT].short_name = 'u';
 	options[CLIOptions::SERVER_UDP_PORT].flags      = GOPT_ARGUMENT_REQUIRED;
+
+	options[CLIOptions::SERVER_SCTP_PORT].long_name  = "sctp-port";
+	options[CLIOptions::SERVER_SCTP_PORT].short_name = 'p';
+	options[CLIOptions::SERVER_SCTP_PORT].flags      = GOPT_ARGUMENT_REQUIRED;
 
 	options[CLIOptions::SERVER_ADDRESS].long_name  = "server";
 	options[CLIOptions::SERVER_ADDRESS].short_name = 's';
@@ -88,8 +93,9 @@ static std::shared_ptr<SCTPClient::Config> get_cfg_or_die(char* argv[], struct o
 		std::cout << \
 		"Usage: " << basename(argv[0]) << " [OPTIONS]" << std::endl << \
 		std::endl << \
-		"\t-s, --server\t\t -- server address" << std::endl << \
-		"\t-p, --port\t\t -- server UDP encapsulation port" << std::endl << \
+		"\t-s, --server\t\t -- server address (defaults to " << DEFAULT_SERVER_ADDRESS << ")" << std::endl << \
+		"\t-u, --udp-port\t\t -- server UDP encapsulation port (defaults to " << DEFAULT_SERVER_UDP_ENCAPS_PORT << ")" << std::endl << \
+		"\t-p, --sctp-port\t\t -- server SCTP port (defaults to " << DEFAULT_SERVER_SCTP_PORT << ")" << std::endl << \
 		"\t-l, --log\t\t -- enable rotating log (defaults to " << DEFAULT_LOG_FILENAME << ")" << std::endl << \
 		"\t-t, --tui\t\t -- run TUI (unstable)" << std::endl << \
 		"\t-v, --verbose\t\t -- be verbose" << std::endl << \
@@ -126,6 +132,23 @@ static std::shared_ptr<SCTPClient::Config> get_cfg_or_die(char* argv[], struct o
 			auto _p = std::strtoul(options[CLIOptions::SERVER_UDP_PORT].argument, NULL, 10);
 			if (errno == ERANGE or _p > MAX_IP_PORT or _p == 0) {
 				std::cout << "Supplied UDP port " << options[CLIOptions::SERVER_UDP_PORT].argument
+							 << " is invalid." << std::endl;
+				exit(EXIT_FAILURE);	
+			}
+			_port = _p;
+		}
+
+		return static_cast<uint16_t>(_port);
+	})();
+
+	cfg->server_sctp_port = ([&]
+	{
+		auto _port = DEFAULT_SERVER_SCTP_PORT;
+
+		if (options[CLIOptions::SERVER_SCTP_PORT].count) {
+			auto _p = std::strtoul(options[CLIOptions::SERVER_SCTP_PORT].argument, NULL, 10);
+			if (errno == ERANGE or _p > MAX_IP_PORT or _p == 0) {
+				std::cout << "Supplied SCTP port " << options[CLIOptions::SERVER_SCTP_PORT].argument
 							 << " is invalid." << std::endl;
 				exit(EXIT_FAILURE);	
 			}
@@ -272,16 +295,17 @@ int main(int /* argc */, char* argv[])
 		else tui->put_message("\n" + s + " not sent (client not connected).\n");
 	});
 
+
 	try {
 		client.init();
+		tui->put_log(ITUI::LogLevel::INFO, client.to_string());
+		tui->put_message("Starting...press ctrl-D to stop.\n");
 		client.run(); /* this is async, starts separate thread */
 	} catch (const std::runtime_error& exc) {
 		tui->put_message(std::string(exc.what()) + std::string("\n"));
 		return EXIT_FAILURE;
 	}
 
-	tui->put_log(ITUI::LogLevel::INFO, client.to_string());
-	tui->put_message("Starting...press ctrl-D to stop.\n");
 
 	tui->loop(); /* this blocks main thread */
 
