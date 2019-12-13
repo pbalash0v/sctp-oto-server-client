@@ -299,7 +299,6 @@ int main(int /* argc */, char* argv[])
 	try {
 		client.init();
 		tui->put_log(ITUI::LogLevel::INFO, client.to_string());
-		tui->put_message("Starting...press ctrl-D to stop.\n");
 		client.run(); /* this is async, starts separate thread */
 	} catch (const std::runtime_error& exc) {
 		tui->put_message(std::string(exc.what()) + std::string("\n"));

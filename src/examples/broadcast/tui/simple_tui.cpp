@@ -55,6 +55,7 @@ void SimpleTUI::display_func()
 void SimpleTUI::init(ITUI_cback_t cback)
 {
 	cback_ = cback;
+	put_message("Starting...press ctrl-D to stop.\n");
 }
 
 

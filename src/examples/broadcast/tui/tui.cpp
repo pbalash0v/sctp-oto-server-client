@@ -75,6 +75,8 @@ void TUI::init(ITUI_cback_t cback)
 	nodelay(stdscr, TRUE);
 
 	scrollok(stdscr,TRUE); /* autoscroll stdscr window */
+
+	put_message("Starting...press ESC to stop.\n");
 }
 
 
@@ -179,12 +181,13 @@ void TUI::handle_resize()
 };
 
 
+#define ESC 27
 void TUI::handle_input()
 {
 	int c = wgetch(stdscr);
 
 	switch (c) {
-		case '`':
+		case ESC:
 			stop();
 			break;
 		case '\n':
