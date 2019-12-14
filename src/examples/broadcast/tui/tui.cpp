@@ -178,7 +178,7 @@ void TUI::stop()
 void TUI::handle_resize()
 {
 	refresh();
-};
+}
 
 
 #define ESC 27
