@@ -555,22 +555,28 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 		//infolen = (socklen_t) sizeof(struct sctp_rcvinfo);
 
 		/* got data or socket api notification */
-		while ((n = usrsctp_recvv(upcall_sock, client->buff.get(), BUFFERSIZE, (struct sockaddr*) &addr, &from_len, (void *) &rn,
-								&infolen, &infotype, &flags)) > 0) {
+		while ((n = usrsctp_recvv(upcall_sock, client->get_buffer(), client->get_buffer_size(),
+										 (struct sockaddr*) &addr, &from_len, (void *) &rn,
+											&infolen, &infotype, &flags)) > 0) {
+
+			WARNING(flags & MSG_EOR ? std::string("complete.") : std::string("incomplete."));
+
 			if (flags & MSG_NOTIFICATION) {
 				TRACE(std::string("Notification of length ") + std::to_string(n) + std::string(" received."));
-				s->handle_notification(client, (union sctp_notification*) client->buff.get(), n);
+				s->handle_notification(client, (union sctp_notification*) client->get_buffer(), n);
 			} else {
 				TRACE(std::string("Socket data of length ") 
 						+ std::to_string(n) + std::string(" received ")
 						+ (flags & MSG_EOR ? std::string("complete.") : std::string("incomplete.")) );
 				try {
-					client->server_.handle_client_data(client, client->buff.get(), n, addr, rn, infotype, flags);
+					client->server_.handle_client_data(client, client->get_buffer(), n, addr, rn, infotype, flags);
 				} catch (const std::runtime_error& exc) {
 					log_client_error("handle_client_data", client);
 				}
 			}
-			memset(client->buff.get(), 0, BUFFERSIZE);
+
+			memset(client->get_buffer(), 0, BUFFERSIZE);
+			flags = 0;
 		}
 
 		/* 

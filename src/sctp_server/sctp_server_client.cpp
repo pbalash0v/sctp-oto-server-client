@@ -31,10 +31,13 @@ void Client::init()
 
 	SSL_set_accept_state(ssl);
 
-	void* buf_ = calloc(BUFFERSIZE, sizeof(char));
-	if (not buf_) throw std::runtime_error("Calloc failed.");
+	buff = ([&]()
+	{
+		void* buf_ = calloc(BUFFERSIZE, sizeof(char));
+		if (not buf_) throw std::runtime_error("Calloc failed.");
 
-	buff = std::unique_ptr<void, decltype(&std::free)> (buf_, std::free);
+		return std::unique_ptr<void, decltype(&std::free)> (buf_, std::free);
+	})();
 }
 
 
@@ -110,6 +113,13 @@ void Client::set_state(Client::State new_state)
 	TRACE_func_left();
 }
 
+void* Client::get_buffer() const {
+	return buff.get();
+}
+	
+size_t Client::get_buffer_size() const {
+	return BUFFERSIZE;
+}
 
 Client::~Client()
 {

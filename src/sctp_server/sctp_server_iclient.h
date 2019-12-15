@@ -44,13 +44,14 @@ public:
 	virtual void set_state(IClient::State) = 0;
 	virtual std::string to_string() const = 0;
 
+	virtual void* get_buffer() const = 0;
+	virtual size_t get_buffer_size() const = 0;
+
 	struct socket* sock = nullptr;
 
 	SCTPServer& server_;
 
 	State state = NONE;
-
-	std::unique_ptr<void, decltype(&std::free)> buff { nullptr, std::free };
 
 	SSL* ssl = nullptr;
 	BIO* output_bio = nullptr;
