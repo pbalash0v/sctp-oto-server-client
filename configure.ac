@@ -14,7 +14,9 @@ AM_INIT_AUTOMAKE([foreign])
 
 AM_SILENT_RULES([yes])
 
-AC_PROG_RANLIB
+LT_INIT([disable-shared])
+
+##AC_PROG_RANLIB
 
 # Checks for programs.
 AC_PROG_CC

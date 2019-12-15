@@ -1,4 +1,5 @@
-AM_CXXFLAGS = -std=c++14 -Wall -Werror -Wextra -pedantic -g -O0
+AM_CXXFLAGS = -std=c++14 -Wall -Werror -Wextra -pedantic
+
 AUTOMAKE_OPTIONS = subdir-objects
 
 bin_PROGRAMS = server client
@@ -17,10 +18,11 @@ server_CPPFLAGS = -I$(top_srcdir)/src/sctp_server/include \
 		  @OPENSSL_INCLUDES@
 
 
-server_DEPENDENCIES = $(top_builddir)/src/third_party/usrsctp/usrsctplib/.libs/libusrsctp.la
-
-server_LDADD = 	$(top_builddir)/src/sctp_server/libserver.a \
-		$(top_builddir)/src/third_party/usrsctp/usrsctplib/.libs/libusrsctp.a \
+server_DEPENDENCIES = $(top_builddir)/src/third_party/usrsctp/usrsctplib/libusrsctp.la \
+						$(top_builddir)/src/sctp_server/libserver.la
+						
+server_LDADD = 	$(top_builddir)/src/sctp_server/libserver.la \
+		$(top_builddir)/src/third_party/usrsctp/usrsctplib/libusrsctp.la \
 		$(top_builddir)/src/third_party/gopt-10.0/libgopt.a \
 		$(top_builddir)/src/sctp_common/libcommon.a \
 		@OPENSSL_LIBS@ @PTHREAD_LIBS@ @PTHREAD_CFLAGS@
@@ -46,12 +48,15 @@ client_CPPFLAGS = -I$(top_srcdir)/src/sctp_client/include \
 		  @PTHREAD_CFLAGS@ \
 		  @OPENSSL_INCLUDES@ 
 		  ##@CURSES_CFLAGS@
-
-client_LDADD =	$(top_builddir)/src/sctp_client/libclient.a \
-		$(top_builddir)/src/third_party/usrsctp/usrsctplib/.libs/libusrsctp.a \
-		$(top_builddir)/src/third_party/gopt-10.0/libgopt.a \
-		$(top_builddir)/src/sctp_common/libcommon.a \
-		@OPENSSL_LIBS@ @CURSES_LIB@ @PTHREAD_LIBS@ @PTHREAD_CFLAGS@
+		  
+client_DEPENDENCIES = $(top_builddir)/src/third_party/usrsctp/usrsctplib/libusrsctp.la \
+						$(top_builddir)/src/sctp_client/libclient.la
+						
+client_LDADD =	$(top_builddir)/src/sctp_client/libclient.la \
+			$(top_builddir)/src/third_party/usrsctp/usrsctplib/libusrsctp.la \
+			$(top_builddir)/src/third_party/gopt-10.0/libgopt.a \
+			$(top_builddir)/src/sctp_common/libcommon.a \
+			@OPENSSL_LIBS@ @CURSES_LIB@ @PTHREAD_LIBS@ @PTHREAD_CFLAGS@
 	
 	
 
