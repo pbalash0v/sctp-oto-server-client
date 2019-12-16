@@ -17,11 +17,11 @@
 #define ENABLE_DEBUG() std::shared_ptr<SCTPServer::Config> cfg_ = server_.cfg_
 
 
-constexpr auto CLIENT_BUFFERSIZE = 2048;
+Client::Client(struct socket* sctp_sock, SCTPServer& s)
+	: Client(sctp_sock, s, DEFAULT_MESSAGE_SIZE_BYTES) {};
 
-Client::Client(struct socket* sctp_sock, SCTPServer& s) 
-	: IClient(sctp_sock, s) {};
-
+Client::Client(struct socket* sctp_sock, SCTPServer& s, size_t message_size)
+	: IClient(sctp_sock, s), message_size_(message_size) {};
 
 void Client::init()
 {
@@ -40,10 +40,10 @@ void Client::init()
 
 	buff = ([&]()
 	{
-		void* buf_ = calloc(CLIENT_BUFFERSIZE, sizeof(char));
+		void* buf_ = calloc(message_size_, sizeof(char));
 		if (not buf_) throw std::runtime_error("Calloc in init() failed.");
 
-		available_buffer_space = CLIENT_BUFFERSIZE;
+		available_buffer_space = message_size_;
 		return std::unique_ptr<void, decltype(&std::free)> (buf_, std::free);
 	})();
 }
@@ -137,14 +137,14 @@ void Client::realloc_buffer()
 	ENABLE_DEBUG();
 	TRACE_func_entry();
 
-	void* new_buff = realloc(buff.get(), available_buffer_space + CLIENT_BUFFERSIZE);
+	void* new_buff = realloc(buff.get(), available_buffer_space + message_size_);
 	if (new_buff) {
-		available_buffer_space += CLIENT_BUFFERSIZE;
+		available_buffer_space += message_size_;
 		if (new_buff != buff.get()) {
 			buff.release();
 			buff.reset(new_buff);
 		}
-		buffered_data_size += CLIENT_BUFFERSIZE;
+		buffered_data_size += message_size_;
 		//memset(get_writable_buffer(), 0, CLIENT_BUFFERSIZE);
 		buffer_needs_realloc = true;
 	} else {
@@ -163,7 +163,7 @@ void Client::reset_buffer()
 
 	if (buffer_needs_realloc) {
 		DEBUG("reallocing buffer");
-		void* new_buff = realloc(buff.get(), CLIENT_BUFFERSIZE);
+		void* new_buff = realloc(buff.get(), message_size_);
 
 		if (not new_buff) {
 			throw std::runtime_error("Realloc in reset_buffer() failed.");
@@ -172,8 +172,8 @@ void Client::reset_buffer()
 		if (new_buff != buff.get()) buff.reset(new_buff);
 	}
 
-	memset(buff.get(), 0, CLIENT_BUFFERSIZE);
-	available_buffer_space = CLIENT_BUFFERSIZE;
+	memset(buff.get(), 0, message_size_);
+	available_buffer_space = message_size_;
 	buffered_data_size = 0;
 	buffer_needs_realloc = false;
 
@@ -190,7 +190,7 @@ size_t Client::get_buffered_data_size() const noexcept
 
 size_t Client::get_writable_buffer_size() const noexcept
 {
-	return CLIENT_BUFFERSIZE;
+	return message_size_;
 }
 
 

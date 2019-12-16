@@ -9,6 +9,8 @@
 class Client : public IClient {
 public:
 	Client(struct socket* sock, SCTPServer& server);
+	
+	Client(struct socket* sctp_sock, SCTPServer& s, size_t message_size); 
 
 	Client(const Client& oth) = delete;
 	
@@ -44,14 +46,12 @@ private:
 
 	State state_ = NONE;
 
+	size_t message_size_ = { 0 };
 	size_t buffered_data_size { 0 };
-
 	size_t available_buffer_space { 0 };
-
 	bool buffer_needs_realloc { false };
 
 	std::unique_ptr<void, decltype(&std::free)> buff { nullptr, std::free };
-
 };
 
 

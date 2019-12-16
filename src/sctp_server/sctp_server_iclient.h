@@ -8,7 +8,7 @@
 
 class SCTPServer;
 
-#define BUFFERSIZE (1<<16)
+//#define BUFFERSIZE (1<<16)
 
 class IClient {
 public:
@@ -45,7 +45,6 @@ public:
 	virtual IClient::State state() const = 0;
 
 	virtual std::string to_string() const = 0;
-
 
 	virtual void* get_writable_buffer() const = 0;
 	virtual void realloc_buffer() = 0;
