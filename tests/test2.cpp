@@ -20,7 +20,7 @@ int main(int, char const**)
 	})();
 
 
-	auto& client = SCTPClient::get_instance();
+	SCTPClient client;
 	client.cfg_ = cli_cfg;
 
 	try {	

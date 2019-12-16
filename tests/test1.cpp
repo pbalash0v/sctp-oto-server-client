@@ -10,7 +10,7 @@
 
 int main(int, char const**)
 {		
-	auto& s = SCTPServer::get_instance();
+	SCTPServer s;
 
 	s.cfg_->cert_filename = "../src/certs/server-cert.pem";
 	s.cfg_->key_filename = "../src/certs/server-key.pem";

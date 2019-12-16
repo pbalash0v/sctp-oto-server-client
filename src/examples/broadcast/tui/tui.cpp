@@ -108,9 +108,7 @@ void TUI::loop()
 
       	if (bytes_read <= 0) {
 				if (errno != EINTR) throw std::runtime_error(strerror(errno));
-   		}
-
-   		if (bytes_read > 0) {
+   		} else {
 				should_handle_input_ = false;
 				put_message("Received END_SIGNAL on self pipe.\n");
 				continue;				

@@ -149,7 +149,7 @@ int main(int /* argc */, char* argv[]) {
 		}
 	}
 
-	auto& srv  = SCTPServer::get_instance();
+	SCTPServer srv;
 	srv.cfg_ = get_cfg_or_die(argv, options);
 
 	srv.cfg_->data_cback_f = [&](auto /* client */, const auto& s) {

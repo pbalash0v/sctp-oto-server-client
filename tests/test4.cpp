@@ -44,7 +44,7 @@ int main(int, char const**)
 			return cfg;
 		})();
 
-		auto& client = SCTPClient::get_instance();
+		SCTPClient client;
 		client.cfg_ =  cli_cfg;
 
 		client.cfg_->state_f = [&](auto state) {
@@ -75,7 +75,7 @@ int main(int, char const**)
  	} else if (pid > 0) {      // server process
 		std::atomic_bool running { true };
 
-		auto& server = SCTPServer::get_instance();
+		SCTPServer server;
 
 		server.cfg_->cert_filename = "../src/certs/server-cert.pem";
 		server.cfg_->key_filename = "../src/certs/server-key.pem";

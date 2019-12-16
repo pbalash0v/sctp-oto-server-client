@@ -92,13 +92,8 @@ public:
     	friend std::ostream& operator<<(std::ostream &out, const Config &c); 
 	};
 
-	/* Singleton */
-	static SCTPServer& get_instance()
-	{
-		static SCTPServer s_;
-		return s_;
-	}
-
+	SCTPServer();
+	SCTPServer(std::shared_ptr<SCTPServer::Config> p);
 	SCTPServer(const SCTPServer& oth) = delete;
 	SCTPServer& operator=(const SCTPServer& oth) = delete;
 	virtual ~SCTPServer();
@@ -138,9 +133,6 @@ public:
 	friend class IClient;
 
 protected:
-	SCTPServer();
-
-	SCTPServer(std::shared_ptr<SCTPServer::Config> p);
 
 	MAYBE_VIRTUAL std::shared_ptr<IClient> client_factory(struct socket*);
 
@@ -180,6 +172,7 @@ private:
 
 
 	std::atomic_bool initialized { false };
+	static std::atomic_bool instance_exists;
 
 	/* holds main SSL context etc */
 	SSL_h ssl_obj_ { SSL_h::SERVER };

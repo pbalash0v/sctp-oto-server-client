@@ -88,7 +88,6 @@ static std::shared_ptr<SCTPClient::Config> get_cfg_or_die(char* argv[], struct o
 	/* Pepare Config object for SCTPClient */
 	auto cfg = std::make_shared<SCTPClient::Config>();
 
-
 	if (options[CLIOptions::HELP].count) {
 		std::cout << \
 		"Usage: " << basename(argv[0]) << " [OPTIONS]" << std::endl << \
@@ -173,9 +172,6 @@ static std::shared_ptr<SCTPClient::Config> get_cfg_or_die(char* argv[], struct o
 }
 
 
-
-
-
 int main(int /* argc */, char* argv[])
 {
 	std::set_terminate(&onTerminate);
@@ -183,11 +179,7 @@ int main(int /* argc */, char* argv[])
 	struct option options[CLIOptions::OPTIONS_COUNT];
 	parse_args(argv, options);
 
-	/* 
-		TUI made static for proper dtor call order
-		since Client instance is also static singleton
-	*/
-	static std::unique_ptr<ITUI> tui = ([&]
+	auto tui = ([&]() -> std::unique_ptr<ITUI>
 	{
 		std::unique_ptr<ITUI> tui_;
 
@@ -201,7 +193,7 @@ int main(int /* argc */, char* argv[])
 	})();
 
 	/* TUI verbosity */
-	tui->set_log_level(([&]
+	tui->set_log_level(([&]()
 	{
 		ITUI::LogLevel log_lev = ITUI::INFO;
 
@@ -286,7 +278,7 @@ int main(int /* argc */, char* argv[])
 		tui->put_message(message + "\n"); 
 	};
 
-	auto& client = SCTPClient::get_instance();
+	SCTPClient client;
 	client.cfg_ = cfg;
 
 	tui->init([&](const auto& s)

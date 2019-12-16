@@ -47,17 +47,19 @@ static void log_client_error_and_throw(const char* func, std::shared_ptr<IClient
 
 constexpr auto BUFFER_SIZE = 1 << 16;
 
+std::atomic_bool SCTPServer::instance_exists { false };
 
 SCTPServer::SCTPServer() : SCTPServer(std::make_shared<SCTPServer::Config>()) {}
 
 SCTPServer::SCTPServer(std::shared_ptr<SCTPServer::Config> ptr) : cfg_(ptr)
 {
-
+	if (instance_exists) throw std::logic_error("Singleton !");
+	instance_exists = true;
 }
 
 std::shared_ptr<IClient> SCTPServer::client_factory(struct socket* s)
 {
-	return std::make_shared<Client>(s, *this);
+	return std::make_shared<Client>(s, *this, cfg_->message_size);
 };
 
 /*
@@ -100,6 +102,8 @@ SCTPServer::~SCTPServer()
 		}
 		TRACE("before usrsctp_finish loop");
 	}
+
+	instance_exists = false;
 
 	TRACE_func_left();
 }

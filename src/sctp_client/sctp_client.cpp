@@ -352,14 +352,14 @@ void SCTPClient::init_remote_UDP()
 	TRACE_func_left();
 }
 
-/* 
-	SCTP init
-*/
-void SCTPClient::init_SCTP()
+void SCTPClient::init_usrsctp_lib()
 {
 	TRACE_func_entry();
 
+	if (usrsctp_lib_initialized) return;
+
 	void (*debug_printf)(const char *format, ...) = NULL;
+
 
 	usrsctp_init(0, &conn_output, debug_printf);
 
@@ -369,6 +369,19 @@ void SCTPClient::init_SCTP()
   	/* Disable the Explicit Congestion Notification extension */
 	usrsctp_sysctl_set_sctp_ecn_enable(0);
 	usrsctp_register_address((void *) this); // TODO: ?
+
+	usrsctp_lib_initialized = true;
+
+	TRACE_func_left();
+}
+
+
+/* 
+	SCTP init
+*/
+void SCTPClient::init_SCTP()
+{
+	TRACE_func_entry();
 
 	int (*receive_cb)(struct socket*, union sctp_sockstore, void*, size_t, struct sctp_rcvinfo, int, void*) = NULL;
 	int (*send_cb)(struct socket *sock, uint32_t sb_free)	= NULL;
@@ -433,6 +446,7 @@ void SCTPClient::init()
 		ssl_obj.init(cfg_->cert_filename, cfg_->key_filename);
 		init_local_UDP();
 		init_remote_UDP();
+		init_usrsctp_lib();
 		init_SCTP();
 	} catch (const std::runtime_error& exc) {
 		CRITICAL(exc.what());

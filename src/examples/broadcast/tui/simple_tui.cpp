@@ -91,7 +91,7 @@ void SimpleTUI::loop()
 
    		if (bytes_read > 0) {
 				should_handle_input_ = false;
-				put_message("Received END_SIGNAL on self pipe.\n");
+				put_log(ITUI::LogLevel::TRACE, "Received END_SIGNAL on self pipe.\n");
 				continue;				
 			}
       }

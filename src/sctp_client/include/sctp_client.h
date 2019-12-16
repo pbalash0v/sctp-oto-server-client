@@ -71,11 +71,8 @@ public:
 		SCTPClient_state_cback_t state_f = nullptr;
 	};
 
-	/* Singleton */
-	static SCTPClient& get_instance() {
-		static SCTPClient c_;
-		return c_;
-	}
+	SCTPClient();
+	SCTPClient(std::shared_ptr<SCTPClient::Config> p);
 	SCTPClient(const SCTPClient& oth) = delete;
 	SCTPClient& operator=(const SCTPClient& oth) = delete;
 	virtual ~SCTPClient();
@@ -99,14 +96,15 @@ public:
 	std::shared_ptr<Config> cfg_;
 
 private:
-	SCTPClient();
-	SCTPClient(std::shared_ptr<SCTPClient::Config> p);
+
 
 	SSL_h ssl_obj { SSL_h::CLIENT };
 
 	SSL* ssl = nullptr;
 	BIO* output_bio = nullptr;
 	BIO* input_bio = nullptr;
+
+	std::atomic_bool usrsctp_lib_initialized { false };
 
 	State state = NONE;
 
@@ -117,6 +115,7 @@ private:
 	std::thread udp_thr;
 	void udp_loop();
 
+	void init_usrsctp_lib();
 	void init_local_UDP();
 	void init_remote_UDP();
 	void init_SCTP();
