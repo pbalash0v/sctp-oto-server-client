@@ -50,6 +50,8 @@
 constexpr uint16_t DEFAULT_UDP_ENCAPS_PORT = 9899;
 constexpr uint16_t DEFAULT_SCTP_PORT = 5001;
 
+constexpr auto DEFAULT_MESSAGE_SIZE_BYTES = 1 << 16;
+
 constexpr const char* DEFAULT_SERVER_CERT_FILENAME = "../certs/server-cert.pem";
 constexpr const char* DEFAULT_SERVER_KEY_FILENAME = "../certs/server-key.pem";
 
@@ -69,8 +71,6 @@ public:
 
 	using SCTPServer_cback_t = std::function<void(const std::shared_ptr<IClient>, std::shared_ptr<IClient::Data>)>;
 	using SCTPServer_debug_t = std::function<void(SCTPServer::LogLevel, const std::string&)>;	
-	using SCTPServer_client_factory_t = 
-		std::function<std::shared_ptr<IClient>(struct socket*, SCTPServer&)>;
 
 	class Config
 	{
@@ -81,6 +81,7 @@ public:
 		
 		uint16_t udp_encaps_port { DEFAULT_UDP_ENCAPS_PORT };
 		uint16_t sctp_port { DEFAULT_SCTP_PORT };
+		size_t message_size { DEFAULT_MESSAGE_SIZE_BYTES };
 
 		std::string cert_filename { DEFAULT_SERVER_CERT_FILENAME };
 		std::string key_filename { DEFAULT_SERVER_KEY_FILENAME };
@@ -92,7 +93,8 @@ public:
 	};
 
 	/* Singleton */
-	static SCTPServer& get_instance() {
+	static SCTPServer& get_instance()
+	{
 		static SCTPServer s_;
 		return s_;
 	}

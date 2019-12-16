@@ -49,20 +49,20 @@ void Client::init()
 }
 
 
-void Client::set_state(Client::State new_state)
+void Client::state(Client::State new_state)
 {
 	ENABLE_DEBUG();
 
 	TRACE_func_entry();
 
-	if (new_state == PURGE and state == PURGE) {
+	if (new_state == PURGE and state_ == PURGE) {
 		WARNING("PURGE to PURGE transition.");
 		return;
 	}
 
-	assert(new_state != state);
+	assert(new_state != state_);
 
-	state = new_state;
+	state_ = new_state;
 	
 	switch (new_state) {
 		case SCTP_ACCEPTED:
@@ -116,9 +116,9 @@ void Client::set_state(Client::State new_state)
 	TRACE_func_left();
 }
 
-IClient::State Client::get_state() const
+IClient::State Client::state() const noexcept
 {
-	return state;
+	return state_;
 }
 
 
@@ -211,7 +211,7 @@ std::string Client::to_string() const
 std::ostream& operator<<(std::ostream &out, const Client& c)
 {
 	out << std::string("Client: socket: ") << (static_cast<const void*>(c.sock)) << ", ";
-	out << c.state;
+	out << c.state_;
 	return out;
 }
 

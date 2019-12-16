@@ -18,9 +18,9 @@ public:
 
 	virtual void init() override;
 
-	virtual void set_state(Client::State new_state) override;
+	virtual void state(Client::State new_state) override;
 
-	virtual IClient::State get_state() const override;
+	virtual IClient::State state() const noexcept override;
 
 	virtual void* get_writable_buffer() const override;
 
@@ -42,7 +42,7 @@ public:
 
 private:
 
-	State state = NONE;
+	State state_ = NONE;
 
 	size_t buffered_data_size { 0 };
 

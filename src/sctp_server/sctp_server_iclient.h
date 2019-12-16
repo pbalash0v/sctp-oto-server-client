@@ -41,8 +41,8 @@ public:
 	virtual ~IClient() {};
 
 	virtual void init() = 0;
-	virtual void set_state(IClient::State) = 0;
-	virtual IClient::State get_state() const = 0;
+	virtual void state(IClient::State) = 0;
+	virtual IClient::State state() const = 0;
 
 	virtual std::string to_string() const = 0;
 
@@ -59,7 +59,6 @@ public:
 	struct socket* sock = nullptr;
 
 	SCTPServer& server_;
-
 
 	SSL* ssl = nullptr;
 	BIO* output_bio = nullptr;

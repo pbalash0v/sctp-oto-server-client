@@ -57,7 +57,7 @@ SCTPServer::SCTPServer(std::shared_ptr<SCTPServer::Config> ptr) : cfg_(ptr)
 
 std::shared_ptr<IClient> SCTPServer::client_factory(struct socket* s)
 {
-		return std::make_shared<Client>(s, *this);
+	return std::make_shared<Client>(s, *this);
 };
 
 /*
@@ -90,7 +90,7 @@ SCTPServer::~SCTPServer()
 	if (needs_force_close) {
 		TRACE("before force close of clients");
 		for (auto& c : clients_) {
-			c->set_state(Client::PURGE);
+			c->state(Client::PURGE);
 		}
 		TRACE("force close of clients done");
 
@@ -134,7 +134,7 @@ void SCTPServer::cleanup()
 		/* shutdown and cleanup clients */
 		TRACE("before clients shutdown");
 		for (auto& c : clients_) {
-			c->set_state(Client::SCTP_SRV_INITIATED_SHUTDOWN);
+			c->state(Client::SCTP_SRV_INITIATED_SHUTDOWN);
 		}
 		TRACE("clients shutdown done");
 	}
@@ -342,7 +342,7 @@ void SCTPServer::broadcast(const void* data, size_t len)
 
 void SCTPServer::send(std::shared_ptr<IClient>& c, const void* data, size_t len)
 {
-	if (c->get_state() == Client::SSL_CONNECTED) {
+	if (c->state() == Client::SSL_CONNECTED) {
 		send_raw(c, data, len);
 	}
 }
@@ -354,7 +354,7 @@ ssize_t SCTPServer::send_raw(std::shared_ptr<IClient>& c, const void* buf, size_
 {
 	ssize_t sent = -1;
 
-	if (c->get_state() < Client::SSL_CONNECTED) {
+	if (c->state() < Client::SSL_CONNECTED) {
 		// addrs - NULL for connected socket
 		// addrcnt: Number of addresses.
 		// As at most one address is supported, addrcnt is 0 if addrs is NULL and 1 otherwise.
@@ -439,10 +439,10 @@ void SCTPServer::handle_server_upcall(struct socket* serv_sock, void* arg, int)
 
 			try {
 				new_client->init();
-				new_client->set_state(Client::SCTP_ACCEPTED);
+				new_client->state(Client::SCTP_ACCEPTED);
 			} catch (const std::runtime_error& exc) {
 				ERROR(std::string("Dropping client: ") + exc.what());
-				new_client->set_state(Client::PURGE);
+				new_client->state(Client::PURGE);
 				s->drop_client(new_client);
 			}
 			
@@ -561,7 +561,7 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 											&infolen, &infotype, &flags)) > 0) {
 
 			if (not (flags & MSG_EOR)) {
-				WARNING("usrsctp_recvv incomplete: " + std::to_string(n));
+				TRACE("usrsctp_recvv incomplete: " + std::to_string(n));
 
 				try {
 					client->realloc_buffer();
@@ -641,7 +641,7 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 
 	char outbuf[BUFFER_SIZE] = { 0 };
 
-	switch (c->get_state()) {
+	switch (c->state()) {
 
 	case Client::SCTP_CONNECTED:
 		{
@@ -670,7 +670,7 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 				log_client_error_and_throw("usrsctp_sendv", c);
 			}
 			try {
-				c->set_state(Client::SSL_HANDSHAKING);
+				c->state(Client::SSL_HANDSHAKING);
 			} catch (const std::runtime_error& exc) {
 				log_client_error_and_throw((std::string("set_state") + 
 					std::string(exc.what())).c_str(), c);
@@ -721,7 +721,7 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 					}
 
 					try {
-						c->set_state(Client::SSL_CONNECTED);
+						c->state(Client::SSL_CONNECTED);
 					} catch (const std::runtime_error& exc) {
 						log_client_error_and_throw((std::string("set_state") + 
 							std::string(exc.what())).c_str(), c);
@@ -731,7 +731,7 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 
 				if (SSL_ERROR_NONE == SSL_get_error(c->ssl, r) and not BIO_ctrl_pending(c->output_bio)) {
 					try {
-						c->set_state(Client::SSL_CONNECTED);
+						c->state(Client::SSL_CONNECTED);
 					} catch (const std::runtime_error& exc) {
 						log_client_error_and_throw((std::string("set_state") + 
 							std::string(exc.what())).c_str(), c);
@@ -757,7 +757,7 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 				}
 
 				try {
-					c->set_state(Client::SSL_CONNECTED);
+					c->state(Client::SSL_CONNECTED);
 				} catch (const std::runtime_error& exc) {
 					log_client_error_and_throw((std::string("set_state") + 
 						std::string(exc.what())).c_str(), c);
@@ -787,7 +787,7 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 			DEBUG(std::string("read: ") + std::to_string(read));
 
 			if (not read and SSL_ERROR_ZERO_RETURN == SSL_get_error(c->ssl, read)) {
-				c->set_state(Client::SSL_SHUTDOWN);
+				c->state(Client::SSL_SHUTDOWN);
 				break;
 			}
 
@@ -941,10 +941,10 @@ static void handle_association_change_event(std::shared_ptr<IClient>& c, struct 
 	switch (sac->sac_state) {
 		case SCTP_COMM_UP:
 			try {
-				c->set_state(Client::SCTP_CONNECTED);
+				c->state(Client::SCTP_CONNECTED);
 			} catch (const std::runtime_error& exc) {
 				ERROR(std::string("Dropping client: ") + exc.what());
-				c->set_state(Client::PURGE);
+				c->state(Client::PURGE);
 				return;
 			}
 			INFO("Connected: " + c->to_string());		

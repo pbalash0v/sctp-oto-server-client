@@ -25,7 +25,7 @@ public:
 	BrokenClient(struct socket* sctp_sock, SCTPServer& s)
 		: Client(sctp_sock, s) {};
 
-	virtual void set_state(Client::State)
+	virtual void state(Client::State) override
 	{
 	 	running = false;
 		throw std::runtime_error("BrokenClient ");
