@@ -9,7 +9,15 @@
 #include "sctp_server_client.h"
 #include "sctp_server.h"
 
+/* 
+	Log macros depend on local object named cfg_.
+	Getting it here explicitly.
+	After this we can use log macros.
+*/
+#define ENABLE_DEBUG() std::shared_ptr<SCTPServer::Config> cfg_ = server_.cfg_
 
+
+constexpr auto CLIENT_BUFFERSIZE = 2048;
 
 Client::Client(struct socket* sctp_sock, SCTPServer& s) 
 	: IClient(sctp_sock, s) {};
@@ -26,16 +34,16 @@ void Client::init()
 	input_bio = BIO_new(BIO_s_mem());
 	assert(input_bio);
 	  
-
 	SSL_set_bio(ssl, input_bio, output_bio);
 
 	SSL_set_accept_state(ssl);
 
 	buff = ([&]()
 	{
-		void* buf_ = calloc(BUFFERSIZE, sizeof(char));
-		if (not buf_) throw std::runtime_error("Calloc failed.");
+		void* buf_ = calloc(CLIENT_BUFFERSIZE, sizeof(char));
+		if (not buf_) throw std::runtime_error("Calloc in init() failed.");
 
+		available_buffer_space = CLIENT_BUFFERSIZE;
 		return std::unique_ptr<void, decltype(&std::free)> (buf_, std::free);
 	})();
 }
@@ -43,13 +51,8 @@ void Client::init()
 
 void Client::set_state(Client::State new_state)
 {
-	/* 
-		log macros depend on local object named cfg_.
-		Getting it here explicitly.
-	*/
-	std::shared_ptr<SCTPServer::Config> cfg_ = server_.cfg_;
+	ENABLE_DEBUG();
 
-	/* from here on we can use log macros */
 	TRACE_func_entry();
 
 	if (new_state == PURGE and state == PURGE) {
@@ -113,13 +116,83 @@ void Client::set_state(Client::State new_state)
 	TRACE_func_left();
 }
 
-void* Client::get_buffer() const {
+IClient::State Client::get_state() const
+{
+	return state;
+}
+
+
+void* Client::get_writable_buffer() const
+{
+	return static_cast<char*>(buff.get()) + get_buffered_data_size();
+}
+
+void* Client::get_message_buffer() const
+{
 	return buff.get();
 }
-	
-size_t Client::get_buffer_size() const {
-	return BUFFERSIZE;
+
+void Client::realloc_buffer()
+{
+	ENABLE_DEBUG();
+	TRACE_func_entry();
+
+	void* new_buff = realloc(buff.get(), available_buffer_space + CLIENT_BUFFERSIZE);
+	if (new_buff) {
+		available_buffer_space += CLIENT_BUFFERSIZE;
+		if (new_buff != buff.get()) {
+			buff.release();
+			buff.reset(new_buff);
+		}
+		buffered_data_size += CLIENT_BUFFERSIZE;
+		//memset(get_writable_buffer(), 0, CLIENT_BUFFERSIZE);
+		buffer_needs_realloc = true;
+	} else {
+		throw std::runtime_error("Realloc in realloc_buffer() failed.");
+	}
+
+	TRACE("available_buffer_space: " + std::to_string(available_buffer_space));
+
+	TRACE_func_left();
 }
+
+void Client::reset_buffer()
+{
+	ENABLE_DEBUG();
+	TRACE_func_entry();
+
+	if (buffer_needs_realloc) {
+		DEBUG("reallocing buffer");
+		void* new_buff = realloc(buff.get(), CLIENT_BUFFERSIZE);
+
+		if (not new_buff) {
+			throw std::runtime_error("Realloc in reset_buffer() failed.");
+		}
+
+		if (new_buff != buff.get()) buff.reset(new_buff);
+	}
+
+	memset(buff.get(), 0, CLIENT_BUFFERSIZE);
+	available_buffer_space = CLIENT_BUFFERSIZE;
+	buffered_data_size = 0;
+	buffer_needs_realloc = false;
+
+	TRACE_func_left();
+}
+
+
+
+size_t Client::get_buffered_data_size() const noexcept
+{
+	return buffered_data_size;
+}
+	
+
+size_t Client::get_writable_buffer_size() const noexcept
+{
+	return CLIENT_BUFFERSIZE;
+}
+
 
 Client::~Client()
 {
@@ -137,7 +210,7 @@ std::string Client::to_string() const
 
 std::ostream& operator<<(std::ostream &out, const Client& c)
 {
-	out << std::string("Client: socket: ") << ((const void*) c.sock) << ", ";
+	out << std::string("Client: socket: ") << (static_cast<const void*>(c.sock)) << ", ";
 	out << c.state;
 	return out;
 }
