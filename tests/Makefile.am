@@ -29,7 +29,8 @@ check_LIBRARIES = libtest.a
 libtest_a_SOURCES = $(top_srcdir)/src/sctp_server/sctp_server.cpp \
 					$(top_srcdir)/src/sctp_server/sctp_server_client.cpp \
 					$(top_srcdir)/src/sctp_server/sctp_server_iclient_data.cpp \
-					$(top_srcdir)/src/sctp_client/sctp_client.cpp
+					$(top_srcdir)/src/sctp_client/sctp_client.cpp \
+					$(top_srcdir)/src/sctp_client/sctp_client_data.cpp
 
 libtest_a_CXXFLAGS = $(AM_CXXFLAGS)
 libtest_a_CPPFLAGS = $(TESTS_CPPFLAGS)

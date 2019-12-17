@@ -808,7 +808,7 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 					DEBUG("SSL_ERROR_WANT_READ");
 					break;
 				}
-				
+
 				if (SSL_ERROR_NONE != SSL_get_error(c->ssl, read)) {
 					log_client_error_and_throw("SSL_read", c);
 				}
@@ -861,7 +861,7 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 				} catch (const std::runtime_error& exc) {
 					ERROR(exc.what());
 				} catch (...) {
-					CRITICAL("data_cback_f");
+					CRITICAL("Exception in user data_cback function");
 				}
 			}
 		}

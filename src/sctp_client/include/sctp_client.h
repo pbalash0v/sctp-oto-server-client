@@ -47,7 +47,17 @@ public:
 		PURGE
    };
 
-	using SCTPClient_data_cback_t = std::function<void(const std::string&)>;
+   struct Data {
+   	Data(const void*, size_t);
+		Data(const Data& oth) = delete;
+		Data& operator=(const Data& oth) = delete;
+		virtual ~Data();
+		
+   	void* data { nullptr };
+   	size_t size { 0 };
+	};
+
+	using SCTPClient_cback_t = std::function<void(std::unique_ptr<SCTPClient::Data>)>;
 	using SCTPClient_state_cback_t = std::function<void(State)>;
 	using SCTPClient_debug_t = std::function<void(SCTPClient::LogLevel, const std::string&)>;	
 
@@ -66,7 +76,7 @@ public:
 		std::string cert_filename { DEFAULT_CLIENT_CERT_FILENAME };
 		std::string key_filename { DEFAULT_CLIENT_KEY_FILENAME };
 
-		SCTPClient_data_cback_t data_cback_f = nullptr;
+		SCTPClient_cback_t data_cback_f = nullptr;
 		SCTPClient_debug_t debug_f = nullptr;
 		SCTPClient_state_cback_t state_f = nullptr;
 	};

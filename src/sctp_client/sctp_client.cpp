@@ -721,7 +721,13 @@ void SCTPClient::handle_server_data(void* buffer, ssize_t n, const struct sockad
 			return std::string(message);
 		})());
 
-		if (cfg_->data_cback_f) cfg_->data_cback_f(static_cast<char*>(outbuf));
+		if (cfg_->data_cback_f) {
+			try {
+				cfg_->data_cback_f(std::make_unique<SCTPClient::Data>(outbuf, total_unencrypted_message_size));
+			} catch (...) {
+				CRITICAL("Exception in user data_cback function.");
+			}
+		}
 	}
 	break;
 

@@ -213,8 +213,15 @@ int main(int /* argc */, char* argv[])
 
 	cfg->data_cback_f = [&](const auto& s)
 	{ 
-		std::string server_message = ((s.size() < 30) ? s : s.substr(0, 30));
-		tui->put_message("Server sent: " + std::to_string(s.size()) + server_message + "\n"); 
+		std::string server_message = 
+			((s->size < 30) ? 
+				std::string(static_cast<char*>(s->data))
+		 		: std::string(static_cast<char*>(s->data)).substr(0, 30));
+		tui->put_message("Server sent: "
+				+ std::to_string(s->size)
+				+ std::string(" ")
+				+ server_message
+				+ "\n"); 
 	};
 
 	cfg->debug_f = [&](auto level, const auto& s)
