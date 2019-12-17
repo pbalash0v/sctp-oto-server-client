@@ -154,7 +154,7 @@ int main(int /* argc */, char* argv[]) {
 
 	srv.cfg_->data_cback_f = [&](auto /* client */, const auto& s) {
 		std::string message { static_cast<const char*> (s->data) };
-		spdlog::info("{}", message);
+		spdlog::info("{}", ((message.size() < 30) ? message : message.substr(0, 30)));
 		srv.broadcast(message.c_str(), message.size());
 	};
 

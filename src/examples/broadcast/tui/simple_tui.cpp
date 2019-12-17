@@ -167,11 +167,17 @@ void SimpleTUI::handle_input()
 
 	if (getline(std::cin, line)) {
 		if (line != std::string()) {
-			//put_message(line + "\n");
-			cback_(line);
+			if (line == std::string("`")) {
+				char buf[(1<<15)];
+				memset(buf, 'A', (1<<15));
+				cback_(std::string(buf));
+			} else {
+				cback_(line);
+			}
 		}
 	} else {
 		stop();
 	}
 }
+
 
