@@ -1,2 +1,2 @@
 AUTOMAKE_OPTIONS = subdir-objects
-SUBDIRS = broadcast certs
+SUBDIRS = broadcast mjpeg_streaming certs

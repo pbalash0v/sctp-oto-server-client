@@ -68,6 +68,7 @@ AC_CONFIG_FILES([Makefile \
 				src/sctp_client/Makefile \
 				src/examples/Makefile \
 				src/examples/broadcast/Makefile \
+				src/examples/mjpeg_streaming/Makefile \
 				src/examples/certs/Makefile \
 				tests/Makefile])
 
