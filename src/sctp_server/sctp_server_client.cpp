@@ -86,6 +86,15 @@ void Client::state(Client::State new_state)
 				}
 			}
 
+			auto rcvbufsize = 2*1024*1024;
+			if (usrsctp_setsockopt(sock, SOL_SOCKET, SO_RCVBUF, &rcvbufsize, sizeof(int)) < 0) {
+				throw std::runtime_error("setsockopt: rcvbuf" + std::string(strerror(errno)));
+			}
+
+			if (usrsctp_setsockopt(sock, SOL_SOCKET, SO_SNDBUF, &rcvbufsize, sizeof(int)) < 0) {
+				throw std::runtime_error("setsockopt: sndbuf" + std::string(strerror(errno)));
+			}
+			
 			if (usrsctp_set_upcall(sock, &SCTPServer::handle_client_upcall, &server_)) {
 				ERROR("usrsctp_set_upcall for " + to_string());
 				throw std::runtime_error(strerror(errno));

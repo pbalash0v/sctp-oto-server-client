@@ -146,10 +146,11 @@ void SCTPClient::handle_upcall(struct socket* sock, void* arg, int /* flgs */)
 	std::shared_ptr<SCTPClient::Config> cfg_ = c->cfg_;
 	/* from here on we can use log macros */
 
-	TRACE_func_entry();
+	//TRACE_func_entry();
 
 	int events = usrsctp_get_events(sock);
 
+#if 0
 	TRACE(([&]
 	{
 		std::string s = { "Socket events: " };
@@ -166,6 +167,7 @@ void SCTPClient::handle_upcall(struct socket* sock, void* arg, int /* flgs */)
 
 		return s;
 	})());
+#endif
 
 	if (events & SCTP_EVENT_WRITE) {
 		//TRACE("SCTP_EVENT_WRITE: unhandled.");
@@ -252,7 +254,7 @@ void SCTPClient::handle_upcall(struct socket* sock, void* arg, int /* flgs */)
 		free(buf);
 	}
 
-	TRACE_func_left();
+	//TRACE_func_left();
 }
 
 /*
@@ -479,7 +481,16 @@ void SCTPClient::init_SCTP()
 	uint32_t optval = 1;
 	if (usrsctp_setsockopt(sock, IPPROTO_SCTP, SCTP_NODELAY, &optval, sizeof(int)) < 0) {
 		throw std::runtime_error(strerror(errno));
-	}	
+	}
+
+	auto rcvbufsize = 2*1024*1024;
+	if (usrsctp_setsockopt(sock, SOL_SOCKET, SO_RCVBUF, &rcvbufsize, sizeof(int)) < 0) {
+		throw std::runtime_error("setsockopt: rcvbuf" + std::string(strerror(errno)));
+	}
+
+	if (usrsctp_setsockopt(sock, SOL_SOCKET, SO_SNDBUF, &rcvbufsize, sizeof(int)) < 0) {
+		throw std::runtime_error("setsockopt: sndbuf" + std::string(strerror(errno)));
+	}
 
 	TRACE_func_left();
 }
@@ -594,6 +605,9 @@ ssize_t SCTPClient::send_raw_(const void* buf, size_t len)
 						 /* addrs */ NULL, /* addrcnt */ 0,
 						  /* info */ NULL, /* infolen */ 0,
 						   SCTP_SENDV_NOINFO, /* flags */ 0);
+		TRACE("Sent: " + std::to_string(sent)
+				 + std::string(". Errno: ") + std::string(strerror(errno)));
+
 	}
 
 	return sent;

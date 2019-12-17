@@ -489,7 +489,7 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 	std::shared_ptr<SCTPServer::Config> cfg_ = s->cfg_;
 	/* from here on we can use log macros */
 
-	TRACE_func_entry();
+	//TRACE_func_entry();
 
 	int events = usrsctp_get_events(upcall_sock);
 
@@ -628,7 +628,7 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 		}		
 	}
 
-	TRACE_func_left();
+	//TRACE_func_left();
 
 	return;
 }
