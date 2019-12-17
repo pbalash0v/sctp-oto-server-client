@@ -107,7 +107,6 @@ public:
 
 private:
 
-
 	SSL_h ssl_obj { SSL_h::CLIENT };
 
 	SSL* ssl = nullptr;
@@ -130,7 +129,7 @@ private:
 	void init_remote_UDP();
 	void init_SCTP();
 	
-	ssize_t sctp_send_raw(const void* buf, size_t len);
+	ssize_t send_raw_(const void* buf, size_t len);
 
 	static int conn_output(void* obj, void *buf, size_t length, uint8_t tos, uint8_t set_df);
 	static void handle_upcall(struct socket* sock, void* arg, int flgs);

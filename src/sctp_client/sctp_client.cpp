@@ -56,9 +56,9 @@ constexpr auto BUFFERSIZE = 1 << 16; /* or use dynamic alloc with BIO_ctrl_pendi
 static std::unordered_map<std::string, std::vector<SCTPClient::State>> state_allowed_funcs {
 		{"init", std::vector<SCTPClient::State> { SCTPClient::NONE }},
 		{"run", std::vector<SCTPClient::State> { SCTPClient::NONE }},
-		{"sctp_send", std::vector<SCTPClient::State> { SCTPClient::SSL_CONNECTED }},
+		{"send", std::vector<SCTPClient::State> { SCTPClient::SSL_CONNECTED }},
 		{"udp_loop", std::vector<SCTPClient::State> { SCTPClient::SCTP_CONNECTING }},
-		{"sctp_send_raw", std::vector<SCTPClient::State> 
+		{"send_raw_", std::vector<SCTPClient::State> 
 			{ SCTPClient::SCTP_CONNECTING, SCTPClient::SCTP_CONNECTED, 
 				SCTPClient::SSL_HANDSHAKING, SCTPClient::SSL_CONNECTED, SCTPClient::SSL_SHUTDOWN, }}
 	};
@@ -145,7 +145,7 @@ void SCTPClient::handle_upcall(struct socket* sock, void* arg, int /* flgs */)
 	})());
 
 	if (events & SCTP_EVENT_WRITE) {
-		TRACE("SCTP_EVENT_WRITE: unhandled.");
+		//TRACE("SCTP_EVENT_WRITE: unhandled.");
 	}
 
 	/* handling ??? */
@@ -186,6 +186,7 @@ void SCTPClient::handle_upcall(struct socket* sock, void* arg, int /* flgs */)
 			}
 
 			memset(buf, 0, BUFFERSIZE);
+			flags = 0;
 		}
 
 
@@ -208,8 +209,6 @@ void SCTPClient::handle_upcall(struct socket* sock, void* arg, int /* flgs */)
 
 		free(buf);
 	}
-
-
 
 	TRACE_func_left();
 }
@@ -506,16 +505,14 @@ void SCTPClient::stop()
 }
 
 
-ssize_t SCTPClient::sctp_send_raw(const void* buf, size_t len)
+ssize_t SCTPClient::send_raw_(const void* buf, size_t len)
 {
+	assert(sock);
 	CHECK_STATE();
 
-	if (sock == nullptr) throw std::runtime_error("socket doesn't exists");
+	ssize_t sent = -1;
 
-
-	ssize_t sent; //TODO: default val ?
-
-	if (state < SSL_CONNECTED) {
+	if (state != SCTPClient::SSL_CONNECTED) {
 		// addrs - NULL for connected socket
 		// addrcnt: Number of addresses.
 		// As at most one address is supported, addrcnt is 0 if addrs is NULL and 1 otherwise.
@@ -525,17 +522,24 @@ ssize_t SCTPClient::sctp_send_raw(const void* buf, size_t len)
 						   SCTP_SENDV_NOINFO, /* flags */ 0);
 	} else {
 		int written = SSL_write(ssl, buf, len);
-		if (SSL_ERROR_NONE != SSL_get_error(ssl, written)) throw std::runtime_error("SSL_write");
-		assert(SSL_ERROR_NONE == SSL_get_error(ssl, written));
+		if (SSL_ERROR_NONE != SSL_get_error(ssl, written)) {
+			throw std::runtime_error("SSL_write");
+		}
 
-		assert(BIO_ctrl_pending(output_bio));
+		auto outbuf_ptr = ([&]()
+		{
+			void* buf_ = calloc(BIO_ctrl_pending(output_bio) , sizeof(char));
+			if (not buf_) throw std::runtime_error("Calloc in sctp_send_raw failed.");
+			return std::unique_ptr<void, decltype(&std::free)> (buf_, std::free);
+		})();
+		void* outbuf = outbuf_ptr.get();
+		TRACE("output_buff_size: " + std::to_string(BIO_ctrl_pending(output_bio)));
 
-		char outbuf[BUFFERSIZE] = {0}; //size (???)
-
-		int read = BIO_read(output_bio, outbuf, sizeof(outbuf));
-		if (SSL_ERROR_NONE != SSL_get_error(ssl, read)) throw std::runtime_error("BIO_read");
-		assert(SSL_ERROR_NONE == SSL_get_error(ssl, read));
-
+		int read = BIO_read(output_bio, outbuf, BIO_ctrl_pending(output_bio));
+		if (SSL_ERROR_NONE != SSL_get_error(ssl, read)) {
+			throw std::runtime_error("BIO_read");
+		}
+		
 		sent = usrsctp_sendv(sock, outbuf, read,
 						 /* addrs */ NULL, /* addrcnt */ 0,
 						  /* info */ NULL, /* infolen */ 0,
@@ -548,7 +552,7 @@ ssize_t SCTPClient::sctp_send_raw(const void* buf, size_t len)
 
 ssize_t SCTPClient::send(const void* buf, size_t len)
 {
-	return sctp_send_raw(buf, len);
+	return send_raw_(buf, len);
 }
 
 /*
@@ -605,7 +609,6 @@ void SCTPClient::handle_server_data(void* buffer, ssize_t n, const struct sockad
 	TRACE("output_buff_size: " + std::to_string(output_buff_size));
 
 	switch (state) {
-
 	case SCTPClient::SSL_HANDSHAKING:
 	{
 
@@ -615,44 +618,44 @@ void SCTPClient::handle_server_data(void* buffer, ssize_t n, const struct sockad
 		int res = SSL_do_handshake(ssl);
 
 		if (not SSL_is_init_finished(ssl)) {
-			if (SSL_ERROR_WANT_READ == SSL_get_error(ssl, res) && BIO_ctrl_pending(output_bio)) {
-				char outbuf[BUFFERSIZE] = { 0 }; // size (?)
+			if (SSL_ERROR_WANT_READ == SSL_get_error(ssl, res) and BIO_ctrl_pending(output_bio)) {
 				int read = BIO_read(output_bio, outbuf, output_buff_size);
-				if (SSL_ERROR_NONE != SSL_get_error(ssl, read)) throw std::runtime_error("BIO_read");
-
-				if (sctp_send_raw(outbuf, read) < 0) throw std::runtime_error(strerror(errno));				
+				if (SSL_ERROR_NONE != SSL_get_error(ssl, read)) {
+					throw std::runtime_error("BIO_read");
+				}
+				if (send_raw_(outbuf, read) < 0) {
+					throw std::runtime_error(strerror(errno));
+				}
 				break;
 			}
 
-			if (SSL_ERROR_NONE == SSL_get_error(ssl, res) && BIO_ctrl_pending(output_bio)) {
-				char outbuf[BUFFERSIZE] = {0}; // size (?)
+			if (SSL_ERROR_NONE == SSL_get_error(ssl, res) and BIO_ctrl_pending(output_bio)) {
 				int read = BIO_read(output_bio, outbuf, output_buff_size);
-				if (SSL_ERROR_NONE != SSL_get_error(ssl, read)) throw std::runtime_error("BIO_read");
-
-				if (sctp_send_raw(outbuf, read) < 0) throw std::runtime_error(strerror(errno));
+				if (SSL_ERROR_NONE != SSL_get_error(ssl, read)) {
+					throw std::runtime_error("BIO_read");
+				}
+				if (send_raw_(outbuf, read) < 0) {
+					throw std::runtime_error(strerror(errno));
+				}
 
 				set_state(SCTPClient::SSL_CONNECTED);
-				if (cfg_->state_f) cfg_->state_f(state);
 				break;
 			}
 
-			if (SSL_ERROR_NONE == SSL_get_error(ssl, res) && !BIO_ctrl_pending(output_bio)) {
+			if (SSL_ERROR_NONE == SSL_get_error(ssl, res) and !BIO_ctrl_pending(output_bio)) {
 				set_state(SCTPClient::SSL_CONNECTED);
-				if (cfg_->state_f) cfg_->state_f(state);
 				break;
 			}
 
 		} else {
 			if (BIO_ctrl_pending(output_bio)) {
-				char outbuf[BUFFERSIZE] = {0}; // size (?)
 				int read = BIO_read(output_bio, outbuf, output_buff_size);
 				if (SSL_ERROR_NONE != SSL_get_error(ssl, read)) throw std::runtime_error("BIO_read");
 
-				if (sctp_send_raw(outbuf, read) < 0) throw std::runtime_error(strerror(errno));
+				if (send_raw_(outbuf, read) < 0) throw std::runtime_error(strerror(errno));
 			}
 
 			set_state(SCTPClient::SSL_CONNECTED);
-			if (cfg_->state_f) cfg_->state_f(state);
 		}
 	}
 	break;
@@ -737,7 +740,6 @@ void SCTPClient::handle_server_data(void* buffer, ssize_t n, const struct sockad
 		break;
 	}
 }
-
 
 
 
@@ -848,17 +850,20 @@ void SCTPClient::handle_association_change_event(struct sctp_assoc_change* sac)
 					SSL_set_connect_state(ssl);
 				}
 				int res = SSL_do_handshake(ssl);
+				assert(BIO_ctrl_pending(output_bio));
 
-				
-				if (SSL_ERROR_WANT_READ == SSL_get_error(ssl, res) and BIO_ctrl_pending(output_bio)) {
-						char outbuf[BUFFERSIZE] = { 0 };
+				set_state(SCTPClient::SSL_HANDSHAKING);
+				if (SSL_ERROR_WANT_READ == SSL_get_error(ssl, res)) {
+						char outbuf[MAX_TLS_RECORD_SIZE] = { 0 };
 						int read = BIO_read(output_bio, outbuf, sizeof(outbuf));
-						assert(SSL_ERROR_NONE == SSL_get_error(ssl, read));
+						if (SSL_ERROR_NONE != SSL_get_error(ssl, read)) {
+							throw std::runtime_error("BIO_read");
+						}
 
-						if (sctp_send_raw(outbuf, read) < 0) throw std::runtime_error(strerror(errno));
+						if (send_raw_(outbuf, read) < 0) {
+							throw std::runtime_error(strerror(errno));
+						}
 
-						set_state(SCTPClient::SSL_HANDSHAKING);
-						if (cfg_->state_f) cfg_->state_f(state);
 				} else {
 					throw std::runtime_error("SSL handshake error");
 				}

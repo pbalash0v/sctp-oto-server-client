@@ -346,9 +346,8 @@ void SCTPServer::broadcast(const void* data, size_t len)
 
 void SCTPServer::send(std::shared_ptr<IClient>& c, const void* data, size_t len)
 {
-	if (c->state() == Client::SSL_CONNECTED) {
-		send_raw(c, data, len);
-	}
+	assert(c->state() == Client::SSL_CONNECTED);
+	send_raw(c, data, len);
 }
 
 /*
@@ -358,7 +357,7 @@ ssize_t SCTPServer::send_raw(std::shared_ptr<IClient>& c, const void* buf, size_
 {
 	ssize_t sent = -1;
 
-	if (c->state() < Client::SSL_CONNECTED) {
+	if (c->state() != Client::SSL_CONNECTED) {
 		// addrs - NULL for connected socket
 		// addrcnt: Number of addresses.
 		// As at most one address is supported, addrcnt is 0 if addrs is NULL and 1 otherwise.
@@ -370,13 +369,21 @@ ssize_t SCTPServer::send_raw(std::shared_ptr<IClient>& c, const void* buf, size_
 		int written = SSL_write(c->ssl, buf, len);
 		if (SSL_ERROR_NONE != SSL_get_error(c->ssl, written)) {
 			log_client_error_and_throw("SSL_write", c);
-		}		
+		}
 
-		char outbuf[BUFFER_SIZE] = { 0 };
-		int read = BIO_read(c->output_bio, outbuf, sizeof(outbuf));
+		auto outbuf_ptr = ([&]()
+		{
+			void* buf_ = calloc(BIO_ctrl_pending(c->output_bio) , sizeof(char));
+			if (not buf_) throw std::runtime_error("Calloc in send_raw failed.");
+			return std::unique_ptr<void, decltype(&std::free)> (buf_, std::free);
+		})();
+		void* outbuf = outbuf_ptr.get();
+		TRACE("output_buff_size: " + std::to_string(BIO_ctrl_pending(c->output_bio)));
+
+		int read = BIO_read(c->output_bio, outbuf, BIO_ctrl_pending(c->output_bio));
 		if (SSL_ERROR_NONE != SSL_get_error(c->ssl, read)) {
 			log_client_error_and_throw("BIO_read", c);
-		}		
+		}
 
 		sent = usrsctp_sendv(c->sock, outbuf, read,
 						 /* addrs */ NULL, /* addrcnt */ 0,
