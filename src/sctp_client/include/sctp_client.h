@@ -11,6 +11,7 @@
 #include <arpa/inet.h>
 
 #include "ssl_h.h"
+#include "sctp_message_buffer.h"
 
 
 constexpr uint16_t DEFAULT_LOCAL_UDP_ENCAPS_PORT = 0; //choose ephemeral
@@ -18,6 +19,10 @@ constexpr uint16_t DEFAULT_LOCAL_UDP_ENCAPS_PORT = 0; //choose ephemeral
 constexpr const char* DEFAULT_SERVER_ADDRESS = "127.0.0.1";
 constexpr uint16_t DEFAULT_SERVER_UDP_ENCAPS_PORT = 9899;
 constexpr uint16_t DEFAULT_SERVER_SCTP_PORT = 5001;
+
+namespace sctp {
+	constexpr auto DEFAULT_SCTP_MESSAGE_SIZE_BYTES = 1 << 16;
+}
 
 constexpr const char* DEFAULT_CLIENT_CERT_FILENAME = "../certs/client-cert.pem";
 constexpr const char* DEFAULT_CLIENT_KEY_FILENAME = "../certs/client-key.pem";
@@ -73,12 +78,14 @@ public:
 		uint16_t server_sctp_port { DEFAULT_SERVER_SCTP_PORT };
 		std::string server_address { DEFAULT_SERVER_ADDRESS };
 
+		size_t message_size { sctp::DEFAULT_SCTP_MESSAGE_SIZE_BYTES };
+
 		std::string cert_filename { DEFAULT_CLIENT_CERT_FILENAME };
 		std::string key_filename { DEFAULT_CLIENT_KEY_FILENAME };
 
 		SCTPClient_cback_t data_cback_f = nullptr;
-		SCTPClient_debug_t debug_f = nullptr;
-		SCTPClient_state_cback_t state_f = nullptr;
+		SCTPClient_debug_t debug_cback_f = nullptr;
+		SCTPClient_state_cback_t state_cback_f = nullptr;
 	};
 
 	SCTPClient();
@@ -106,7 +113,6 @@ public:
 	std::shared_ptr<Config> cfg_;
 
 private:
-
 	SSL_h ssl_obj { SSL_h::CLIENT };
 
 	SSL* ssl = nullptr;
@@ -118,16 +124,17 @@ private:
 	State state = NONE;
 
 	int udp_sock_fd;
-
 	struct socket* sock = nullptr;
+
+	sctp::MessageBuffer message_buff { cfg_->message_size };
 
 	std::thread udp_thr;
 	void udp_loop();
 
-	void init_usrsctp_lib();
 	void init_local_UDP();
 	void init_remote_UDP();
-	void init_SCTP();
+	void init_usrsctp_lib();		
+	void init_SCTP();	
 	
 	ssize_t send_raw_(const void* buf, size_t len);
 
@@ -135,7 +142,7 @@ private:
 	static void handle_upcall(struct socket* sock, void* arg, int flgs);
 
 	void handle_server_data(void* buffer, ssize_t n, const struct sockaddr_in& addr,
-		const struct sctp_recvv_rn& rcv_info, unsigned int infotype, int flags);
+		const struct sctp_recvv_rn& rcv_info, unsigned int infotype);
 
 	void handle_notification(union sctp_notification* notif, size_t n);
 	void handle_association_change_event(struct sctp_assoc_change* sac);

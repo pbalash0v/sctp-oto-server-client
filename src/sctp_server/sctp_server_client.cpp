@@ -18,7 +18,7 @@
 
 
 Client::Client(struct socket* sctp_sock, SCTPServer& s)
-	: Client(sctp_sock, s, DEFAULT_MESSAGE_SIZE_BYTES) {};
+	: Client(sctp_sock, s, DEFAULT_SCTP_MESSAGE_SIZE_BYTES) {};
 
 Client::Client(struct socket* sctp_sock, SCTPServer& s, size_t message_size)
 	: IClient(sctp_sock, s), message_size_(message_size) {};

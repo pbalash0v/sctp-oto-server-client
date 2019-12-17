@@ -15,13 +15,13 @@
 #ifndef NDEBUG
 #define log(level, text) \
 						do { \
-							if (nullptr == cfg_->debug_f) break; \
+							if (nullptr == cfg_->debug_cback_f) break; \
 							std::string s = std::string(); \
 							s += std::string(basename(__FILE__)) + \
 							 + ", " + std::string(__func__) + \
 							 + ":" + std::to_string(__LINE__) + \
 							 + "\t " + std::string(text) + "\n"; \
-								cfg_->debug_f(level, s); \
+								cfg_->debug_cback_f(level, s); \
 						} while (0)
 
 #define CHECK_STATE() \
@@ -55,6 +55,11 @@ constexpr auto BUFFERSIZE = 1 << 16; /* or use dynamic alloc with BIO_ctrl_pendi
 */
 static std::unordered_map<std::string, std::vector<SCTPClient::State>> state_allowed_funcs {
 		{"init", std::vector<SCTPClient::State> { SCTPClient::NONE }},
+		{"init_usrsctp_lib", std::vector<SCTPClient::State> { SCTPClient::NONE }},
+		{"init_local_UDP", std::vector<SCTPClient::State> { SCTPClient::NONE }},
+		{"init_local_UDP", std::vector<SCTPClient::State> { SCTPClient::NONE }},
+		{"init_remote_UDP", std::vector<SCTPClient::State> { SCTPClient::NONE }},
+		{"init_SCTP", std::vector<SCTPClient::State> { SCTPClient::NONE }},
 		{"run", std::vector<SCTPClient::State> { SCTPClient::NONE }},
 		{"send", std::vector<SCTPClient::State> { SCTPClient::SSL_CONNECTED }},
 		{"udp_loop", std::vector<SCTPClient::State> { SCTPClient::SCTP_CONNECTING }},
@@ -113,7 +118,7 @@ void SCTPClient::set_state(SCTPClient::State new_state)
 	}
 
 	state = new_state;
-	if (cfg_->state_f) cfg_->state_f(state);
+	if (cfg_->state_cback_f) cfg_->state_cback_f(state);
 }
 
 
@@ -160,32 +165,51 @@ void SCTPClient::handle_upcall(struct socket* sock, void* arg, int /* flgs */)
 		memset(&rn, 0, sizeof(struct sctp_recvv_rn));
 
 		//struct sctp_rcvinfo rcv_info;
-		ssize_t n;
+		ssize_t n = 0;
 		struct sockaddr_in addr;
-		void* buf = calloc(BUFFERSIZE, sizeof (char));
+		void* buf = calloc(BUFFERSIZE, sizeof(char));
 		int flags = 0;
 		socklen_t from_len = (socklen_t) sizeof(struct sockaddr_in);
 		unsigned int infotype;
 		socklen_t infolen = sizeof(struct sctp_recvv_rn);
 		//infolen = (socklen_t) sizeof(struct sctp_rcvinfo);
 
-		/* we can have several notifications waiting. process them all */
-		while ((n = usrsctp_recvv(sock, buf, BUFFERSIZE, (struct sockaddr*) &addr, &from_len, (void *) &rn,
+		/* we can have several notifications/data waiting. process them all */
+		while ((n = usrsctp_recvv(sock, c->message_buff.get_writable_buffer(),
+								c->message_buff.get_writable_buffer_size(),
+								(struct sockaddr*)&addr, &from_len,
+								static_cast<void *>(&rn),
 								&infolen, &infotype, &flags)) > 0) {
+			if (not (flags & MSG_EOR)) {
+				TRACE("usrsctp_recvv incomplete: " + std::to_string(n));
 
-			TRACE("length: " + std::to_string((unsigned long long) n));
+				try {
+					c->message_buff.realloc_buffer();
+				} catch (const std::runtime_error& exc) {
+					ERROR(exc.what());
+					break;
+				}
 
-			if (flags & MSG_NOTIFICATION) {
-				TRACE("Notification of length " 
-					+ std::to_string((unsigned long long) n) + std::string(" received."));
-				c->handle_notification((union sctp_notification*) buf, n);
-			} else {
-				TRACE("Socket data of length " 
-					+ std::to_string((unsigned long long) n) + std::string(" received."));					
-				c->handle_server_data(buf, n, addr, rn, infotype, flags);
+				flags = 0;
+				continue;
 			}
 
-			memset(buf, 0, BUFFERSIZE);
+			n += c->message_buff.get_buffered_data_size();
+			try {
+				if (flags & MSG_NOTIFICATION) {
+					TRACE("Notification of length "
+						+ std::to_string((unsigned long long) n) + std::string(" received."));
+					c->handle_notification(static_cast<union sctp_notification*>(c->message_buff()), n);
+				} else {
+					TRACE("Socket data of length " 
+						+ std::to_string((unsigned long long) n) + std::string(" received."));					
+					c->handle_server_data(c->message_buff(), n, addr, rn, infotype);
+				}
+			} catch (const std::runtime_error& exc) {
+				ERROR(exc.what());
+			}
+
+			c->message_buff.reset_buffer();
 			flags = 0;
 		}
 
@@ -247,6 +271,9 @@ int SCTPClient::conn_output(void* arg, void *buf, size_t length,
 /* UDP init */
 void SCTPClient::init_local_UDP()
 {
+	CHECK_STATE();
+	TRACE_func_entry();
+
 	int status;
 	struct addrinfo* cli_info = NULL; /* will point to the result */
 	/* RAII for cli_info */
@@ -292,11 +319,13 @@ void SCTPClient::init_local_UDP()
 	if (bind(udp_sock_fd, cli_info->ai_addr, cli_info->ai_addrlen) < 0) {
 		throw std::runtime_error(strerror(errno));
 	}
+	TRACE_func_left();
 }
 
 
 void SCTPClient::init_remote_UDP()
 {
+	CHECK_STATE();
 	TRACE_func_entry();
 
 	int status;
@@ -353,6 +382,7 @@ void SCTPClient::init_remote_UDP()
 
 void SCTPClient::init_usrsctp_lib()
 {
+	CHECK_STATE();
 	TRACE_func_entry();
 
 	if (usrsctp_lib_initialized) return;
@@ -380,6 +410,7 @@ void SCTPClient::init_usrsctp_lib()
 */
 void SCTPClient::init_SCTP()
 {
+	CHECK_STATE();
 	TRACE_func_entry();
 
 	int (*receive_cb)(struct socket*, union sctp_sockstore, void*, size_t, struct sctp_rcvinfo, int, void*) = NULL;
@@ -438,8 +469,8 @@ void SCTPClient::init_SCTP()
 
 void SCTPClient::init()
 {
-	TRACE_func_entry();
 	CHECK_STATE();
+	TRACE_func_entry();
 
 	try {
 		ssl_obj.init(cfg_->cert_filename, cfg_->key_filename);
@@ -459,8 +490,8 @@ void SCTPClient::init()
 
 void SCTPClient::run()
 {
-	TRACE_func_entry();
 	CHECK_STATE();
+	TRACE_func_entry();
 
 	set_state(SCTPClient::SCTP_CONNECTING);
 
@@ -474,7 +505,7 @@ void SCTPClient::run()
 #endif
 	sconn.sconn_port = htons(cfg_->server_sctp_port);
 	//sconn.sconn_addr = &fd;
-	sconn.sconn_addr = this; // ?
+	sconn.sconn_addr = this; // ??????
 
 	//doesn't block
 	int res = usrsctp_connect(sock, (struct sockaddr *)&sconn, sizeof(struct sockaddr_conn));
@@ -533,7 +564,6 @@ ssize_t SCTPClient::send_raw_(const void* buf, size_t len)
 			return std::unique_ptr<void, decltype(&std::free)> (buf_, std::free);
 		})();
 		void* outbuf = outbuf_ptr.get();
-		TRACE("output_buff_size: " + std::to_string(BIO_ctrl_pending(output_bio)));
 
 		int read = BIO_read(output_bio, outbuf, BIO_ctrl_pending(output_bio));
 		if (SSL_ERROR_NONE != SSL_get_error(ssl, read)) {
@@ -560,8 +590,8 @@ ssize_t SCTPClient::send(const void* buf, size_t len)
 */
 void SCTPClient::udp_loop()
 {
-	TRACE_func_entry();
 	CHECK_STATE();
+	TRACE_func_entry();
 
  	char buf[BUFFERSIZE] = { 0 };
 
@@ -593,7 +623,7 @@ void SCTPClient::udp_loop()
 
 
 void SCTPClient::handle_server_data(void* buffer, ssize_t n, const struct sockaddr_in& addr,
-					 const struct sctp_recvv_rn& rcv_info, unsigned int infotype, int flags)
+					 const struct sctp_recvv_rn& rcv_info, unsigned int infotype)
 {
 
 	#define MAX_TLS_RECORD_SIZE (1 << 14)
@@ -672,7 +702,7 @@ void SCTPClient::handle_server_data(void* buffer, ssize_t n, const struct sockad
 		assert(SSL_ERROR_NONE == SSL_get_error(ssl, written));
 
 		do {
-			int read = SSL_read(ssl, static_cast<char*>(outbuf) + already_read_from_buffer , MAX_TLS_RECORD_SIZE);
+			int read = SSL_read(ssl, static_cast<char*>(outbuf) + already_read_from_buffer, MAX_TLS_RECORD_SIZE);
 			DEBUG(std::string("SSL read: ") + std::to_string(read));
 
 			if (read == 0 and SSL_ERROR_ZERO_RETURN == SSL_get_error(ssl, read)) {
@@ -698,27 +728,24 @@ void SCTPClient::handle_server_data(void* buffer, ssize_t n, const struct sockad
 
 			if (infotype == SCTP_RECVV_RCVINFO) {
 				snprintf(message, sizeof message,
-							"Msg %s of length %llu received from %s:%u on stream %u with SSN %u and TSN %u, PPID %u, context %u, complete %d.\n",
+							"Msg %s of length %llu received from %s:%u on stream %u with SSN %u and TSN %u, PPID %u, context %u.\n",
 							(char*) outbuf,
 							(unsigned long long) total_unencrypted_message_size,
 							inet_ntop(AF_INET, &addr.sin_addr, name, INET_ADDRSTRLEN), ntohs(addr.sin_port),
 							rcv_info.recvv_rcvinfo.rcv_sid,	rcv_info.recvv_rcvinfo.rcv_ssn,	rcv_info.recvv_rcvinfo.rcv_tsn,
-							ntohl(rcv_info.recvv_rcvinfo.rcv_ppid), rcv_info.recvv_rcvinfo.rcv_context,
-							(flags & MSG_EOR) ? 1 : 0);
+							ntohl(rcv_info.recvv_rcvinfo.rcv_ppid), rcv_info.recvv_rcvinfo.rcv_context);
 			} else {
 					if (n < 30) 
-						snprintf(message, sizeof message, "Msg %s of length %llu received from %s:%u, complete %d.",
+						snprintf(message, sizeof message, "Msg %s of length %llu received from %s:%u",
 							(char*) outbuf,
 							(unsigned long long) total_unencrypted_message_size,
 							inet_ntop(AF_INET, &addr.sin_addr, name, INET_ADDRSTRLEN),
-							ntohs(addr.sin_port),
-							(flags & MSG_EOR) ? 1 : 0);
+							ntohs(addr.sin_port));
 					else 
-						snprintf(message, sizeof message, "Msg of length %llu received from %s:%u, complete %d.",
+						snprintf(message, sizeof message, "Msg of length %llu received from %s:%u",
 							(unsigned long long) total_unencrypted_message_size,
 							inet_ntop(AF_INET, &addr.sin_addr, name, INET_ADDRSTRLEN),
-							ntohs(addr.sin_port),
-							(flags & MSG_EOR) ? 1 : 0);
+							ntohs(addr.sin_port));
 			}
 
 			return std::string(message);
@@ -1145,8 +1172,8 @@ std::ostream& operator<<(std::ostream& out, const SCTPClient::Config& c)
 	out << "server address: " << c.server_address << ", ";
 	out << "server SCTP port: " << std::to_string(c.server_sctp_port) << ", ";
 	out << "data callback: " << (c.data_cback_f == nullptr ? "nullptr" : "set") << ", ";
-	out << "debug callback: " << (c.debug_f == nullptr ? "nullptr" : "set") << ", ";
-	out << "state callback: " << (c.state_f == nullptr ? "nullptr" : "set") << ", ";
+	out << "debug callback: " << (c.debug_cback_f == nullptr ? "nullptr" : "set") << ", ";
+	out << "state callback: " << (c.state_cback_f == nullptr ? "nullptr" : "set") << ", ";
 	out << "SSL certificate: " << c.cert_filename << ", ";
 	out << "SSL key: " << c.key_filename;
 	

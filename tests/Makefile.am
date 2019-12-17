@@ -16,6 +16,7 @@ TESTS_CPPFLAGS = -DTEST_BUILD \
 				-I$(top_srcdir)/src/sctp_server/include \
 				-I$(top_srcdir)/src/sctp_server \
 				-I$(top_srcdir)/src/sctp_client/include \
+				-I$(top_srcdir)/src/sctp_client \
 				-I$(top_srcdir)/src/sctp_common \
 				-I$(top_srcdir)/src/third_party/usrsctp/usrsctplib \
 				@PTHREAD_CFLAGS@ \
@@ -30,6 +31,7 @@ libtest_a_SOURCES = $(top_srcdir)/src/sctp_server/sctp_server.cpp \
 					$(top_srcdir)/src/sctp_server/sctp_server_client.cpp \
 					$(top_srcdir)/src/sctp_server/sctp_server_iclient_data.cpp \
 					$(top_srcdir)/src/sctp_client/sctp_client.cpp \
+					$(top_srcdir)/src/sctp_client/sctp_message_buffer.cpp \
 					$(top_srcdir)/src/sctp_client/sctp_client_data.cpp
 
 libtest_a_CXXFLAGS = $(AM_CXXFLAGS)
@@ -45,8 +47,7 @@ AM_DEFAULT_SOURCE_EXT = .cpp
 TESTS = $(check_PROGRAMS)
 XFAIL_TESTS = $(check_PROGRAMS_FAIL)
 
-TESTS_LDADD = \
-			$(top_builddir)/tests/libtest.a \
+TESTS_LDADD = $(top_builddir)/tests/libtest.a \
 			$(top_builddir)/src/sctp_common/libcommon.a \
 			$(top_builddir)/src/third_party/usrsctp/usrsctplib/.libs/libusrsctp.a \
 			@OPENSSL_LIBS@ @PTHREAD_LIBS@ @PTHREAD_CFLAGS@

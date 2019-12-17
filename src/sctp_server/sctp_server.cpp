@@ -440,8 +440,6 @@ void SCTPServer::handle_server_upcall(struct socket* serv_sock, void* arg, int)
 			throw std::runtime_error(strerror(errno));
 		}
 
-		DEBUG("New connection accepted.");
-
 		{
 			std::lock_guard<std::mutex> lock(s->clients_mutex_);
 
@@ -468,7 +466,6 @@ void SCTPServer::handle_server_upcall(struct socket* serv_sock, void* arg, int)
 	if (events & SCTP_EVENT_WRITE) {
 		ERROR("SCTP_EVENT_WRITE on server socket.");
 	}
-
 }
 
 
@@ -505,9 +502,8 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 			{
 				std::lock_guard<std::mutex> lock(s->clients_mutex_);
 
-				auto it = std::find_if(clients.cbegin(), clients.cend(), [&] (const auto& s_ptr) {
-					return s_ptr->sock == upcall_sock;
-				});
+				auto it = std::find_if(clients.cbegin(), clients.cend(),
+				[&] (const auto& s_ptr) { return s_ptr->sock == upcall_sock; });
 
 				if (it != clients.cend()) {
 					 return *it;
@@ -520,7 +516,7 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 		ERROR(exc.what());
 		return;
 	}
-
+#if 0
 	TRACE(([&] {
 		std::string m { "Socket events: "};
 		if (events & SCTP_EVENT_ERROR) {
@@ -534,7 +530,7 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 		}
 		return m;
 	})());
-
+#endif
 	/*
 		In usrsctp user_socket.c SCTP_EVENT_ERROR appears to be one of
 		the available event types.
@@ -555,7 +551,6 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 
 		struct sctp_recvv_rn rn;
 		memset(&rn, 0, sizeof(struct sctp_recvv_rn));
-
 		//struct sctp_rcvinfo rcv_info;
 		ssize_t n;
 		struct sockaddr_in addr;
@@ -567,10 +562,10 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 
 		/* got data or socket api notification */
 		while ((n = usrsctp_recvv(upcall_sock,
-										 client->get_writable_buffer(), client->get_writable_buffer_size(),
+										 client->get_writable_buffer(),
+										 client->get_writable_buffer_size(),
 										 (struct sockaddr*) &addr, &from_len, (void *) &rn,
 											&infolen, &infotype, &flags)) > 0) {
-
 			if (not (flags & MSG_EOR)) {
 				TRACE("usrsctp_recvv incomplete: " + std::to_string(n));
 
