@@ -9,19 +9,17 @@ AC_CONFIG_AUX_DIR([build-aux])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_MACRO_DIRS([m4])
 
-#AM_INIT_AUTOMAKE([foreign subdir-objects])
 AM_INIT_AUTOMAKE([foreign])
 
 AM_SILENT_RULES([yes])
 
 LT_INIT([disable-shared])
 
-##AC_PROG_RANLIB
-
 # Checks for programs.
 AC_PROG_CC
 AC_PROG_CXX([clang++ g++])
 AC_LANG([C++])
+PKG_PROG_PKG_CONFIG
 
 #m4_ifdef([AX_CXX_COMPILE_STDCXX_14], [AX_CXX_COMPILE_STDCXX_14([noext],[mandatory])], AC_MSG_ERROR([AX_CXX_COMPILE_STDCXX_14 macro missing. Install autoconf-archive package and run autoreconf again.]))
 AX_CXX_COMPILE_STDCXX_14([noext],[mandatory])
@@ -39,6 +37,9 @@ AX_WITH_CURSES
 if test "x$ax_cv_ncursesw" != xyes && test "x$ax_cv_ncurses" != xyes; then
 	AC_MSG_ERROR([requires either NcursesW or Ncurses library])
 fi
+
+PKG_CHECK_MODULES([OPENCV], [opencv], [found_opencv=yes], [:])
+AM_CONDITIONAL([WITH_OPENCV], [test x"$found_opencv" = xyes])
 
 # Checks for header files.
 AC_CHECK_HEADERS([arpa/inet.h netdb.h netinet/in.h sys/socket.h])

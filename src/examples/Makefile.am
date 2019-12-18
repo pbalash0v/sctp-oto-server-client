@@ -1,2 +1,8 @@
 AUTOMAKE_OPTIONS = subdir-objects
-SUBDIRS = broadcast mjpeg_streaming certs
+
+if WITH_OPENCV
+MAYBEPROGRAMS = mjpeg_streaming
+endif
+
+
+SUBDIRS = broadcast $(MAYBEPROGRAMS) certs

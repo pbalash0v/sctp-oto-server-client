@@ -1,6 +1,6 @@
 #include <iostream>
 #include <sstream>
-#include <unordered_map>
+#include <map>
 #include <algorithm>
 
 #include <usrsctp.h>
@@ -53,7 +53,7 @@ constexpr auto BUFFERSIZE = 1 << 16; /* or use dynamic alloc with BIO_ctrl_pendi
 /*
 	Used to check whether function is allowed to run in some particular state
 */
-static std::unordered_map<std::string, std::vector<SCTPClient::State>> state_allowed_funcs {
+static std::map<std::string, std::vector<SCTPClient::State>> state_allowed_funcs {
 		{"init", std::vector<SCTPClient::State> { SCTPClient::NONE }},
 		{"init_usrsctp_lib", std::vector<SCTPClient::State> { SCTPClient::NONE }},
 		{"init_local_UDP", std::vector<SCTPClient::State> { SCTPClient::NONE }},
@@ -68,7 +68,7 @@ static std::unordered_map<std::string, std::vector<SCTPClient::State>> state_all
 				SCTPClient::SSL_HANDSHAKING, SCTPClient::SSL_CONNECTED, SCTPClient::SSL_SHUTDOWN, }}
 };
 
-static std::unordered_map<SCTPClient::State, std::string> state_names {
+static std::map<SCTPClient::State, std::string> state_names {
 	{ SCTPClient::NONE, "NONE" },
 	{ SCTPClient::INITIALIZED, "INITIALIZED" },
 	{ SCTPClient::SCTP_CONNECTING, "SCTP_CONNECTING"},

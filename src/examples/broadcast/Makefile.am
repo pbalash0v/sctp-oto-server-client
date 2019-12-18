@@ -14,8 +14,7 @@ server_CPPFLAGS = -I$(top_srcdir)/src/sctp_server/include \
 		  -I$(top_srcdir)/src/third_party/usrsctp/usrsctplib \
 		  -I$(top_srcdir)/src/third_party/gopt-10.0 \
 		  -I$(top_srcdir)/src/third_party/spdlog/include \
-		  @PTHREAD_CFLAGS@ \
-		  @OPENSSL_INCLUDES@
+		  @PTHREAD_CFLAGS@ @OPENSSL_INCLUDES@
 
 
 server_DEPENDENCIES = $(top_builddir)/src/third_party/usrsctp/usrsctplib/libusrsctp.la \
@@ -45,8 +44,7 @@ client_CPPFLAGS = -I$(top_srcdir)/src/sctp_client/include \
 		  -I$(top_srcdir)/src/third_party/usrsctp/usrsctplib \
 		  -I$(top_srcdir)/src/third_party/gopt-10.0 \
 		  -I$(top_srcdir)/src/third_party/spdlog/include \
-		  @PTHREAD_CFLAGS@ \
-		  @OPENSSL_INCLUDES@ 
+		  @PTHREAD_CFLAGS@ @OPENSSL_INCLUDES@
 		  ##@CURSES_CFLAGS@
 		  
 client_DEPENDENCIES = $(top_builddir)/src/third_party/usrsctp/usrsctplib/libusrsctp.la \

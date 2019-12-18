@@ -7,18 +7,20 @@
 #include "ssl_h.h"
 
 
-static int ssl_verify_peer(int ok __attribute__((unused)), X509_STORE_CTX* ctx __attribute__((unused))) {
+static int ssl_verify_peer(int ok __attribute__((unused)), X509_STORE_CTX* ctx __attribute__((unused)))
+{
 	return 1;
 }
 
-SSL_h::SSL_h(SSL_h::SSLType type)
-	: type_(type) {};
+SSL_h::SSL_h(SSL_h::SSLType type) : type_(type) {}
 
-SSL_h::~SSL_h() {
+SSL_h::~SSL_h()
+{
 	if (type_ == SERVER && nullptr != ctx_) SSL_CTX_free(ctx_);
-};
+}
 
-void SSL_h::init(const std::string& cert_file, const std::string& key_file) {
+void SSL_h::init(const std::string& cert_file, const std::string& key_file)
+{
 	// bool is_client = (type_ == SSL_h::CLIENT);
 
 	/* SSL library initialisation */

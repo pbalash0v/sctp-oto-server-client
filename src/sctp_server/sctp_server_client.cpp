@@ -2,7 +2,7 @@
 #include <cstring>
 #include <vector>
 #include <sstream>
-#include <unordered_map>
+#include <map>
 #include <errno.h>
 
 #include "usrsctp.h"
@@ -18,7 +18,7 @@
 */
 #define ENABLE_DEBUG() std::shared_ptr<SCTPServer::Config> cfg_ = server_.cfg_
 
-static std::unordered_map<IClient::State, std::string> state_names {
+static std::map<IClient::State, std::string> state_names {
 	{ IClient::NONE, "NONE" },
 	{ IClient::SCTP_ACCEPTED, "SCTP_ACCEPTED" },
 	{ IClient::SCTP_CONNECTED, "SCTP_CONNECTED"},
