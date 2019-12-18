@@ -658,6 +658,7 @@ void SCTPClient::udp_loop()
 void SCTPClient::handle_server_data(void* buffer, ssize_t n, const struct sockaddr_in& addr,
 					 const struct sctp_recvv_rn& rcv_info, unsigned int infotype)
 {
+	TRACE(state_names[state]);
 
 	#define MAX_TLS_RECORD_SIZE (1 << 14)
 	size_t output_buff_size = (state != SCTPClient::SSL_CONNECTED) ?
@@ -725,7 +726,6 @@ void SCTPClient::handle_server_data(void* buffer, ssize_t n, const struct sockad
 
 	case SCTPClient::SSL_CONNECTED:
 	{
-		TRACE("SCTPClient::SSL_CONNECTED");
 		TRACE(std::string("encrypted message length n: ") + std::to_string(n));
 
 		size_t already_read_from_buffer = 0;
@@ -736,7 +736,7 @@ void SCTPClient::handle_server_data(void* buffer, ssize_t n, const struct sockad
 
 		do {
 			int read = SSL_read(ssl, static_cast<char*>(outbuf) + already_read_from_buffer, MAX_TLS_RECORD_SIZE);
-			DEBUG(std::string("SSL read: ") + std::to_string(read));
+			//TRACE(std::string("SSL read: ") + std::to_string(read));
 
 			if (read == 0 and SSL_ERROR_ZERO_RETURN == SSL_get_error(ssl, read)) {
 				set_state(SCTPClient::SSL_SHUTDOWN);
@@ -744,7 +744,7 @@ void SCTPClient::handle_server_data(void* buffer, ssize_t n, const struct sockad
 			}
 
 			if (read < 0 and (SSL_ERROR_WANT_READ == SSL_get_error(ssl, read))) {
-				TRACE("SSL_ERROR_WANT_READ");
+				WARNING("SSL_ERROR_WANT_READ");
 				break;
 			}
 

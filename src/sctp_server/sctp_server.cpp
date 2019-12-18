@@ -793,7 +793,7 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 
 	case Client::SSL_CONNECTED:
 		{
-			TRACE("Client::SSL_CONNECTED");
+			//TRACE("Client::SSL_CONNECTED");
 			TRACE(std::string("encrypted message length n: ") + std::to_string(n));
 
 			size_t already_read_from_buffer = 0;
@@ -806,7 +806,7 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 
 			do {
 				int read = SSL_read(c->ssl, static_cast<char*>(outbuf) + already_read_from_buffer, MAX_TLS_RECORD_SIZE);
-				DEBUG(std::string("SSL read: ") + std::to_string(read));
+				//TRACE(std::string("SSL read: ") + std::to_string(read));
 
 				if (read == 0 and SSL_ERROR_ZERO_RETURN == SSL_get_error(c->ssl, read)) {
 					DEBUG("SSL_ERROR_ZERO_RETURN");
@@ -815,7 +815,7 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 				}
 
 				if (read < 0 and SSL_ERROR_WANT_READ == SSL_get_error(c->ssl, read)) {
-					DEBUG("SSL_ERROR_WANT_READ");
+					WARNING("SSL_ERROR_WANT_READ");
 					break;
 				}
 

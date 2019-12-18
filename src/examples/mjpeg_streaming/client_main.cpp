@@ -196,7 +196,7 @@ void loop(const std::atomic_bool& running, cv::VideoCapture& camera, SCTPClient&
 		cv::imshow("Webcam", frame);
 		
 		// wait (10ms) for a key to be pressed
-		cv::waitKey(1000);
+		cv::waitKey(100);
 	}
 }
 
@@ -220,12 +220,19 @@ int main(int /* argc */, char* argv[])
 		return EXIT_FAILURE;
 	}	
 	cv::namedWindow("Webcam", cv::WINDOW_AUTOSIZE);
+	cv::namedWindow("Echo", cv::WINDOW_AUTOSIZE);
 
 	SCTPClient client { cfg };
 
 	client.cfg_->data_cback_f = [&](const auto& s)
 	{ 
 		spdlog::trace("Server sent: {}", std::to_string(s->size));
+
+		// show the image on the window
+		cv::imshow("Echo", cv::imdecode(cv::Mat(1, s->size, CV_8UC1, s->data), CV_LOAD_IMAGE_UNCHANGED));
+		
+		// wait (10ms) for a key to be pressed
+		cv::waitKey(10);		
 	};
 
 	client.cfg_->debug_cback_f = [&](const auto& level, const auto& s)

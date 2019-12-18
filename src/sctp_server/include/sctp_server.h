@@ -69,7 +69,8 @@ public:
 		CRITICAL
    };
 
-	using SCTPServer_cback_t = std::function<void(const std::shared_ptr<IClient>, std::unique_ptr<IClient::Data>)>;
+	using SCTPServer_cback_t = std::function<void(const std::shared_ptr<IClient>,
+																 std::unique_ptr<IClient::Data>)>;
 	using SCTPServer_debug_t = std::function<void(SCTPServer::LogLevel, const std::string&)>;	
 
 	class Config
