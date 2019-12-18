@@ -182,16 +182,19 @@ static std::shared_ptr<SCTPClient::Config> get_cfg_or_die(char* argv[], struct o
 void loop(const std::atomic_bool& running, cv::VideoCapture& camera, SCTPClient& client) {
 	// this will contain the image from the webcam
 	cv::Mat frame;
+	std::vector<uchar> jpeg;
 
 	while (running) {
 		// capture the next frame from the webcam
 		camera.read(frame);
 
+		cv::imencode(".jpg", frame, jpeg);
+
+		client.send(jpeg.data(), jpeg.size());
+
 		// show the image on the window
 		cv::imshow("Webcam", frame);
-
-		client.send(frame.data, frame.elemSize()*frame.total());
-
+		
 		// wait (10ms) for a key to be pressed
 		cv::waitKey(1000);
 	}
@@ -225,7 +228,7 @@ int main(int /* argc */, char* argv[])
 		spdlog::trace("Server sent: {}", std::to_string(s->size));
 	};
 
-	client.cfg_->debug_f = [&](const auto& level, const auto& s)
+	client.cfg_->debug_cback_f = [&](const auto& level, const auto& s)
 	{
 		std::string s_ { s };
 		s_.erase(std::remove(s_.begin(), s_.end(), '\n'), s_.end());
@@ -255,7 +258,7 @@ int main(int /* argc */, char* argv[])
 		}
 	};
 
-	client.cfg_->state_f = [&](const auto& state)
+	client.cfg_->state_cback_f = [&](const auto& state)
 	{ 
 		std::string message;
 
@@ -271,7 +274,6 @@ int main(int /* argc */, char* argv[])
 				break;
 			case SCTPClient::SSL_CONNECTED:
 				message += "SSL established.";
-				if (not capture_thread.joinable())
  					capture_thread = std::thread(&loop,
  						 std::ref(running), std::ref(camera), std::ref(client));
 				break;
@@ -293,7 +295,7 @@ int main(int /* argc */, char* argv[])
 	try {
 		client.init();
 		spdlog::info("{}", client.to_string());
-		client.run(); // this is async, starts separate thread
+		client(); // this is async, starts separate thread
 	} catch (const std::runtime_error& exc) {
 		spdlog::error("{}", std::string(exc.what()));
 		return EXIT_FAILURE;

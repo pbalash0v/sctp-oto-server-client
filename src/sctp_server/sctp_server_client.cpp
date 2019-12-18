@@ -1,13 +1,15 @@
 #include <cassert>
 #include <cstring>
+#include <vector>
 #include <sstream>
-
+#include <unordered_map>
 #include <errno.h>
 
-#include <usrsctp.h>
+#include "usrsctp.h"
 
 #include "sctp_server_client.h"
 #include "sctp_server.h"
+
 
 /* 
 	Log macros depend on local object named cfg_.
@@ -16,12 +18,30 @@
 */
 #define ENABLE_DEBUG() std::shared_ptr<SCTPServer::Config> cfg_ = server_.cfg_
 
+static std::unordered_map<IClient::State, std::string> state_names {
+	{ IClient::NONE, "NONE" },
+	{ IClient::SCTP_ACCEPTED, "SCTP_ACCEPTED" },
+	{ IClient::SCTP_CONNECTED, "SCTP_CONNECTED"},
+	{ IClient::SSL_HANDSHAKING, "SSL_HANDSHAKING"},
+	{ IClient::SSL_CONNECTED, "SSL_CONNECTED"},
+	{ IClient::SSL_SHUTDOWN, "SSL_SHUTDOWN"},
+	{ IClient::SCTP_SRV_INITIATED_SHUTDOWN, "SCTP_SRV_INITIATED_SHUTDOWN"},
+	{ IClient::PURGE, "PURGE"}
+};
+
 
 Client::Client(struct socket* sctp_sock, SCTPServer& s)
-	: Client(sctp_sock, s, DEFAULT_SCTP_MESSAGE_SIZE_BYTES) {};
+	: Client(sctp_sock, s, DEFAULT_SCTP_MESSAGE_SIZE_BYTES)
+{
+	std::cerr << "Client::Client(struct socket* sctp_sock, SCTPServer& s)" << std::endl;
+};
 
 Client::Client(struct socket* sctp_sock, SCTPServer& s, size_t message_size)
-	: IClient(sctp_sock, s), message_size_(message_size) {};
+	: IClient(sctp_sock, s), msg_size_(message_size)
+{
+	std::cerr << "Client::Client(struct socket* sctp_sock, SCTPServer& s, size_t message_size)" << std::endl;
+	msg_buff_.reserve(2*message_size);
+};
 
 void Client::init()
 {
@@ -38,14 +58,15 @@ void Client::init()
 
 	SSL_set_accept_state(ssl);
 
-	buff = ([&]()
-	{
-		void* buf_ = calloc(message_size_, sizeof(char));
-		if (not buf_) throw std::runtime_error("Calloc in init() failed.");
+	// buff = ([&]()
+	// {
+	// 	std::cerr << "***message_size_: " << message_size_ << std::endl;
+	// 	void* buf_ = calloc(message_size_, sizeof(char));
+	// 	if (not buf_) throw std::runtime_error("Calloc in init() failed.");
 
-		available_buffer_space = message_size_;
-		return std::unique_ptr<void, decltype(&std::free)> (buf_, std::free);
-	})();
+	// 	available_buffer_space = message_size_;
+	// 	return std::unique_ptr<void, decltype(&std::free)> (buf_, std::free);
+	// })();
 }
 
 
@@ -86,12 +107,12 @@ void Client::state(Client::State new_state)
 				}
 			}
 
-			auto rcvbufsize = 2*1024*1024;
-			if (usrsctp_setsockopt(sock, SOL_SOCKET, SO_RCVBUF, &rcvbufsize, sizeof(int)) < 0) {
+			auto bufsize = 5*1024*1024; //this should depend on cfg_->message_size
+			if (usrsctp_setsockopt(sock, SOL_SOCKET, SO_RCVBUF, &bufsize, sizeof(int)) < 0) {
 				throw std::runtime_error("setsockopt: rcvbuf" + std::string(strerror(errno)));
 			}
 
-			if (usrsctp_setsockopt(sock, SOL_SOCKET, SO_SNDBUF, &rcvbufsize, sizeof(int)) < 0) {
+			if (usrsctp_setsockopt(sock, SOL_SOCKET, SO_SNDBUF, &bufsize, sizeof(int)) < 0) {
 				throw std::runtime_error("setsockopt: sndbuf" + std::string(strerror(errno)));
 			}
 			
@@ -122,6 +143,8 @@ void Client::state(Client::State new_state)
 			break;
 	}
 
+	TRACE(state_names[state_] + " -> " + state_names[new_state]);
+
 	TRACE_func_left();
 }
 
@@ -131,76 +154,76 @@ IClient::State Client::state() const noexcept
 }
 
 
-void* Client::get_writable_buffer() const
-{
-	return static_cast<char*>(buff.get()) + get_buffered_data_size();
-}
+// void* Client::get_writable_buffer() const
+// {
+// 	return static_cast<char*>(buff.get()) + get_buffered_data_size();
+// }
 
-void* Client::get_message_buffer() const
-{
-	return buff.get();
-}
+// void* Client::get_message_buffer() const
+// {
+// 	return buff.get();
+// }
 
-void Client::realloc_buffer()
-{
-	ENABLE_DEBUG();
-	TRACE_func_entry();
+// void Client::realloc_buffer()
+// {
+// 	ENABLE_DEBUG();
+// 	TRACE_func_entry();
 
-	void* new_buff = realloc(buff.get(), available_buffer_space + message_size_);
-	if (new_buff) {
-		available_buffer_space += message_size_;
-		if (new_buff != buff.get()) {
-			buff.release();
-			buff.reset(new_buff);
-		}
-		buffered_data_size += message_size_;
-		//memset(get_writable_buffer(), 0, CLIENT_BUFFERSIZE);
-		buffer_needs_realloc = true;
-	} else {
-		throw std::runtime_error("Realloc in realloc_buffer() failed.");
-	}
+// 	void* new_buff = realloc(buff.get(), available_buffer_space + message_size_);
+// 	if (new_buff) {
+// 		available_buffer_space += message_size_;
+// 		if (new_buff != buff.get()) {
+// 			buff.release();
+// 			buff.reset(new_buff);
+// 		}
+// 		buffered_data_size += message_size_;
+// 		//memset(get_writable_buffer(), 0, CLIENT_BUFFERSIZE);
+// 		buffer_needs_realloc = true;
+// 	} else {
+// 		throw std::runtime_error("Realloc in realloc_buffer() failed.");
+// 	}
 
-	TRACE("available_buffer_space: " + std::to_string(available_buffer_space));
+// 	TRACE("available_buffer_space: " + std::to_string(available_buffer_space));
 
-	TRACE_func_left();
-}
+// 	TRACE_func_left();
+// }
 
-void Client::reset_buffer()
-{
-	ENABLE_DEBUG();
-	TRACE_func_entry();
+// void Client::reset_buffer()
+// {
+// 	ENABLE_DEBUG();
+// 	TRACE_func_entry();
 
-	if (buffer_needs_realloc) {
-		DEBUG("reallocing buffer");
-		void* new_buff = realloc(buff.get(), message_size_);
+// 	if (buffer_needs_realloc) {
+// 		DEBUG("reallocing buffer");
+// 		void* new_buff = realloc(buff.get(), message_size_);
 
-		if (not new_buff) {
-			throw std::runtime_error("Realloc in reset_buffer() failed.");
-		}
+// 		if (not new_buff) {
+// 			throw std::runtime_error("Realloc in reset_buffer() failed.");
+// 		}
 
-		if (new_buff != buff.get()) buff.reset(new_buff);
-	}
+// 		if (new_buff != buff.get()) buff.reset(new_buff);
+// 	}
 
-	memset(buff.get(), 0, message_size_);
-	available_buffer_space = message_size_;
-	buffered_data_size = 0;
-	buffer_needs_realloc = false;
+// 	memset(buff.get(), 0, message_size_);
+// 	available_buffer_space = message_size_;
+// 	buffered_data_size = 0;
+// 	buffer_needs_realloc = false;
 
-	TRACE_func_left();
-}
+// 	TRACE_func_left();
+// }
 
 
 
-size_t Client::get_buffered_data_size() const noexcept
-{
-	return buffered_data_size;
-}
+// size_t Client::get_buffered_data_size() const noexcept
+// {
+// 	return buffered_data_size;
+// }
 	
 
-size_t Client::get_writable_buffer_size() const noexcept
-{
-	return message_size_;
-}
+// size_t Client::get_writable_buffer_size() const noexcept
+// {
+// 	return message_size_;
+// }
 
 
 Client::~Client()

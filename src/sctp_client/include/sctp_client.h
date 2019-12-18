@@ -11,7 +11,6 @@
 #include <arpa/inet.h>
 
 #include "ssl_h.h"
-#include "sctp_message_buffer.h"
 
 
 constexpr uint16_t DEFAULT_LOCAL_UDP_ENCAPS_PORT = 0; //choose ephemeral
@@ -98,7 +97,7 @@ public:
 	/* sync */
 	void init();
 
-	/* async */
+	/* start client. async */
 	void operator()();
 
 	bool connected() const { return state == SSL_CONNECTED; };
@@ -127,7 +126,7 @@ private:
 	int udp_sock_fd;
 	struct socket* sock = nullptr;
 
-	sctp::MessageBuffer message_buff { cfg_->message_size };
+	std::vector<char> msg_buff_;
 
 	std::thread udp_thr;
 	void udp_loop();

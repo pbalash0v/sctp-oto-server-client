@@ -50,7 +50,7 @@
 constexpr uint16_t DEFAULT_UDP_ENCAPS_PORT = 9899;
 constexpr uint16_t DEFAULT_SCTP_PORT = 5001;
 
-constexpr auto DEFAULT_SCTP_MESSAGE_SIZE_BYTES = 1 << 16;
+constexpr auto DEFAULT_SCTP_MESSAGE_SIZE_BYTES = (1 << 16);
 
 constexpr const char* DEFAULT_SERVER_CERT_FILENAME = "../certs/server-cert.pem";
 constexpr const char* DEFAULT_SERVER_KEY_FILENAME = "../certs/server-key.pem";
@@ -158,7 +158,7 @@ private:
 	void handle_notification(std::shared_ptr<IClient>&, union sctp_notification*, size_t);
 
 	void handle_client_data(std::shared_ptr<IClient>& c, const void* buffer, size_t n,
-		 const struct sockaddr_in& addr, const struct sctp_recvv_rn& rcv_info, unsigned int infotype, int flags);
+		 const struct sockaddr_in& addr, const struct sctp_recvv_rn& rcv_info, unsigned int infotype);
 
 	static void handle_client_upcall(struct socket* sock, void* arg, int flgs);
 

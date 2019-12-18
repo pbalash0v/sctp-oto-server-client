@@ -1,5 +1,4 @@
-AM_CXXFLAGS = -std=c++14 -Wall -Werror -Wextra -g -O0
-
+AM_CXXFLAGS = -std=c++14 -Wall -Werror -Wextra -pedantic
 
 noinst_LIBRARIES = libcommon.a
 

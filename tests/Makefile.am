@@ -1,4 +1,4 @@
-AM_CXXFLAGS = -std=c++14 -Wall -Werror -Wextra -g -O0
+AM_CXXFLAGS = -std=c++14 -Wall -Werror -Wextra
 
 #AUTOMAKE_OPTIONS = subdir-objects
 
@@ -31,7 +31,6 @@ libtest_a_SOURCES = $(top_srcdir)/src/sctp_server/sctp_server.cpp \
 					$(top_srcdir)/src/sctp_server/sctp_server_client.cpp \
 					$(top_srcdir)/src/sctp_server/sctp_server_iclient_data.cpp \
 					$(top_srcdir)/src/sctp_client/sctp_client.cpp \
-					$(top_srcdir)/src/sctp_client/sctp_message_buffer.cpp \
 					$(top_srcdir)/src/sctp_client/sctp_client_data.cpp
 
 libtest_a_CXXFLAGS = $(AM_CXXFLAGS)

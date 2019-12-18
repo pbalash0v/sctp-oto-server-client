@@ -184,12 +184,12 @@ int main(int /* argc */, char* argv[]) {
 		}
 	};
 
-	srv.cfg_->message_size = 2*1024*1024;
+	srv.cfg_->message_size = 512*1024; //512k
 
 
 	try {
 		srv.init();
-		srv.run();
+		srv();
 	} catch (const std::runtime_error& ex) {
  		spdlog::critical("{}", ex.what());
 		return EXIT_FAILURE;

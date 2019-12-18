@@ -265,9 +265,13 @@ void SCTPServer::init()
 	uint16_t event_types[] = {	SCTP_ASSOC_CHANGE,
                        			SCTP_PEER_ADDR_CHANGE,
                        			SCTP_REMOTE_ERROR,
+                       			SCTP_SEND_FAILED,
                        			SCTP_SHUTDOWN_EVENT,
                        			SCTP_ADAPTATION_INDICATION,
-                       			SCTP_PARTIAL_DELIVERY_EVENT
+                       			SCTP_PARTIAL_DELIVERY_EVENT,
+                       			SCTP_STREAM_RESET_EVENT,
+                       			SCTP_SEND_FAILED_EVENT,
+                       			SCTP_STREAM_CHANGE_EVENT
                        		};
 	struct sctp_event event;
 	memset(&event, 0, sizeof(event));
@@ -296,6 +300,8 @@ void SCTPServer::init()
 		CRITICAL(strerror(errno));
 		throw std::runtime_error(std::string("usrsctp_bind: ") + strerror(errno));
 	}
+
+	usrsctp_sysctl_set_sctp_max_chunks_on_queue(2048);
 
 	initialized = true;
 
@@ -559,46 +565,46 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 		unsigned int infotype;
 		socklen_t infolen = sizeof(struct sctp_recvv_rn);
 		//infolen = (socklen_t) sizeof(struct sctp_rcvinfo);
+		char recv_buf[1<<16] = { 0 };
 
 		/* got data or socket api notification */
-		while ((n = usrsctp_recvv(upcall_sock,
-										 client->get_writable_buffer(),
-										 client->get_writable_buffer_size(),
+		while ((n = usrsctp_recvv(upcall_sock, recv_buf, sizeof recv_buf,
 										 (struct sockaddr*) &addr, &from_len, (void *) &rn,
 											&infolen, &infotype, &flags)) > 0) {
+
 			if (not (flags & MSG_EOR)) {
 				TRACE("usrsctp_recvv incomplete: " + std::to_string(n));
-
-				try {
-					client->realloc_buffer();
-				} catch (const std::runtime_error& exc) {
-					log_client_error(exc.what(), client);
-					break;
-				}
-
+				client->msg_buff_.insert(client->msg_buff_.end(), recv_buf, recv_buf + n);
 				flags = 0;
+				memset(recv_buf, 0, sizeof recv_buf);
+				TRACE("usrsctp_recvv so far: " + std::to_string(client->msg_buff_.size()));
 				continue;
+			} else {
+				if (not client->msg_buff_.empty())
+					client->msg_buff_.insert(client->msg_buff_.end(), recv_buf, recv_buf + n);
 			}
 
-			n += client->get_buffered_data_size();
+			n = (client->msg_buff_.empty()) ? n : client->msg_buff_.size();
+			void* data_buf = (client->msg_buff_.empty()) ? recv_buf : client->msg_buff_.data();
 
 			try {
 				if (flags & MSG_NOTIFICATION) {
-					TRACE(std::string("Notification of length ") + std::to_string(n) + std::string(" received."));
+					TRACE(std::string("Notification of length ") 
+						+ std::to_string(n) + std::string(" received."));
 					s->handle_notification(client,
-						 static_cast<union sctp_notification*>(client->get_message_buffer()), n);
+						 static_cast<union sctp_notification*>(data_buf), n);
 				} else {
 					TRACE(std::string("Socket data of length ") 
 							+ std::to_string(n) + std::string(" received ")
 							+ (flags & MSG_EOR ? std::string("complete.") : std::string("incomplete.")) );
 
-						client->server_.handle_client_data(client, client->get_message_buffer(), n, addr, rn, infotype, flags);
+						client->server_.handle_client_data(client, data_buf, n, addr, rn, infotype);
 				}
 			} catch (const std::runtime_error& exc) {
 				log_client_error("handle_client_data", client);
 			}
 
-			client->reset_buffer();
+			client->msg_buff_.clear();
 			flags = 0;
 		}
 
@@ -621,7 +627,7 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 			if ((errno == EAGAIN) or 
 				(errno == EWOULDBLOCK) or 
 				(errno == EINTR)) {
-				TRACE(strerror(errno));
+				//TRACE(strerror(errno));
 			} else {
 				log_client_error("usrsctp_recvv: ", client);
 			}
@@ -636,7 +642,7 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 
 void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buffer, size_t n, 
 						const struct sockaddr_in& addr, const struct sctp_recvv_rn& rcv_info,
-						unsigned int infotype, int flags)
+						unsigned int infotype)
 {
 	TRACE(([&]()
 	{
@@ -830,29 +836,26 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 
 				if (infotype == SCTP_RECVV_RCVINFO) {
 					snprintf(message, sizeof message,
-								"Msg %s of length %llu received from %s:%u on stream %u with SSN %u and TSN %u, PPID %u, context %u, complete %d.",
+								"Msg %s of length %llu received from %s:%u on stream %u with SSN %u and TSN %u, PPID %u, context %u.",
 								(char*) outbuf,
 								(unsigned long long) total_unencrypted_message_size,
 								inet_ntop(AF_INET, &addr.sin_addr, name, INET_ADDRSTRLEN),
 								ntohs(addr.sin_port),
 								rcv_info.recvv_rcvinfo.rcv_sid,	rcv_info.recvv_rcvinfo.rcv_ssn,
 								rcv_info.recvv_rcvinfo.rcv_tsn,
-								ntohl(rcv_info.recvv_rcvinfo.rcv_ppid), rcv_info.recvv_rcvinfo.rcv_context,
-								(flags & MSG_EOR) ? 1 : 0);
+								ntohl(rcv_info.recvv_rcvinfo.rcv_ppid), rcv_info.recvv_rcvinfo.rcv_context);
 				} else {
 					if (n < 30) 
-						snprintf(message, sizeof message, "Msg %s of length %llu received from %s:%u, complete %d.",
+						snprintf(message, sizeof message, "Msg %s of length %llu received from %s:%u.",
 							(char*) outbuf,
 							(unsigned long long) total_unencrypted_message_size,
 							inet_ntop(AF_INET, &addr.sin_addr, name, INET_ADDRSTRLEN),
-							ntohs(addr.sin_port),
-							(flags & MSG_EOR) ? 1 : 0);
+							ntohs(addr.sin_port));
 					else 
-						snprintf(message, sizeof message, "Msg of length %llu received from %s:%u, complete %d.",
+						snprintf(message, sizeof message, "Msg of length %llu received from %s:%u",
 							(unsigned long long) total_unencrypted_message_size,
 							inet_ntop(AF_INET, &addr.sin_addr, name, INET_ADDRSTRLEN),
-							ntohs(addr.sin_port),
-							(flags & MSG_EOR) ? 1 : 0);						
+							ntohs(addr.sin_port));						
 				}
 
 				return std::string(message);

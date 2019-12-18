@@ -10,7 +10,7 @@ class Client : public IClient {
 public:
 	Client(struct socket* sock, SCTPServer& server);
 	
-	Client(struct socket* sctp_sock, SCTPServer& s, size_t message_size); 
+	Client(struct socket* sctp_sock, SCTPServer& s, size_t msg_size); 
 
 	Client(const Client& oth) = delete;
 	
@@ -24,18 +24,6 @@ public:
 
 	virtual IClient::State state() const noexcept override;
 
-	virtual void* get_writable_buffer() const override;
-
-	virtual void realloc_buffer() override;
-
-	virtual void reset_buffer() override;
-
-	virtual void* get_message_buffer() const override;
-
-	virtual size_t get_writable_buffer_size() const noexcept override;
-
-	virtual size_t get_buffered_data_size() const noexcept override;
-
 	virtual std::string to_string() const override;
 
 	friend std::ostream& operator<<(std::ostream &out, const Client &c);
@@ -46,12 +34,7 @@ private:
 
 	State state_ = NONE;
 
-	size_t message_size_ = { 0 };
-	size_t buffered_data_size { 0 };
-	size_t available_buffer_space { 0 };
-	bool buffer_needs_realloc { false };
-
-	std::unique_ptr<void, decltype(&std::free)> buff { nullptr, std::free };
+	size_t msg_size_ = { 0 };
 };
 
 

@@ -89,7 +89,9 @@ static inline bool _check_state(const std::string& func_name, SCTPClient::State 
 
 SCTPClient::SCTPClient() : SCTPClient(std::make_shared<SCTPClient::Config>()) {};
 
-SCTPClient::SCTPClient(std::shared_ptr<SCTPClient::Config> p) : cfg_(p) {};
+SCTPClient::SCTPClient(std::shared_ptr<SCTPClient::Config> p) : cfg_(p) {
+	msg_buff_.reserve(cfg_->message_size*2);
+};
 
 SCTPClient::~SCTPClient()
 {
@@ -187,49 +189,48 @@ void SCTPClient::handle_upcall(struct socket* sock, void* arg, int /* flgs */)
 		//struct sctp_rcvinfo rcv_info;
 		ssize_t n = 0;
 		struct sockaddr_in addr;
-		void* buf = calloc(BUFFERSIZE, sizeof(char));
 		int flags = 0;
 		socklen_t from_len = (socklen_t) sizeof(struct sockaddr_in);
 		unsigned int infotype;
 		socklen_t infolen = sizeof(struct sctp_recvv_rn);
 		//infolen = (socklen_t) sizeof(struct sctp_rcvinfo);
+		char recv_buf[1<<16] = { 0 };
 
 		/* we can have several notifications/data waiting. process them all */
-		while ((n = usrsctp_recvv(sock, c->message_buff.get_writable_buffer(),
-								c->message_buff.get_writable_buffer_size(),
+		while ((n = usrsctp_recvv(sock, recv_buf, sizeof recv_buf,
 								(struct sockaddr*)&addr, &from_len,
 								static_cast<void *>(&rn),
 								&infolen, &infotype, &flags)) > 0) {
+
 			if (not (flags & MSG_EOR)) {
 				TRACE("usrsctp_recvv incomplete: " + std::to_string(n));
-
-				try {
-					c->message_buff.realloc_buffer();
-				} catch (const std::runtime_error& exc) {
-					ERROR(exc.what());
-					break;
-				}
-
+				c->msg_buff_.insert(c->msg_buff_.end(), recv_buf, recv_buf + n);
 				flags = 0;
+				memset(recv_buf, 0, sizeof recv_buf);
 				continue;
+ 			} else {
+				if (not c->msg_buff_.empty())
+					c->msg_buff_.insert(c->msg_buff_.end(), recv_buf, recv_buf + n);
 			}
 
-			n += c->message_buff.get_buffered_data_size();
+			n = (c->msg_buff_.empty()) ? n : c->msg_buff_.size();
+			void* data_buf = (c->msg_buff_.empty()) ? recv_buf : c->msg_buff_.data();
+
 			try {
 				if (flags & MSG_NOTIFICATION) {
 					TRACE("Notification of length "
 						+ std::to_string((unsigned long long) n) + std::string(" received."));
-					c->handle_notification(static_cast<union sctp_notification*>(c->message_buff()), n);
+					c->handle_notification(static_cast<union sctp_notification*>(data_buf), n);
 				} else {
 					TRACE("Socket data of length " 
 						+ std::to_string((unsigned long long) n) + std::string(" received."));					
-					c->handle_server_data(c->message_buff(), n, addr, rn, infotype);
+					c->handle_server_data(data_buf, n, addr, rn, infotype);
 				}
 			} catch (const std::runtime_error& exc) {
 				ERROR(exc.what());
 			}
 
-			c->message_buff.reset_buffer();
+			c->msg_buff_.clear();
 			flags = 0;
 		}
 
@@ -245,13 +246,11 @@ void SCTPClient::handle_upcall(struct socket* sock, void* arg, int /* flgs */)
 			if ((errno == EAGAIN) or 
 				(errno == EWOULDBLOCK) or 
 				(errno == EINTR)) {
-				TRACE(strerror(errno));
+				//TRACE(strerror(errno));
 			} else {
 				CRITICAL(strerror(errno));
 			}
 		}
-
-		free(buf);
 	}
 
 	//TRACE_func_left();
@@ -483,12 +482,12 @@ void SCTPClient::init_SCTP()
 		throw std::runtime_error(strerror(errno));
 	}
 
-	auto rcvbufsize = 2*1024*1024;
-	if (usrsctp_setsockopt(sock, SOL_SOCKET, SO_RCVBUF, &rcvbufsize, sizeof(int)) < 0) {
+	auto bufsize = 5*1024*1024;
+	if (usrsctp_setsockopt(sock, SOL_SOCKET, SO_RCVBUF, &bufsize, sizeof(int)) < 0) {
 		throw std::runtime_error("setsockopt: rcvbuf" + std::string(strerror(errno)));
 	}
 
-	if (usrsctp_setsockopt(sock, SOL_SOCKET, SO_SNDBUF, &rcvbufsize, sizeof(int)) < 0) {
+	if (usrsctp_setsockopt(sock, SOL_SOCKET, SO_SNDBUF, &bufsize, sizeof(int)) < 0) {
 		throw std::runtime_error("setsockopt: sndbuf" + std::string(strerror(errno)));
 	}
 
