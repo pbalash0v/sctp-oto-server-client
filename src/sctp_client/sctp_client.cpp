@@ -60,13 +60,24 @@ static std::unordered_map<std::string, std::vector<SCTPClient::State>> state_all
 		{"init_local_UDP", std::vector<SCTPClient::State> { SCTPClient::NONE }},
 		{"init_remote_UDP", std::vector<SCTPClient::State> { SCTPClient::NONE }},
 		{"init_SCTP", std::vector<SCTPClient::State> { SCTPClient::NONE }},
-		{"run", std::vector<SCTPClient::State> { SCTPClient::NONE }},
+		{"operator()", std::vector<SCTPClient::State> { SCTPClient::INITIALIZED }},
 		{"send", std::vector<SCTPClient::State> { SCTPClient::SSL_CONNECTED }},
 		{"udp_loop", std::vector<SCTPClient::State> { SCTPClient::SCTP_CONNECTING }},
 		{"send_raw_", std::vector<SCTPClient::State> 
 			{ SCTPClient::SCTP_CONNECTING, SCTPClient::SCTP_CONNECTED, 
 				SCTPClient::SSL_HANDSHAKING, SCTPClient::SSL_CONNECTED, SCTPClient::SSL_SHUTDOWN, }}
-	};
+};
+
+static std::unordered_map<SCTPClient::State, std::string> state_names {
+	{ SCTPClient::NONE, "NONE" },
+	{ SCTPClient::INITIALIZED, "INITIALIZED" },
+	{ SCTPClient::SCTP_CONNECTING, "SCTP_CONNECTING"},
+	{ SCTPClient::SCTP_CONNECTED, "SCTP_CONNECTED"},
+	{ SCTPClient::SSL_HANDSHAKING, "SSL_HANDSHAKING"},
+	{ SCTPClient::SSL_CONNECTED, "SSL_CONNECTED"},
+	{ SCTPClient::SSL_SHUTDOWN, "SSL_SHUTDOWN"},
+	{ SCTPClient::PURGE, "PURGE"}
+};
 
 static inline bool _check_state(const std::string& func_name, SCTPClient::State s)
 {
@@ -112,13 +123,20 @@ SCTPClient::~SCTPClient()
 
 void SCTPClient::set_state(SCTPClient::State new_state)
 {
+	TRACE_func_entry();
+
 	if (new_state == state) {
 		CRITICAL("Wrong state transition.");
 		throw std::logic_error("Wrong state transition.");
 	}
 
+	TRACE(state_names[state] + " -> " + state_names[new_state]);
+
 	state = new_state;
+
 	if (cfg_->state_cback_f) cfg_->state_cback_f(state);
+
+	TRACE_func_left();
 }
 
 
@@ -484,11 +502,13 @@ void SCTPClient::init()
 		throw;
 	}
 
+	set_state(SCTPClient::INITIALIZED);
+
 	TRACE_func_left();
 }
 
 
-void SCTPClient::run()
+void SCTPClient::operator()()
 {
 	CHECK_STATE();
 	TRACE_func_entry();

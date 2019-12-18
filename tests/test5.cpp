@@ -104,7 +104,7 @@ int main(int, char const**) {
 	   char buf[strlen(START_SIGNAL)];
 		assert(read(fd[0], buf, strlen(START_SIGNAL)) > 0);
 
-		client.run();
+		client();
 
 		while (running) {
 			std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -127,7 +127,7 @@ int main(int, char const**) {
 
 		try {
 			server.init();
-			server.run();
+			server();
 		} catch (const std::runtime_error& exc) {
 			return EXIT_FAILURE;
 		}

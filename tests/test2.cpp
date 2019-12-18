@@ -25,7 +25,7 @@ int main(int, char const**)
 
 	try {	
 		client.init();
-		client.run();
+		client();
 	} catch (const std::runtime_error& exc) {
 		assert(false);
 	}

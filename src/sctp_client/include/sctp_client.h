@@ -44,6 +44,7 @@ public:
    enum State
    {
    	NONE,
+   	INITIALIZED,
       SCTP_CONNECTING,
       SCTP_CONNECTED,
       SSL_HANDSHAKING,
@@ -98,7 +99,7 @@ public:
 	void init();
 
 	/* async */
-	void run();
+	void operator()();
 
 	bool connected() const { return state == SSL_CONNECTED; };
 

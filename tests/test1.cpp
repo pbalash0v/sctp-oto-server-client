@@ -17,7 +17,7 @@ int main(int, char const**)
 
 	try {
 		s.init();
-		s.run();
+		s();
 	} catch (const std::runtime_error& exc) {
 		return EXIT_FAILURE;
 	}

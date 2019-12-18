@@ -212,7 +212,7 @@ int main(int /* argc */, char* argv[])
 	auto cfg = get_cfg_or_die(argv, options);
 	SCTPClient client;
 	client.cfg_ = cfg;
-	
+
 	client.cfg_->data_cback_f = [&](const auto& s)
 	{ 
 		std::string server_message = 
@@ -263,6 +263,9 @@ int main(int /* argc */, char* argv[])
 		std::string message;
 
 		switch (state) {
+			case SCTPClient::INITIALIZED:
+				message += "Initialization done.";
+				break;			
 			case SCTPClient::SCTP_CONNECTING:
 				message += "Connecting...";
 				break;
@@ -300,7 +303,7 @@ int main(int /* argc */, char* argv[])
 	try {
 		client.init();
 		tui->put_log(ITUI::LogLevel::INFO, client.to_string());
-		client.run(); /* this is async, starts separate thread */
+		client(); /* this is async, starts separate thread */
 	} catch (const std::runtime_error& exc) {
 		tui->put_message(std::string(exc.what()) + std::string("\n"));
 		return EXIT_FAILURE;

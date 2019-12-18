@@ -303,7 +303,7 @@ void SCTPServer::init()
 }
 
 
-void SCTPServer::run()
+void SCTPServer::operator()()
 {
 	TRACE_func_entry();
 
@@ -581,19 +581,21 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 			}
 
 			n += client->get_buffered_data_size();
-			
-			if (flags & MSG_NOTIFICATION) {
-				TRACE(std::string("Notification of length ") + std::to_string(n) + std::string(" received."));
-				s->handle_notification(client, static_cast<union sctp_notification*>(client->get_message_buffer()), n);
-			} else {
-				TRACE(std::string("Socket data of length ") 
-						+ std::to_string(n) + std::string(" received ")
-						+ (flags & MSG_EOR ? std::string("complete.") : std::string("incomplete.")) );
-				try {
-					client->server_.handle_client_data(client, client->get_message_buffer(), n, addr, rn, infotype, flags);
-				} catch (const std::runtime_error& exc) {
-					log_client_error("handle_client_data", client);
+
+			try {
+				if (flags & MSG_NOTIFICATION) {
+					TRACE(std::string("Notification of length ") + std::to_string(n) + std::string(" received."));
+					s->handle_notification(client,
+						 static_cast<union sctp_notification*>(client->get_message_buffer()), n);
+				} else {
+					TRACE(std::string("Socket data of length ") 
+							+ std::to_string(n) + std::string(" received ")
+							+ (flags & MSG_EOR ? std::string("complete.") : std::string("incomplete.")) );
+
+						client->server_.handle_client_data(client, client->get_message_buffer(), n, addr, rn, infotype, flags);
 				}
+			} catch (const std::runtime_error& exc) {
+				log_client_error("handle_client_data", client);
 			}
 
 			client->reset_buffer();

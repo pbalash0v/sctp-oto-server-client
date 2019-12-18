@@ -107,7 +107,7 @@ public:
  	/*
  		Accepts on server socket in separate thread. (asynchronous).
 	*/
-	void run();
+	void operator()();
 
 	/*
 		Sends message to client.

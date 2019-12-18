@@ -187,7 +187,7 @@ int main(int /* argc */, char* argv[]) {
 
 	try {
 		srv.init();
-		srv.run();
+		srv();
 	} catch (const std::runtime_error& ex) {
  		spdlog::critical("{}", ex.what());
 		return EXIT_FAILURE;
