@@ -48,6 +48,7 @@ public:
 
 	virtual std::vector<char>& sctp_msg_buff() = 0;
 	virtual std::vector<char>& decrypted_msg_buff() = 0;
+	virtual std::vector<char>& encrypted_msg_buff() = 0;
 
 	virtual std::string to_string() const = 0;
 

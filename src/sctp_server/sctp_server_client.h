@@ -28,6 +28,8 @@ public:
 
 	virtual std::vector<char>& decrypted_msg_buff() override { return decrypted_msg_buff_; };
 
+	virtual std::vector<char>& encrypted_msg_buff() override { return encrypted_msg_buff_; };
+
 	virtual std::string to_string() const override;
 
 	friend std::ostream& operator<<(std::ostream &out, const Client &c);
@@ -41,7 +43,8 @@ private:
 	size_t msg_size_ = { 0 };
 
 	std::vector<char> sctp_msg_buff_;
-	std::vector<char> decrypted_msg_buff_;	
+	std::vector<char> decrypted_msg_buff_;
+	std::vector<char> encrypted_msg_buff_;	
 };
 
 

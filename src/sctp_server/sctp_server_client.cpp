@@ -42,6 +42,7 @@ Client::Client(struct socket* sctp_sock, SCTPServer& s, size_t message_size)
 	std::cerr << "Client::Client(struct socket* sctp_sock, SCTPServer& s, size_t message_size)" << std::endl;
 	sctp_msg_buff().reserve(2*message_size);
 	decrypted_msg_buff().reserve(2*message_size);
+	encrypted_msg_buff().reserve(2*message_size);
 };
 
 void Client::init()
