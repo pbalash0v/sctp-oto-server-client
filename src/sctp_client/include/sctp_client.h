@@ -128,6 +128,7 @@ private:
 
 	std::vector<char> sctp_msg_buff_;
 	std::vector<char> decrypted_msg_buff_;
+	std::vector<char> encrypted_msg_buff_;
 
 	std::thread udp_thr;
 	void udp_loop();

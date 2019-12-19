@@ -92,6 +92,7 @@ SCTPClient::SCTPClient() : SCTPClient(std::make_shared<SCTPClient::Config>()) {}
 SCTPClient::SCTPClient(std::shared_ptr<SCTPClient::Config> p) : cfg_(p) {
 	sctp_msg_buff_.reserve(cfg_->message_size*2);
 	decrypted_msg_buff_.reserve(cfg_->message_size*2);
+	encrypted_msg_buff_.reserve(cfg_->message_size*2);
 };
 
 SCTPClient::~SCTPClient()
@@ -588,20 +589,16 @@ ssize_t SCTPClient::send_raw_(const void* buf, size_t len)
 			throw std::runtime_error("SSL_write");
 		}
 
-		auto outbuf_ptr = ([&]()
-		{
-			void* buf_ = calloc(BIO_ctrl_pending(output_bio) , sizeof(char));
-			if (not buf_) throw std::runtime_error("Calloc in sctp_send_raw failed.");
-			return std::unique_ptr<void, decltype(&std::free)> (buf_, std::free);
-		})();
-		void* outbuf = outbuf_ptr.get();
+		encrypted_msg_buff_.clear();
+		encrypted_msg_buff_.resize(BIO_ctrl_pending(output_bio));
 
-		int read = BIO_read(output_bio, outbuf, BIO_ctrl_pending(output_bio));
+		int read = BIO_read(output_bio, 
+					encrypted_msg_buff_.data(), encrypted_msg_buff_.size());
 		if (SSL_ERROR_NONE != SSL_get_error(ssl, read)) {
 			throw std::runtime_error("BIO_read");
 		}
 		
-		sent = usrsctp_sendv(sock, outbuf, read,
+		sent = usrsctp_sendv(sock, encrypted_msg_buff_.data(), read,
 						 /* addrs */ NULL, /* addrcnt */ 0,
 						  /* info */ NULL, /* infolen */ 0,
 						   SCTP_SENDV_NOINFO, /* flags */ 0);
