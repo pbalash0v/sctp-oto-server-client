@@ -1,4 +1,4 @@
-# Simple implementation of one-to-one style TLS SCTP Server and Client
+# Simple one-to-one style TLS SCTP Server and Client
 (mainly for educational purposes, WiP)
 
 Clone this repository using:
@@ -7,8 +7,11 @@ git clone https://github.com/pbalash0v/sctp-oto-server-client.git --recurse-subm
 ```
 (please make sure to add --recurse-submodules as this is necessary for pulling dependencies)
 
-To compile and run you need to have build essentials, libssl-dev and autotools installed.
-(Debian 8 [needs clang++ for C++14 support], Debian 9 and Ubuntu 18 has been tested).
+To compile and run you may need to install some prerequisite packages.
+On a debian-base distribution:
+```console
+apt install autoconf libtool build-essential libssl-dev pkg-config 
+```
 
 To build (from **cloned repository** directory):
 ```console
