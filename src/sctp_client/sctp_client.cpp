@@ -38,7 +38,7 @@
 #endif
 
 #define TRACE(text) log(SCTPClient::TRACE, text)
- #define DEBUG(text) log(SCTPClient::DEBUG, text)
+#define DEBUG(text) log(SCTPClient::DEBUG, text)
 #define INFO(text) log(SCTPClient::INFO, text)
 #define WARNING(text) log(SCTPClient::WARNING, text)
 #define ERROR(text) log(SCTPClient::ERROR, text)
@@ -90,7 +90,8 @@ static inline bool _check_state(const std::string& func_name, SCTPClient::State 
 SCTPClient::SCTPClient() : SCTPClient(std::make_shared<SCTPClient::Config>()) {};
 
 SCTPClient::SCTPClient(std::shared_ptr<SCTPClient::Config> p) : cfg_(p) {
-	msg_buff_.reserve(cfg_->message_size*2);
+	sctp_msg_buff_.reserve(cfg_->message_size*2);
+	decrypted_msg_buff_.reserve(cfg_->message_size*2);
 };
 
 SCTPClient::~SCTPClient()
@@ -204,17 +205,17 @@ void SCTPClient::handle_upcall(struct socket* sock, void* arg, int /* flgs */)
 
 			if (not (flags & MSG_EOR)) {
 				TRACE("usrsctp_recvv incomplete: " + std::to_string(n));
-				c->msg_buff_.insert(c->msg_buff_.end(), recv_buf, recv_buf + n);
+				c->sctp_msg_buff_.insert(c->sctp_msg_buff_.end(), recv_buf, recv_buf + n);
 				flags = 0;
 				memset(recv_buf, 0, sizeof recv_buf);
 				continue;
  			} else {
-				if (not c->msg_buff_.empty())
-					c->msg_buff_.insert(c->msg_buff_.end(), recv_buf, recv_buf + n);
+				if (not c->sctp_msg_buff_.empty())
+					c->sctp_msg_buff_.insert(c->sctp_msg_buff_.end(), recv_buf, recv_buf + n);
 			}
 
-			n = (c->msg_buff_.empty()) ? n : c->msg_buff_.size();
-			void* data_buf = (c->msg_buff_.empty()) ? recv_buf : c->msg_buff_.data();
+			n = (c->sctp_msg_buff_.empty()) ? n : c->sctp_msg_buff_.size();
+			void* data_buf = (c->sctp_msg_buff_.empty()) ? recv_buf : c->sctp_msg_buff_.data();
 
 			try {
 				if (flags & MSG_NOTIFICATION) {
@@ -230,7 +231,7 @@ void SCTPClient::handle_upcall(struct socket* sock, void* arg, int /* flgs */)
 				ERROR(exc.what());
 			}
 
-			c->msg_buff_.clear();
+			c->sctp_msg_buff_.clear();
 			flags = 0;
 		}
 
@@ -661,16 +662,12 @@ void SCTPClient::handle_server_data(void* buffer, ssize_t n, const struct sockad
 	TRACE(state_names[state]);
 
 	#define MAX_TLS_RECORD_SIZE (1 << 14)
-	size_t output_buff_size = (state != SCTPClient::SSL_CONNECTED) ?
-			MAX_TLS_RECORD_SIZE : n;
-	auto outbuf_ptr = ([&]()
-	{
-		void* buf_ = calloc(output_buff_size , sizeof(char));
-		if (not buf_) throw std::runtime_error("Calloc in handle_client_data failed.");
-		return std::unique_ptr<void, decltype(&std::free)> (buf_, std::free);
-	})();
-	void* outbuf = outbuf_ptr.get();
-	TRACE("output_buff_size: " + std::to_string(output_buff_size));
+	size_t outbuf_len = (state != SCTPClient::SSL_CONNECTED) ?
+								MAX_TLS_RECORD_SIZE : n;
+
+	decrypted_msg_buff_.clear();
+	decrypted_msg_buff_.resize(outbuf_len);
+	void* outbuf = decrypted_msg_buff_.data();
 
 	switch (state) {
 	case SCTPClient::SSL_HANDSHAKING:
@@ -683,7 +680,7 @@ void SCTPClient::handle_server_data(void* buffer, ssize_t n, const struct sockad
 
 		if (not SSL_is_init_finished(ssl)) {
 			if (SSL_ERROR_WANT_READ == SSL_get_error(ssl, res) and BIO_ctrl_pending(output_bio)) {
-				int read = BIO_read(output_bio, outbuf, output_buff_size);
+				int read = BIO_read(output_bio, outbuf, outbuf_len);
 				if (SSL_ERROR_NONE != SSL_get_error(ssl, read)) {
 					throw std::runtime_error("BIO_read");
 				}
@@ -694,7 +691,7 @@ void SCTPClient::handle_server_data(void* buffer, ssize_t n, const struct sockad
 			}
 
 			if (SSL_ERROR_NONE == SSL_get_error(ssl, res) and BIO_ctrl_pending(output_bio)) {
-				int read = BIO_read(output_bio, outbuf, output_buff_size);
+				int read = BIO_read(output_bio, outbuf, outbuf_len);
 				if (SSL_ERROR_NONE != SSL_get_error(ssl, read)) {
 					throw std::runtime_error("BIO_read");
 				}
@@ -713,7 +710,7 @@ void SCTPClient::handle_server_data(void* buffer, ssize_t n, const struct sockad
 
 		} else {
 			if (BIO_ctrl_pending(output_bio)) {
-				int read = BIO_read(output_bio, outbuf, output_buff_size);
+				int read = BIO_read(output_bio, outbuf, outbuf_len);
 				if (SSL_ERROR_NONE != SSL_get_error(ssl, read)) throw std::runtime_error("BIO_read");
 
 				if (send_raw_(outbuf, read) < 0) throw std::runtime_error(strerror(errno));
@@ -728,14 +725,13 @@ void SCTPClient::handle_server_data(void* buffer, ssize_t n, const struct sockad
 	{
 		TRACE(std::string("encrypted message length n: ") + std::to_string(n));
 
-		size_t already_read_from_buffer = 0;
-		size_t total_unencrypted_message_size = 0;
+		size_t total_decrypted_message_size = 0;
 
 		int written = BIO_write(input_bio, buffer, n);
 		assert(SSL_ERROR_NONE == SSL_get_error(ssl, written));
 
 		do {
-			int read = SSL_read(ssl, static_cast<char*>(outbuf) + already_read_from_buffer, MAX_TLS_RECORD_SIZE);
+			int read = SSL_read(ssl, static_cast<char*>(outbuf) + total_decrypted_message_size, MAX_TLS_RECORD_SIZE);
 			//TRACE(std::string("SSL read: ") + std::to_string(read));
 
 			if (read == 0 and SSL_ERROR_ZERO_RETURN == SSL_get_error(ssl, read)) {
@@ -750,8 +746,7 @@ void SCTPClient::handle_server_data(void* buffer, ssize_t n, const struct sockad
 
 			assert(SSL_ERROR_NONE == SSL_get_error(ssl, written));
 
-			already_read_from_buffer += MAX_TLS_RECORD_SIZE;
-			total_unencrypted_message_size += read;
+			total_decrypted_message_size += read;
 		} while (BIO_ctrl_pending(input_bio));
 
 		DEBUG(([&]
@@ -763,7 +758,7 @@ void SCTPClient::handle_server_data(void* buffer, ssize_t n, const struct sockad
 				snprintf(message, sizeof message,
 							"Msg %s of length %llu received from %s:%u on stream %u with SSN %u and TSN %u, PPID %u, context %u.\n",
 							(char*) outbuf,
-							(unsigned long long) total_unencrypted_message_size,
+							(unsigned long long) total_decrypted_message_size,
 							inet_ntop(AF_INET, &addr.sin_addr, name, INET_ADDRSTRLEN), ntohs(addr.sin_port),
 							rcv_info.recvv_rcvinfo.rcv_sid,	rcv_info.recvv_rcvinfo.rcv_ssn,	rcv_info.recvv_rcvinfo.rcv_tsn,
 							ntohl(rcv_info.recvv_rcvinfo.rcv_ppid), rcv_info.recvv_rcvinfo.rcv_context);
@@ -771,12 +766,12 @@ void SCTPClient::handle_server_data(void* buffer, ssize_t n, const struct sockad
 					if (n < 30) 
 						snprintf(message, sizeof message, "Msg %s of length %llu received from %s:%u",
 							(char*) outbuf,
-							(unsigned long long) total_unencrypted_message_size,
+							(unsigned long long) total_decrypted_message_size,
 							inet_ntop(AF_INET, &addr.sin_addr, name, INET_ADDRSTRLEN),
 							ntohs(addr.sin_port));
 					else 
 						snprintf(message, sizeof message, "Msg of length %llu received from %s:%u",
-							(unsigned long long) total_unencrypted_message_size,
+							(unsigned long long) total_decrypted_message_size,
 							inet_ntop(AF_INET, &addr.sin_addr, name, INET_ADDRSTRLEN),
 							ntohs(addr.sin_port));
 			}
@@ -786,7 +781,7 @@ void SCTPClient::handle_server_data(void* buffer, ssize_t n, const struct sockad
 
 		if (cfg_->data_cback_f) {
 			try {
-				cfg_->data_cback_f(std::make_unique<SCTPClient::Data>(outbuf, total_unencrypted_message_size));
+				cfg_->data_cback_f(std::make_unique<SCTPClient::Data>(outbuf, total_decrypted_message_size));
 			} catch (...) {
 				CRITICAL("Exception in user data_cback function.");
 			}

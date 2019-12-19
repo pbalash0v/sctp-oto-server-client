@@ -126,7 +126,8 @@ private:
 	int udp_sock_fd;
 	struct socket* sock = nullptr;
 
-	std::vector<char> msg_buff_;
+	std::vector<char> sctp_msg_buff_;
+	std::vector<char> decrypted_msg_buff_;
 
 	std::thread udp_thr;
 	void udp_loop();
