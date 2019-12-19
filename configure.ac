@@ -32,11 +32,15 @@ AC_PROG_CPP
 #m4_ifdef([AX_WITH_CURSES], [AX_WITH_CURSES], AC_MSG_ERROR([AX_WITH_CURSES macro missing. Install autoconf-archive package and run autoreconf again.]))
 
 AX_CHECK_OPENSSL([], AC_MSG_ERROR([OpenSSL not found.]))
+
 AX_PTHREAD([], AC_MSG_ERROR([Pthread not found.]))
+
 AX_WITH_CURSES
-if test "x$ax_cv_ncursesw" != xyes && test "x$ax_cv_ncurses" != xyes; then
-	AC_MSG_ERROR([requires either NcursesW or Ncurses library])
-fi
+AM_CONDITIONAL([WITH_NCURSES], [test "x$ax_cv_ncursesw" = xyes || test "x$ax_cv_ncurses" = xyes])
+
+#if test "x$ax_cv_ncursesw" != xyes && test "x$ax_cv_ncurses" != xyes; then
+#	AC_MSG_ERROR([requires either NcursesW or Ncurses library])
+#fi
 
 PKG_CHECK_MODULES([OPENCV], [opencv], [found_opencv=yes], [:])
 AM_CONDITIONAL([WITH_OPENCV], [test x"$found_opencv" = xyes])

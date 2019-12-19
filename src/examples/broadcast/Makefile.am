@@ -30,10 +30,13 @@ server_LDADD = 	$(top_builddir)/src/sctp_server/libserver.la \
 
 client_SOURCES = client_main.cpp \
 		tui/include/i_tui.h \
-		tui/include/tui.h \
 		tui/include/simple_tui.h \
-		tui/tui.cpp \
 		tui/simple_tui.cpp
+		
+if WITH_NCURSES
+client_SOURCES += tui/include/tui.h tui/tui.cpp
+endif
+
 				
 client_CXXFLAGS = $(AM_CXXFLAGS)
 

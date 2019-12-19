@@ -1,3 +1,7 @@
+#ifdef HAVE_CONFIG_H
+	#include "config.h"
+#endif
+
 #include <iostream>
 #include <memory>
 #include <limits>
@@ -9,7 +13,10 @@
 
 #include "gopt.h"
 
-#include "tui.h"
+
+#ifdef HAVE_NCURSES
+	#include "tui.h"
+#endif
 #include "simple_tui.h"
 
 #include "sctp_client.h"
@@ -20,13 +27,15 @@ constexpr const char* DEFAULT_LOG_FILENAME = "client_log.txt";
 enum CLIOptions
 {
 	HELP,
-	VERSION,
+	VERSION_OPT,
 	VERBOSITY,
 	SERVER_UDP_PORT,
 	SERVER_SCTP_PORT,
 	SERVER_ADDRESS,
 	LOG_TO_FILE,
+#ifdef HAVE_NCURSES
 	RUN_TUI,
+#endif	
 	/* do not put any options below this comment */
 	OPTIONS_COUNT
 };
@@ -50,9 +59,9 @@ static void parse_args(char* argv[], struct option options[])
 	options[CLIOptions::HELP].short_name = 'h';
 	options[CLIOptions::HELP].flags      = GOPT_ARGUMENT_FORBIDDEN;
 
-	options[CLIOptions::VERSION].long_name  = "version";
-	options[CLIOptions::VERSION].short_name = 'V';
-	options[CLIOptions::VERSION].flags      = GOPT_ARGUMENT_FORBIDDEN;
+	options[CLIOptions::VERSION_OPT].long_name  = "version";
+	options[CLIOptions::VERSION_OPT].short_name = 'V';
+	options[CLIOptions::VERSION_OPT].flags      = GOPT_ARGUMENT_FORBIDDEN;
 
 	options[CLIOptions::VERBOSITY].long_name  = "verbose";
 	options[CLIOptions::VERBOSITY].short_name = 'v';
@@ -74,9 +83,11 @@ static void parse_args(char* argv[], struct option options[])
 	options[CLIOptions::LOG_TO_FILE].short_name = 'l';
 	options[CLIOptions::LOG_TO_FILE].flags      = GOPT_ARGUMENT_FORBIDDEN;
 
+#ifdef HAVE_NCURSES
 	options[CLIOptions::RUN_TUI].long_name  = "tui";
 	options[CLIOptions::RUN_TUI].short_name = 't';
 	options[CLIOptions::RUN_TUI].flags      = GOPT_ARGUMENT_FORBIDDEN;
+#endif
 
 	options[CLIOptions::OPTIONS_COUNT].flags = GOPT_LAST;
 
@@ -89,25 +100,27 @@ static std::shared_ptr<SCTPClient::Config> get_cfg_or_die(char* argv[], struct o
 	auto cfg = std::make_shared<SCTPClient::Config>();
 
 	if (options[CLIOptions::HELP].count) {
-		std::cout << \
-		"Usage: " << basename(argv[0]) << " [OPTIONS]" << std::endl << \
-		std::endl << \
-		"\t-s, --server\t\t -- server address (defaults to " << DEFAULT_SERVER_ADDRESS << ")" << std::endl << \
-		"\t-u, --udp-port\t\t -- server UDP encapsulation port (defaults to " << DEFAULT_SERVER_UDP_ENCAPS_PORT << ")" << std::endl << \
-		"\t-p, --sctp-port\t\t -- server SCTP port (defaults to " << DEFAULT_SERVER_SCTP_PORT << ")" << std::endl << \
-		"\t-l, --log\t\t -- enable rotating log (defaults to " << DEFAULT_LOG_FILENAME << ")" << std::endl << \
-		"\t-t, --tui\t\t -- run TUI (unstable)" << std::endl << \
-		"\t-v, --verbose\t\t -- be verbose" << std::endl << \
-		"\t-h, --help\t\t -- this message" << std::endl << \
-		"\t-V, --version\t\t -- print the version and exit" << std::endl << \
+		std::cout <<
+		"Usage: " << basename(argv[0]) << " [OPTIONS]" << std::endl <<
+		std::endl <<
+		"\t-s, --server\t\t -- server address (defaults to " << DEFAULT_SERVER_ADDRESS << ")" << std::endl <<
+		"\t-u, --udp-port\t\t -- server UDP encapsulation port (defaults to " << DEFAULT_SERVER_UDP_ENCAPS_PORT << ")" << std::endl <<
+		"\t-p, --sctp-port\t\t -- server SCTP port (defaults to " << DEFAULT_SERVER_SCTP_PORT << ")" << std::endl <<
+		"\t-l, --log\t\t -- enable rotating log (defaults to " << DEFAULT_LOG_FILENAME << ")" << std::endl <<
+#ifdef HAVE_NCURSES
+		"\t-t, --tui\t\t -- run TUI (unstable)" << std::endl <<
+#endif
+		"\t-v, --verbose\t\t -- be verbose" << std::endl <<
+		"\t-h, --help\t\t -- this message" << std::endl <<
+		"\t-V, --version\t\t -- print the version and exit" << std::endl <<
 
 		std::endl;
 		exit(EXIT_SUCCESS);
 	}
 
 	/* version */
-	if (options[CLIOptions::VERSION].count) {
-		std::cout << "Version 0.01a" << std::endl;  	
+	if (options[CLIOptions::VERSION_OPT].count) {
+		std::cout << VERSION << std::endl;  	
 		exit(EXIT_SUCCESS);
 	}
 
@@ -183,11 +196,12 @@ int main(int /* argc */, char* argv[])
 	{
 		std::unique_ptr<ITUI> tui_;
 
-		if (options[CLIOptions::RUN_TUI].count) {
+#ifdef HAVE_NCURSES
+		if (options[CLIOptions::RUN_TUI].count)
 			tui_ = std::make_unique<TUI>();
-		} else {
+		else
+#endif
 			tui_ = std::make_unique<SimpleTUI>();
-		}
 
 		return tui_;
 	})();
