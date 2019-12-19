@@ -46,6 +46,9 @@ public:
 	virtual void state(IClient::State) = 0;
 	virtual IClient::State state() const = 0;
 
+	virtual std::vector<char>& sctp_msg_buff() = 0;
+	virtual std::vector<char>& decrypted_msg_buff() = 0;
+
 	virtual std::string to_string() const = 0;
 
 	friend std::ostream& operator<<(std::ostream &out, const IClient::State s);
@@ -59,8 +62,6 @@ protected:
 	SSL* ssl = nullptr;
 	BIO* output_bio = nullptr;
 	BIO* input_bio = nullptr;
-
-	std::vector<char> msg_buff_;
 };
 
 

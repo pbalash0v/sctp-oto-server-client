@@ -79,7 +79,8 @@ public:
 		Config() = default;
 		virtual ~Config() = default;
 		Config(const Config& oth) = delete;
-		
+		Config& operator=(const Config& oth) = delete;
+
 		uint16_t udp_encaps_port { DEFAULT_UDP_ENCAPS_PORT };
 		uint16_t sctp_port { DEFAULT_SCTP_PORT };
 		size_t message_size { DEFAULT_SCTP_MESSAGE_SIZE_BYTES };
@@ -132,7 +133,6 @@ public:
 
 	friend class Client;
 	friend class IClient;
-
 protected:
 
 	MAYBE_VIRTUAL std::shared_ptr<IClient> client_factory(struct socket*);

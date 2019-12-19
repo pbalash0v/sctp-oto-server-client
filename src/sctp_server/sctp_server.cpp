@@ -301,8 +301,6 @@ void SCTPServer::init()
 		throw std::runtime_error(std::string("usrsctp_bind: ") + strerror(errno));
 	}
 
-	usrsctp_sysctl_set_sctp_max_chunks_on_queue(2048);
-
 	initialized = true;
 
 	TRACE_func_left();
@@ -574,18 +572,18 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 
 			if (not (flags & MSG_EOR)) {
 				TRACE("usrsctp_recvv incomplete: " + std::to_string(n));
-				client->msg_buff_.insert(client->msg_buff_.end(), recv_buf, recv_buf + n);
+				client->sctp_msg_buff().insert(client->sctp_msg_buff().end(), recv_buf, recv_buf + n);
 				flags = 0;
 				memset(recv_buf, 0, sizeof recv_buf);
-				TRACE("usrsctp_recvv so far: " + std::to_string(client->msg_buff_.size()));
+				TRACE("usrsctp_recvv so far: " + std::to_string(client->sctp_msg_buff().size()));
 				continue;
 			} else {
-				if (not client->msg_buff_.empty())
-					client->msg_buff_.insert(client->msg_buff_.end(), recv_buf, recv_buf + n);
+				if (not client->sctp_msg_buff().empty())
+					client->sctp_msg_buff().insert(client->sctp_msg_buff().end(), recv_buf, recv_buf + n);
 			}
 
-			n = (client->msg_buff_.empty()) ? n : client->msg_buff_.size();
-			void* data_buf = (client->msg_buff_.empty()) ? recv_buf : client->msg_buff_.data();
+			n = (client->sctp_msg_buff().empty()) ? n : client->sctp_msg_buff().size();
+			void* data_buf = (client->sctp_msg_buff().empty()) ? recv_buf : client->sctp_msg_buff().data();
 
 			try {
 				if (flags & MSG_NOTIFICATION) {
@@ -604,7 +602,7 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 				log_client_error("handle_client_data", client);
 			}
 
-			client->msg_buff_.clear();
+			client->sctp_msg_buff().clear();
 			flags = 0;
 		}
 
@@ -652,18 +650,14 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 				 c->to_string();
 	})());
 
-
 	#define MAX_TLS_RECORD_SIZE (1 << 14)
-	size_t output_buff_size = (c->state() != Client::SSL_CONNECTED) ?
+	size_t outbuf_len = (c->state() != Client::SSL_CONNECTED) ?
 			MAX_TLS_RECORD_SIZE : n;
-	auto outbuf_ptr = ([&]()
-	{
-		void* buf_ = calloc(output_buff_size , sizeof(char));
-		if (not buf_) throw std::runtime_error("Calloc in handle_client_data failed.");
-		return std::unique_ptr<void, decltype(&std::free)> (buf_, std::free);
-	})();
-	void* outbuf = outbuf_ptr.get();
-	TRACE("output_buff_size: " + std::to_string(output_buff_size));
+
+	c->decrypted_msg_buff().clear();
+	c->decrypted_msg_buff().resize(outbuf_len);
+
+	void* outbuf = c->decrypted_msg_buff().data();
 
 	switch (c->state()) {
 	case Client::SCTP_CONNECTED:
@@ -680,7 +674,7 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 				log_client_error_and_throw("SSL_do_handshake", c);
 			}
 
-			int read = BIO_read(c->output_bio, outbuf, output_buff_size);
+			int read = BIO_read(c->output_bio, outbuf, outbuf_len);
 			if (SSL_ERROR_NONE != SSL_get_error(c->ssl, read)) {
 				log_client_error_and_throw("BIO_read", c);
 			}
@@ -715,7 +709,7 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 
 			if (not SSL_is_init_finished(c->ssl)) {
 				if (SSL_ERROR_WANT_READ == SSL_get_error(c->ssl, r) and BIO_ctrl_pending(c->output_bio)) {
-					int read = BIO_read(c->output_bio, outbuf, output_buff_size);
+					int read = BIO_read(c->output_bio, outbuf, outbuf_len);
 					if (SSL_ERROR_NONE != SSL_get_error(c->ssl, read)) {
 						log_client_error_and_throw("BIO_read", c);
 					}
@@ -731,7 +725,7 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 				}
 
 				if (SSL_ERROR_NONE == SSL_get_error(c->ssl, r) and BIO_ctrl_pending(c->output_bio)) {
-					int read = BIO_read(c->output_bio, outbuf, output_buff_size);						
+					int read = BIO_read(c->output_bio, outbuf, outbuf_len);						
 					if (SSL_ERROR_NONE != SSL_get_error(c->ssl, read)) {
 						log_client_error_and_throw("BIO_read", c);
 					}
@@ -766,7 +760,7 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 				if (BIO_ctrl_pending(c->output_bio)) {
 					TRACE("output BIO_ctrl_pending");
 
-					int read = BIO_read(c->output_bio, outbuf, output_buff_size);
+					int read = BIO_read(c->output_bio, outbuf, outbuf_len);
 					if (SSL_ERROR_NONE != SSL_get_error(c->ssl, read)) {
 						log_client_error_and_throw("BIO_read", c);
 					}
@@ -796,8 +790,7 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 			//TRACE("Client::SSL_CONNECTED");
 			TRACE(std::string("encrypted message length n: ") + std::to_string(n));
 
-			size_t already_read_from_buffer = 0;
-			size_t total_unencrypted_message_size = 0;
+			size_t total_decrypted_message_size = 0;
 
 			int written = BIO_write(c->input_bio, buffer, n);
 			if (SSL_ERROR_NONE != SSL_get_error(c->ssl, written)) {
@@ -805,8 +798,8 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 			}
 
 			do {
-				int read = SSL_read(c->ssl, static_cast<char*>(outbuf) + already_read_from_buffer, MAX_TLS_RECORD_SIZE);
-				//TRACE(std::string("SSL read: ") + std::to_string(read));
+				int read = SSL_read(c->ssl, static_cast<char*>(outbuf) + total_decrypted_message_size, MAX_TLS_RECORD_SIZE);
+				TRACE(std::string("SSL read: ") + std::to_string(read));
 
 				if (read == 0 and SSL_ERROR_ZERO_RETURN == SSL_get_error(c->ssl, read)) {
 					DEBUG("SSL_ERROR_ZERO_RETURN");
@@ -823,8 +816,7 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 					log_client_error_and_throw("SSL_read", c);
 				}
 
-				already_read_from_buffer += MAX_TLS_RECORD_SIZE;
-				total_unencrypted_message_size += read;
+				total_decrypted_message_size += read;
 			} while (BIO_ctrl_pending(c->input_bio));
 
 
@@ -838,7 +830,7 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 					snprintf(message, sizeof message,
 								"Msg %s of length %llu received from %s:%u on stream %u with SSN %u and TSN %u, PPID %u, context %u.",
 								(char*) outbuf,
-								(unsigned long long) total_unencrypted_message_size,
+								(unsigned long long) total_decrypted_message_size,
 								inet_ntop(AF_INET, &addr.sin_addr, name, INET_ADDRSTRLEN),
 								ntohs(addr.sin_port),
 								rcv_info.recvv_rcvinfo.rcv_sid,	rcv_info.recvv_rcvinfo.rcv_ssn,
@@ -848,12 +840,12 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 					if (n < 30) 
 						snprintf(message, sizeof message, "Msg %s of length %llu received from %s:%u.",
 							(char*) outbuf,
-							(unsigned long long) total_unencrypted_message_size,
+							(unsigned long long) total_decrypted_message_size,
 							inet_ntop(AF_INET, &addr.sin_addr, name, INET_ADDRSTRLEN),
 							ntohs(addr.sin_port));
 					else 
 						snprintf(message, sizeof message, "Msg of length %llu received from %s:%u",
-							(unsigned long long) total_unencrypted_message_size,
+							(unsigned long long) total_decrypted_message_size,
 							inet_ntop(AF_INET, &addr.sin_addr, name, INET_ADDRSTRLEN),
 							ntohs(addr.sin_port));						
 				}
@@ -864,7 +856,7 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 
 			if (cfg_->data_cback_f) {
 				try {
-					cfg_->data_cback_f(c, std::make_unique<IClient::Data>(outbuf, total_unencrypted_message_size));
+					cfg_->data_cback_f(c, std::make_unique<IClient::Data>(outbuf, total_decrypted_message_size));
 				} catch (const std::runtime_error& exc) {
 					ERROR(exc.what());
 				} catch (...) {

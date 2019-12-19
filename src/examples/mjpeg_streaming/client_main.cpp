@@ -196,7 +196,7 @@ void loop(const std::atomic_bool& running, cv::VideoCapture& camera, SCTPClient&
 		cv::imshow("Webcam", frame);
 		
 		// wait (10ms) for a key to be pressed
-		cv::waitKey(100);
+		cv::waitKey(1000);
 	}
 }
 
