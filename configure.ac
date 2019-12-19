@@ -19,21 +19,21 @@ LT_INIT([disable-shared])
 AC_PROG_CC
 AC_PROG_CXX([clang++ g++])
 AC_LANG([C++])
-PKG_PROG_PKG_CONFIG
-
-#m4_ifdef([AX_CXX_COMPILE_STDCXX_14], [AX_CXX_COMPILE_STDCXX_14([noext],[mandatory])], AC_MSG_ERROR([AX_CXX_COMPILE_STDCXX_14 macro missing. Install autoconf-archive package and run autoreconf again.]))
+#m4_ifdef([AX_CXX_COMPILE_STDCXX_14], [AX_CXX_COMPILE_STDCXX_14([noext],[mandatory])], [AC_MSG_ERROR([AX_CXX_COMPILE_STDCXX_14 macro missing. Install autoconf-archive package and run autoreconf again.])])
 AX_CXX_COMPILE_STDCXX_14([noext],[mandatory])
 AC_PROG_CPP
 
 
 # Checks for libraries.
-#m4_ifdef([AX_CHECK_OPENSSL], [AX_CHECK_OPENSSL], AC_MSG_ERROR([AX_CHECK_OPENSSL macro missing. Install autoconf-archive package and run autoreconf again.]))
-#m4_ifdef([AX_PTHREAD], [AX_PTHREAD], AC_MSG_ERROR([AX_PTHREAD macro missing. Install autoconf-archive package and run autoreconf again.]))
-#m4_ifdef([AX_WITH_CURSES], [AX_WITH_CURSES], AC_MSG_ERROR([AX_WITH_CURSES macro missing. Install autoconf-archive package and run autoreconf again.]))
+#m4_ifdef([AX_CHECK_OPENSSL], [AX_CHECK_OPENSSL], [AC_MSG_ERROR([AX_CHECK_OPENSSL macro missing. Install autoconf-archive package and run autoreconf again.])])
+#m4_ifdef([AX_PTHREAD], [AX_PTHREAD], [AC_MSG_ERROR([AX_PTHREAD macro missing. Install autoconf-archive package and run autoreconf again.])])
+#m4_ifdef([AX_WITH_CURSES], [AX_WITH_CURSES], [AC_MSG_ERROR([AX_WITH_CURSES macro missing. Install autoconf-archive package and run autoreconf again.])])
 
-AX_CHECK_OPENSSL([], AC_MSG_ERROR([OpenSSL not found.]))
+m4_ifdef([PKG_PROG_PKG_CONFIG], [PKG_PROG_PKG_CONFIG], [AC_MSG_ERROR([PKG_PROG_PKG_CONFIG macro missing. Install pkg-config package and run autoreconf again.])])
 
-AX_PTHREAD([], AC_MSG_ERROR([Pthread not found.]))
+AX_CHECK_OPENSSL([], [AC_MSG_ERROR([OpenSSL dev not found. Install libssl-dev package and run autoreconf again.])])
+
+AX_PTHREAD([], [AC_MSG_ERROR([Pthread not found.])])
 
 AX_WITH_CURSES
 AM_CONDITIONAL([WITH_NCURSES], [test "x$ax_cv_ncursesw" = xyes || test "x$ax_cv_ncurses" = xyes])
@@ -44,6 +44,7 @@ AM_CONDITIONAL([WITH_NCURSES], [test "x$ax_cv_ncursesw" = xyes || test "x$ax_cv_
 
 PKG_CHECK_MODULES([OPENCV], [opencv], [found_opencv=yes], [:])
 AM_CONDITIONAL([WITH_OPENCV], [test x"$found_opencv" = xyes])
+
 
 # Checks for header files.
 AC_CHECK_HEADERS([arpa/inet.h netdb.h netinet/in.h sys/socket.h])
