@@ -15,8 +15,10 @@ public:
 	SyncQueue<T>& operator=(const SyncQueue<T>& oth) = delete;
 
 	T dequeue();
-	
-	void enqueue(const T& s);
+
+	void enqueue(const T&);
+
+	void enqueue(T&&);
 
 	bool isEmpty();
 
@@ -37,7 +39,7 @@ T SyncQueue<T>::dequeue() {
 
 	cv.wait(lock, [&]{ return (not q.empty()); });
 
-	auto ret = q.front();
+	auto ret = std::move(q.front());
    q.pop();
    
    return ret;
@@ -45,13 +47,27 @@ T SyncQueue<T>::dequeue() {
 
 
 template <typename T>
-void SyncQueue<T>::enqueue(const T& s) {
+void SyncQueue<T>::enqueue(const T& elem) {
 	{
 		std::lock_guard<std::mutex> _(qMutex);
 
 		if ((limited_) and (q.size() == max_queued_)) q.pop();
 
-		q.push(s);
+		q.push(elem);
+	}
+
+	cv.notify_one();
+}
+
+
+template <typename T>
+void SyncQueue<T>::enqueue(T&& elem) {
+	{
+		std::lock_guard<std::mutex> _(qMutex);
+
+		if ((limited_) and (q.size() == max_queued_)) q.pop();
+
+		q.push(std::move(elem));
 	}
 
 	cv.notify_one();
