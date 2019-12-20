@@ -94,13 +94,19 @@ public:
 	SCTPClient& operator=(const SCTPClient& oth) = delete;
 	virtual ~SCTPClient();
 
-	std::shared_ptr<SCTPClient::Config>& cfg() { return cfg_; };
+	/*
+		Getter for cfg object
+	*/
+	std::shared_ptr<SCTPClient::Config> cfg() { return cfg_; };
 
-
-	/* sync */
+	/* 
+		Calling is mandatory. (sync)
+	*/
 	void init();
 
-	/* start client. async */
+	/* 
+		Start client. async
+	*/
 	void operator()();
 
 	bool connected() const { return state == SSL_CONNECTED; };

@@ -58,7 +58,6 @@ constexpr const char* DEFAULT_SERVER_KEY_FILENAME = "../certs/server-key.pem";
 class SCTPServer
 {
 public:
-
    enum LogLevel
    {
    	TRACE,
@@ -100,16 +99,19 @@ public:
 	SCTPServer& operator=(const SCTPServer& oth) = delete;
 	virtual ~SCTPServer();
 
-	std::shared_ptr<SCTPServer::Config>& cfg() { return cfg_; };
-
+	/*
+		Getter for cfg object
+	*/
+	std::shared_ptr<SCTPServer::Config> cfg() { return cfg_; };
 
 	/*
 		Usrsctp lib, SSL etc initializations. (synchronous).
-		Mandatory
+		Calling is mandatory.
 	*/
 	void init();
 
  	/*
+ 		Actually starts server.
  		Accepts on server socket in separate thread. (asynchronous).
 	*/
 	void operator()();

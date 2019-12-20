@@ -406,12 +406,14 @@ void SCTPServer::drop_client(std::shared_ptr<IClient>& c)
 
 void SCTPServer::handle_server_upcall(struct socket* serv_sock, void* arg, int)
 {
-	SCTPServer* s = (SCTPServer*) arg; assert(s);
+	assert(arg);
+	SCTPServer* s = (SCTPServer*) arg;
+	assert(s);
 	/* 
 		log macros depend on local object named cfg_.
 		Getting it here explicitly.
 	*/
-	std::shared_ptr<SCTPServer::Config> cfg_ = s->cfg_;
+	auto cfg_ = s->cfg();
 
 	/* from here on we can use log macros */
 	TRACE_func_entry();
@@ -473,6 +475,7 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 {
 	assert(arg);
 	SCTPServer* s = (SCTPServer*) arg; 
+	assert(s);
 	/* 
 		log macros depend on local object named cfg_.
 		Getting it here explicitly.

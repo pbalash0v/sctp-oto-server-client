@@ -27,9 +27,7 @@ public:
    struct Data
    {
    	Data(const void*, size_t);
-
 		Data(const Data& oth) = delete;
-	
 		Data& operator=(const Data& oth) = delete;
 
 		virtual ~Data();
