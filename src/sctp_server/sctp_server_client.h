@@ -21,13 +21,16 @@ public:
 	virtual void init() override;
 
 	virtual void state(Client::State new_state) override;
-
 	virtual IClient::State state() const noexcept override;
 
+	virtual SCTPServer& server() override { return server_; };
+	virtual struct socket* socket() override { return sock; };
+
+	virtual size_t send(const void* buf, size_t len) override;
+	virtual void close() override;
+
 	virtual std::vector<char>& sctp_msg_buff() override { return sctp_msg_buff_; };
-
 	virtual std::vector<char>& decrypted_msg_buff() override { return decrypted_msg_buff_; };
-
 	virtual std::vector<char>& encrypted_msg_buff() override { return encrypted_msg_buff_; };
 
 	virtual std::string to_string() const override;
@@ -37,6 +40,9 @@ public:
 	friend class SCTPServer;
 
 private:
+	struct socket* sock = nullptr;
+
+	SCTPServer& server_;
 
 	State state_ = NONE;
 

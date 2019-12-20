@@ -38,14 +38,19 @@ public:
    	size_t size { 0 };
 	};
 
-	IClient(struct socket* s, SCTPServer& srv) : sock(s), server_(srv) {};
-
 	virtual ~IClient() {};
 
 	virtual void init() = 0;
-	
+
 	virtual void state(IClient::State) = 0;
 	virtual IClient::State state() const = 0;
+
+	virtual SCTPServer& server() = 0;
+	virtual struct socket* socket() = 0;
+
+	virtual size_t send(const void* buf, size_t len) = 0;
+
+	virtual void close() = 0;
 
 	virtual std::vector<char>& sctp_msg_buff() = 0;
 	virtual std::vector<char>& decrypted_msg_buff() = 0;
@@ -55,10 +60,6 @@ public:
 
 	friend std::ostream& operator<<(std::ostream &out, const IClient::State s);
 	friend class SCTPServer;
-
-	struct socket* sock = nullptr;
-
-	SCTPServer& server_;
 
 protected:
 	SSL* ssl = nullptr;

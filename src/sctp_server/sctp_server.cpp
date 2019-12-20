@@ -23,7 +23,7 @@
 static void _log_client_error_and_throw(const char* func, std::shared_ptr<IClient>& c,
 													 bool should_throw)
 {
-	auto cfg_ = c->server_.cfg();
+	auto cfg_ = c->server().cfg();
 
 	std::string error { func };
 	error += ": ";
@@ -362,13 +362,8 @@ ssize_t SCTPServer::send_raw(std::shared_ptr<IClient>& c, const void* buf, size_
 	ssize_t sent = -1;
 
 	if (c->state() != Client::SSL_CONNECTED) {
-		// addrs - NULL for connected socket
-		// addrcnt: Number of addresses.
-		// As at most one address is supported, addrcnt is 0 if addrs is NULL and 1 otherwise.
-		sent = usrsctp_sendv(c->sock, buf, len,
-						 /* addrs */ NULL, /* addrcnt */ 0,
-						  /* info */ NULL, /* infolen */ 0,
-						   SCTP_SENDV_NOINFO, /* flags */ 0);
+
+		sent = c->send(buf, len);
 	} else {
 		int written = SSL_write(c->ssl, buf, len);
 		if (SSL_ERROR_NONE != SSL_get_error(c->ssl, written)) {
@@ -384,10 +379,7 @@ ssize_t SCTPServer::send_raw(std::shared_ptr<IClient>& c, const void* buf, size_
 			log_client_error_and_throw("BIO_read", c);
 		}
 
-		sent = usrsctp_sendv(c->sock, c->encrypted_msg_buff().data(), read,
-						 /* addrs */ NULL, /* addrcnt */ 0,
-						  /* info */ NULL, /* infolen */ 0,
-						   SCTP_SENDV_NOINFO, /* flags */ 0);
+		sent = c->send(c->encrypted_msg_buff().data(), read);
 	}
 
 	if (sent < 0) {
@@ -404,7 +396,7 @@ void SCTPServer::drop_client(std::shared_ptr<IClient>& c)
 
 	std::lock_guard<std::mutex> lock(clients_mutex_);
 	clients_.erase(std::remove_if(clients_.begin(), clients_.end(),
-	 [&] (auto s_ptr) { return s_ptr->sock == c->sock;}), clients_.end());
+	 [&] (auto s_ptr) { return s_ptr->socket() == c->socket(); }), clients_.end());
 
 	TRACE("Number of clients: " + std::to_string(clients_.size()));
 
@@ -485,7 +477,7 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 		log macros depend on local object named cfg_.
 		Getting it here explicitly.
 	*/
-	std::shared_ptr<SCTPServer::Config> cfg_ = s->cfg_;
+	auto cfg_ = s->cfg();
 	/* from here on we can use log macros */
 
 	//TRACE_func_entry();
@@ -502,7 +494,7 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 				std::lock_guard<std::mutex> lock(s->clients_mutex_);
 
 				auto it = std::find_if(clients.cbegin(), clients.cend(),
-				[&] (const auto& s_ptr) { return s_ptr->sock == upcall_sock; });
+					[&] (const auto& s_ptr) { return s_ptr->socket() == upcall_sock; });
 
 				if (it != clients.cend()) {
 					 return *it;
@@ -591,7 +583,7 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 							+ std::to_string(n) + std::string(" received ")
 							+ (flags & MSG_EOR ? std::string("complete.") : std::string("incomplete.")) );
 
-						client->server_.handle_client_data(client, data_buf, n, addr, rn, infotype);
+						client->server().handle_client_data(client, data_buf, n, addr, rn, infotype);
 				}
 			} catch (const std::runtime_error& exc) {
 				log_client_error("handle_client_data", client);
@@ -611,7 +603,8 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 		 */
 		if (n == 0) {
 			INFO(client->to_string() + std::string(" disconnected."));
-			usrsctp_close(client->sock);
+			client->close();
+			//usrsctp_close(client->sock);
 			s->drop_client(client);
 		}
 
@@ -674,10 +667,7 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 				log_client_error_and_throw("BIO_read", c);
 			}
 
-			ssize_t sent = usrsctp_sendv(c->sock, outbuf, read,
-					 /* addrs */ NULL, /* addrcnt */ 0,
-					  /* info */ NULL, /* infolen */ 0,
-					   SCTP_SENDV_NOINFO, /* flags */ 0);
+			ssize_t sent = c->send(outbuf, read);
 			if (sent < 0) {
 				log_client_error_and_throw("usrsctp_sendv", c);
 			}
@@ -709,10 +699,7 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 						log_client_error_and_throw("BIO_read", c);
 					}
 
-					ssize_t sent = usrsctp_sendv(c->sock, outbuf, read,
-					 /* addrs */ NULL, /* addrcnt */ 0,
-					  /* info */ NULL, /* infolen */ 0,
-					   SCTP_SENDV_NOINFO, /* flags */ 0);
+					ssize_t sent = c->send(outbuf, read);
 					if (sent < 0) {
 						log_client_error_and_throw("usrsctp_sendv", c);
 					}
@@ -725,10 +712,7 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 						log_client_error_and_throw("BIO_read", c);
 					}
 
-					ssize_t sent = usrsctp_sendv(c->sock, outbuf, read,
-					 /* addrs */ NULL, /* addrcnt */ 0,
-					  /* info */ NULL, /* infolen */ 0,
-					   SCTP_SENDV_NOINFO, /* flags */ 0);
+					ssize_t sent = c->send(outbuf, read);
 					if (sent < 0) {
 						log_client_error_and_throw("usrsctp_sendv", c);
 					}
@@ -760,10 +744,7 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 						log_client_error_and_throw("BIO_read", c);
 					}
 
-					ssize_t sent = usrsctp_sendv(c->sock, outbuf, read,
-					 /* addrs */ NULL, /* addrcnt */ 0,
-					  /* info */ NULL, /* infolen */ 0,
-					   SCTP_SENDV_NOINFO, /* flags */ 0);
+					ssize_t sent = c->send(outbuf, read);
 					if (sent < 0) {
 						log_client_error_and_throw("usrsctp_sendv", c);
 					}						   
@@ -880,7 +861,7 @@ static void handle_association_change_event(std::shared_ptr<IClient>& c, struct 
 		log macros depend on local object named cfg_.
 		Getting it here explicitly.
 	*/
-	auto cfg_ = c->server_.cfg();
+	auto cfg_ = c->server().cfg();
 	/* from here on we can use log macros */
 
 	unsigned int i, n;
@@ -995,7 +976,7 @@ static void handle_peer_address_change_event(std::shared_ptr<IClient>& c, struct
 		log macros depend on local object named cfg_.
 		Getting it here explicitly.
 	*/
-	auto cfg_ = c->server_.cfg();
+	auto cfg_ = c->server().cfg();
 	/* from here on we can use log macros */
 
 	char addr_buf[INET6_ADDRSTRLEN];
@@ -1063,7 +1044,7 @@ static void handle_send_failed_event(std::shared_ptr<IClient>& c, struct sctp_se
 		log macros depend on local object named cfg_.
 		Getting it here explicitly.
 	*/
-	auto cfg_ = c->server_.cfg();
+	auto cfg_ = c->server().cfg();
 	/* from here on we can use log macros */
 
 	size_t i, n;
@@ -1106,7 +1087,7 @@ static void handle_adaptation_indication(std::shared_ptr<IClient>& c, struct sct
 		log macros depend on local object named cfg_.
 		Getting it here explicitly.
 	*/
-	auto cfg_ = c->server_.cfg();
+	auto cfg_ = c->server().cfg();
 	/* from here on we can use log macros */
 
 	char buf[BUFFERSIZE] = { '\0' };
@@ -1121,7 +1102,7 @@ static void handle_shutdown_event(std::shared_ptr<IClient>& c, struct sctp_shutd
 		log macros depend on local object named cfg_.
 		Getting it here explicitly.
 	*/
-	auto cfg_ = c->server_.cfg();
+	auto cfg_ = c->server().cfg();
 	/* from here on we can use log macros */
 
 	char buf[BUFFERSIZE] = { '\0' };
@@ -1137,7 +1118,7 @@ static void handle_stream_reset_event(std::shared_ptr<IClient>& c, struct sctp_s
 		log macros depend on local object named cfg_.
 		Getting it here explicitly.
 	*/
-	auto cfg_ = c->server_.cfg();
+	auto cfg_ = c->server().cfg();
 	/* from here on we can use log macros */
 
 	uint32_t n, i;
@@ -1178,7 +1159,7 @@ static void handle_stream_change_event(std::shared_ptr<IClient>& c, struct sctp_
 		log macros depend on local object named cfg_.
 		Getting it here explicitly.
 	*/
-	auto cfg_ = c->server_.cfg();
+	auto cfg_ = c->server().cfg();
 	/* from here on we can use log macros */
 
 	char buf[BUFFERSIZE] = { '\0' };
@@ -1195,7 +1176,7 @@ static void handle_remote_error_event(std::shared_ptr<IClient>& c, struct sctp_r
 		log macros depend on local object named cfg_.
 		Getting it here explicitly.
 	*/
-	auto cfg_ = c->server_.cfg();
+	auto cfg_ = c->server().cfg();
 	/* from here on we can use log macros */
 
 	size_t i, n;

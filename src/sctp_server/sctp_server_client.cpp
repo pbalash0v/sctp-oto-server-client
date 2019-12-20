@@ -37,7 +37,7 @@ Client::Client(struct socket* sctp_sock, SCTPServer& s)
 };
 
 Client::Client(struct socket* sctp_sock, SCTPServer& s, size_t message_size)
-	: IClient(sctp_sock, s), msg_size_(message_size)
+	: sock(sctp_sock), server_(s), msg_size_(message_size)
 {
 	std::cerr << "Client::Client(struct socket* sctp_sock, SCTPServer& s, size_t message_size)" << std::endl;
 	sctp_msg_buff().reserve(2*message_size);
@@ -155,77 +155,21 @@ IClient::State Client::state() const noexcept
 	return state_;
 }
 
+size_t Client::send(const void* buf, size_t len)
+{
+	// addrs - NULL for connected socket
+	// addrcnt: Number of addresses.
+	// As at most one address is supported, addrcnt is 0 if addrs is NULL and 1 otherwise.	
+	return usrsctp_sendv(sock, buf, len,
+						 /* addrs */ NULL, /* addrcnt */ 0,
+						  /* info */ NULL, /* infolen */ 0,
+						   SCTP_SENDV_NOINFO, /* flags */ 0);
+};
 
-// void* Client::get_writable_buffer() const
-// {
-// 	return static_cast<char*>(buff.get()) + get_buffered_data_size();
-// }
-
-// void* Client::get_message_buffer() const
-// {
-// 	return buff.get();
-// }
-
-// void Client::realloc_buffer()
-// {
-// 	ENABLE_DEBUG();
-// 	TRACE_func_entry();
-
-// 	void* new_buff = realloc(buff.get(), available_buffer_space + message_size_);
-// 	if (new_buff) {
-// 		available_buffer_space += message_size_;
-// 		if (new_buff != buff.get()) {
-// 			buff.release();
-// 			buff.reset(new_buff);
-// 		}
-// 		buffered_data_size += message_size_;
-// 		//memset(get_writable_buffer(), 0, CLIENT_BUFFERSIZE);
-// 		buffer_needs_realloc = true;
-// 	} else {
-// 		throw std::runtime_error("Realloc in realloc_buffer() failed.");
-// 	}
-
-// 	TRACE("available_buffer_space: " + std::to_string(available_buffer_space));
-
-// 	TRACE_func_left();
-// }
-
-// void Client::reset_buffer()
-// {
-// 	ENABLE_DEBUG();
-// 	TRACE_func_entry();
-
-// 	if (buffer_needs_realloc) {
-// 		DEBUG("reallocing buffer");
-// 		void* new_buff = realloc(buff.get(), message_size_);
-
-// 		if (not new_buff) {
-// 			throw std::runtime_error("Realloc in reset_buffer() failed.");
-// 		}
-
-// 		if (new_buff != buff.get()) buff.reset(new_buff);
-// 	}
-
-// 	memset(buff.get(), 0, message_size_);
-// 	available_buffer_space = message_size_;
-// 	buffered_data_size = 0;
-// 	buffer_needs_realloc = false;
-
-// 	TRACE_func_left();
-// }
-
-
-
-// size_t Client::get_buffered_data_size() const noexcept
-// {
-// 	return buffered_data_size;
-// }
-	
-
-// size_t Client::get_writable_buffer_size() const noexcept
-// {
-// 	return message_size_;
-// }
+void Client::close()
+{
+	usrsctp_close(sock);
+}
 
 
 Client::~Client()
