@@ -75,13 +75,13 @@ int main(int, char const**)
 
 		SCTPServer server;
 
-		server.cfg_->cert_filename = "../src/certs/server-cert.pem";
-		server.cfg_->key_filename = "../src/certs/server-key.pem";
-		server.cfg_->data_cback_f = [&](auto, const auto& s) {
+		server.cfg()->cert_filename = "../src/certs/server-cert.pem";
+		server.cfg()->key_filename = "../src/certs/server-key.pem";
+		server.cfg()->data_cback_f = [&](auto, const auto& s) {
 			assert(std::string(static_cast<const char*> (s->data)) == TEST_STRING);
 		 	running = false;
 		};
-		server.cfg_->debug_f = [&](auto, const auto& s) {
+		server.cfg()->debug_f = [&](auto, const auto& s) {
 			std::cout << s << std::endl;
 		};
 

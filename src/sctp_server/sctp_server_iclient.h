@@ -43,6 +43,7 @@ public:
 	virtual ~IClient() {};
 
 	virtual void init() = 0;
+	
 	virtual void state(IClient::State) = 0;
 	virtual IClient::State state() const = 0;
 

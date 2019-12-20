@@ -85,7 +85,7 @@ int main(int, char const**)
 	std::cerr << "***BrokenSCTPServer_bad_SSL_fname cert_filename" << std::endl;
 	{
 		BrokenSCTPServer_bad_SSL_fname server { get_cfg() };
-		server.cfg_->cert_filename = "NONEXISTANT";
+		server.cfg()->cert_filename = "NONEXISTANT";
 
 		try {
 			server.init();
@@ -97,7 +97,7 @@ int main(int, char const**)
 	std::cerr << "***BrokenSCTPServer_bad_SSL_fname key_filename" << std::endl;
 	{
 		BrokenSCTPServer_bad_SSL_fname server { get_cfg() };
-		server.cfg_->key_filename = "NONEXISTANT";
+		server.cfg()->key_filename = "NONEXISTANT";
 		try {
 			server.init();
 		} catch (const std::runtime_error& exc) {

@@ -23,7 +23,7 @@
 static void _log_client_error_and_throw(const char* func, std::shared_ptr<IClient>& c,
 													 bool should_throw)
 {
-	std::shared_ptr<SCTPServer::Config> cfg_ = c->server_.cfg_;
+	auto cfg_ = c->server_.cfg();
 
 	std::string error { func };
 	error += ": ";
@@ -880,7 +880,7 @@ static void handle_association_change_event(std::shared_ptr<IClient>& c, struct 
 		log macros depend on local object named cfg_.
 		Getting it here explicitly.
 	*/
-	std::shared_ptr<SCTPServer::Config> cfg_ = (c->server_).cfg_;
+	auto cfg_ = c->server_.cfg();
 	/* from here on we can use log macros */
 
 	unsigned int i, n;
@@ -995,7 +995,7 @@ static void handle_peer_address_change_event(std::shared_ptr<IClient>& c, struct
 		log macros depend on local object named cfg_.
 		Getting it here explicitly.
 	*/
-	std::shared_ptr<SCTPServer::Config> cfg_ = (c->server_).cfg_;
+	auto cfg_ = c->server_.cfg();
 	/* from here on we can use log macros */
 
 	char addr_buf[INET6_ADDRSTRLEN];
@@ -1063,7 +1063,7 @@ static void handle_send_failed_event(std::shared_ptr<IClient>& c, struct sctp_se
 		log macros depend on local object named cfg_.
 		Getting it here explicitly.
 	*/
-	std::shared_ptr<SCTPServer::Config> cfg_ = (c->server_).cfg_;
+	auto cfg_ = c->server_.cfg();
 	/* from here on we can use log macros */
 
 	size_t i, n;
@@ -1106,7 +1106,7 @@ static void handle_adaptation_indication(std::shared_ptr<IClient>& c, struct sct
 		log macros depend on local object named cfg_.
 		Getting it here explicitly.
 	*/
-	std::shared_ptr<SCTPServer::Config> cfg_ = (c->server_).cfg_;
+	auto cfg_ = c->server_.cfg();
 	/* from here on we can use log macros */
 
 	char buf[BUFFERSIZE] = { '\0' };
@@ -1121,7 +1121,7 @@ static void handle_shutdown_event(std::shared_ptr<IClient>& c, struct sctp_shutd
 		log macros depend on local object named cfg_.
 		Getting it here explicitly.
 	*/
-	std::shared_ptr<SCTPServer::Config> cfg_ = (c->server_).cfg_;
+	auto cfg_ = c->server_.cfg();
 	/* from here on we can use log macros */
 
 	char buf[BUFFERSIZE] = { '\0' };
@@ -1137,7 +1137,7 @@ static void handle_stream_reset_event(std::shared_ptr<IClient>& c, struct sctp_s
 		log macros depend on local object named cfg_.
 		Getting it here explicitly.
 	*/
-	std::shared_ptr<SCTPServer::Config> cfg_ = (c->server_).cfg_;
+	auto cfg_ = c->server_.cfg();
 	/* from here on we can use log macros */
 
 	uint32_t n, i;
@@ -1178,7 +1178,7 @@ static void handle_stream_change_event(std::shared_ptr<IClient>& c, struct sctp_
 		log macros depend on local object named cfg_.
 		Getting it here explicitly.
 	*/
-	std::shared_ptr<SCTPServer::Config> cfg_ = (c->server_).cfg_;
+	auto cfg_ = c->server_.cfg();
 	/* from here on we can use log macros */
 
 	char buf[BUFFERSIZE] = { '\0' };
@@ -1195,7 +1195,7 @@ static void handle_remote_error_event(std::shared_ptr<IClient>& c, struct sctp_r
 		log macros depend on local object named cfg_.
 		Getting it here explicitly.
 	*/
-	std::shared_ptr<SCTPServer::Config> cfg_ = (c->server_).cfg_;
+	auto cfg_ = c->server_.cfg();
 	/* from here on we can use log macros */
 
 	size_t i, n;

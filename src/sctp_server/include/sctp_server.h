@@ -100,6 +100,9 @@ public:
 	SCTPServer& operator=(const SCTPServer& oth) = delete;
 	virtual ~SCTPServer();
 
+	std::shared_ptr<SCTPServer::Config>& cfg() { return cfg_; };
+
+
 	/*
 		Usrsctp lib, SSL etc initializations. (synchronous).
 		Mandatory
@@ -127,7 +130,6 @@ public:
 	*/
 	void stop();
 	
-	std::shared_ptr<Config> cfg_;
 
  	friend std::ostream& operator<<(std::ostream&, const SCTPServer&);
 
@@ -153,6 +155,7 @@ protected:
 	MAYBE_VIRTUAL struct socket* usrsctp_accept(struct socket*, struct sockaddr*, socklen_t*);
 
 private:
+	std::shared_ptr<SCTPServer::Config> cfg_;
 
 	void try_init_local_UDP();
 

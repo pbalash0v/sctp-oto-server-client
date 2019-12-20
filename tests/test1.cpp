@@ -12,8 +12,8 @@ int main(int, char const**)
 {		
 	SCTPServer s;
 
-	s.cfg_->cert_filename = "../src/certs/server-cert.pem";
-	s.cfg_->key_filename = "../src/certs/server-key.pem";
+	s.cfg()->cert_filename = "../src/certs/server-cert.pem";
+	s.cfg()->key_filename = "../src/certs/server-key.pem";
 
 	try {
 		s.init();

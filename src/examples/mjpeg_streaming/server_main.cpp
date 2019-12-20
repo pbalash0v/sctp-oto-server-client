@@ -150,16 +150,15 @@ int main(int /* argc */, char* argv[]) {
 	parse_args(argv, options);
 
 
-	SCTPServer srv;
-	srv.cfg_ = get_cfg_or_die(argv, options);
+	SCTPServer srv { get_cfg_or_die(argv, options) };
 
-	srv.cfg_->data_cback_f = [&](auto client, const auto& s)
+	srv.cfg()->data_cback_f = [&](auto client, const auto& s)
 	{
 		spdlog::info("Received {} bytes message.", s->size);
 		srv.send(client, s->data, s->size);
 	};
 
-	srv.cfg_->debug_f = [&](const auto& level, const auto& s)
+	srv.cfg()->debug_f = [&](const auto& level, const auto& s)
 	{
 		switch (level) {
 			case SCTPServer::TRACE:
@@ -186,7 +185,7 @@ int main(int /* argc */, char* argv[]) {
 		}
 	};
 
-	srv.cfg_->message_size = 256*1024; //256 Kbyte
+	srv.cfg()->message_size = 256*1024; //256 Kbyte
 
 
 	try {
