@@ -4,16 +4,31 @@
 #include "sctp_client.h"
 
 
-SCTPClient::Data::Data(const void* buf, size_t len)
-{
-	data = calloc(len, sizeof(char));
-	if (not data) throw std::runtime_error("Calloc failed.");
+SCTPClient::Data::Data() : size(0), buf(nullptr) {};
 
-	memcpy(data, buf, len);
+
+SCTPClient::Data::Data(const void* from, size_t len)
+{
+	buf = calloc(len, sizeof(char));
+	if (not buf) throw std::runtime_error("Calloc failed.");
+
+	memcpy(buf, from, len);
 	size = len;
 }
 
-SCTPClient::Data::~Data() {
-	std::free(data);
+
+SCTPClient::Data::Data(Data&& other): size(0), buf(nullptr)
+{
+	size = other.size;
+	buf = other.buf;
+
+	other.size = 0;
+	other.buf = nullptr;
+}
+
+
+SCTPClient::Data::~Data()
+{
+	std::free(buf);
 }
 
