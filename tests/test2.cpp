@@ -19,9 +19,8 @@ int main(int, char const**)
 		return cfg;
 	})();
 
-
-	SCTPClient client;
-	client.cfg_ = cli_cfg;
+	SCTPClient client { cli_cfg };
+	
 
 	try {	
 		client.init();

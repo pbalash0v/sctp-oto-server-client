@@ -44,10 +44,9 @@ int main(int, char const**)
 			return cfg;
 		})();
 
-		SCTPClient client;
-		client.cfg_ =  cli_cfg;
-
-		client.cfg_->state_cback_f = [&](auto state) {
+		SCTPClient client { cli_cfg };
+		
+		client.cfg()->state_cback_f = [&](auto state) {
 			if (state == SCTPClient::SSL_CONNECTED) {
 				std::string _s = std::string(TEST_STRING);
 				client.send(_s.c_str(), _s.size());

@@ -94,6 +94,9 @@ public:
 	SCTPClient& operator=(const SCTPClient& oth) = delete;
 	virtual ~SCTPClient();
 
+	std::shared_ptr<SCTPClient::Config>& cfg() { return cfg_; };
+
+
 	/* sync */
 	void init();
 
@@ -110,11 +113,11 @@ public:
 
 	friend std::ostream& operator<<(std::ostream&, const SCTPClient&);
 
-	std::shared_ptr<Config> cfg_;
 
 private:
-	SSL_h ssl_obj { SSL_h::CLIENT };
+	std::shared_ptr<SCTPClient::Config> cfg_;
 
+	SSL_h ssl_obj { SSL_h::CLIENT };
 	SSL* ssl = nullptr;
 	BIO* output_bio = nullptr;
 	BIO* input_bio = nullptr;

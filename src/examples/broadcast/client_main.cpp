@@ -223,11 +223,9 @@ int main(int /* argc */, char* argv[])
 	
 
 	/* Client config */
-	auto cfg = get_cfg_or_die(argv, options);
-	SCTPClient client;
-	client.cfg_ = cfg;
+	SCTPClient client { get_cfg_or_die(argv, options) };
 
-	client.cfg_->data_cback_f = [&](const auto& s)
+	client.cfg()->data_cback_f = [&](const auto& s)
 	{ 
 		std::string server_message = 
 			((s->size < 30) ? 
@@ -240,7 +238,7 @@ int main(int /* argc */, char* argv[])
 				+ "\n"); 
 	};
 
-	client.cfg_->debug_cback_f = [&](auto level, const auto& s)
+	client.cfg()->debug_cback_f = [&](auto level, const auto& s)
 	{
 		ITUI::LogLevel l = ITUI::LogLevel::TRACE;
 
@@ -272,7 +270,7 @@ int main(int /* argc */, char* argv[])
 		tui->put_log(l, s);
 	};
 
-	client.cfg_->state_cback_f = [&](auto state)
+	client.cfg()->state_cback_f = [&](auto state)
 	{ 
 		std::string message;
 

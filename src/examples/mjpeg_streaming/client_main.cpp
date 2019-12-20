@@ -224,7 +224,7 @@ int main(int /* argc */, char* argv[])
 
 	SCTPClient client { cfg };
 
-	client.cfg_->data_cback_f = [&](const auto& s)
+	client.cfg()->data_cback_f = [&](const auto& s)
 	{ 
 		spdlog::trace("Server sent: {}", std::to_string(s->size));
 
@@ -235,7 +235,7 @@ int main(int /* argc */, char* argv[])
 		cv::waitKey(10);		
 	};
 
-	client.cfg_->debug_cback_f = [&](const auto& level, const auto& s)
+	client.cfg()->debug_cback_f = [&](const auto& level, const auto& s)
 	{
 		std::string s_ { s };
 		s_.erase(std::remove(s_.begin(), s_.end(), '\n'), s_.end());
@@ -265,7 +265,7 @@ int main(int /* argc */, char* argv[])
 		}
 	};
 
-	client.cfg_->state_cback_f = [&](const auto& state)
+	client.cfg()->state_cback_f = [&](const auto& state)
 	{ 
 		std::string message;
 
