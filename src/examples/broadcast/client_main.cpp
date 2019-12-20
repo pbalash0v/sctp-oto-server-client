@@ -13,9 +13,8 @@
 
 #include "gopt.h"
 
-
 #ifdef HAVE_NCURSES
-	#include "tui.h"
+#include "tui.h"
 #endif
 #include "simple_tui.h"
 
@@ -229,8 +228,8 @@ int main(int /* argc */, char* argv[])
 	{ 
 		std::string server_message = 
 			((s->size < 30) ? 
-				std::string(static_cast<char*>(s->data))
-		 		: std::string(static_cast<char*>(s->data)).substr(0, 30));
+				std::string(static_cast<char*>(s->buf))
+		 		: std::string(static_cast<char*>(s->buf)).substr(0, 30));
 		tui->put_message("Server sent: "
 				+ std::to_string(s->size)
 				+ std::string(" ")
