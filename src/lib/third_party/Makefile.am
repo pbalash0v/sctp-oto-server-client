@@ -1,5 +1,5 @@
 AUTOMAKE_OPTIONS = subdir-objects
 
-SUBDIRS = lib examples certs
+SUBDIRS = usrsctp
 
 

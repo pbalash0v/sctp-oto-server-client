@@ -1,5 +1,3 @@
 AUTOMAKE_OPTIONS = subdir-objects
 
-SUBDIRS = lib examples certs
-
-
+SUBDIRS = gopt-10.0

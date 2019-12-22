@@ -12,13 +12,16 @@ AM_CXXFLAGS = -std=c++14 -Wall -Werror -Wextra
 ##$(info top_build_prefix is $(top_build_prefix))
 ##$(info abs_top_builddir is $(abs_top_builddir))
 
+LIBPATH = $(top_srcdir)/src/lib
+
+
 TESTS_CPPFLAGS = -DTEST_BUILD \
-				-I$(top_srcdir)/src/sctp_server/include \
-				-I$(top_srcdir)/src/sctp_server \
-				-I$(top_srcdir)/src/sctp_client/include \
-				-I$(top_srcdir)/src/sctp_client \
-				-I$(top_srcdir)/src/sctp_common \
-				-I$(top_srcdir)/src/third_party/usrsctp/usrsctplib \
+				-I$(LIBPATH)/sctp_server/include \
+				-I$(LIBPATH)/sctp_server \
+				-I$(LIBPATH)/sctp_client/include \
+				-I$(LIBPATH)/sctp_client \
+				-I$(LIBPATH)/sctp_common \
+				-I$(LIBPATH)/third_party/usrsctp/usrsctplib \
 				@PTHREAD_CFLAGS@ \
 				@OPENSSL_INCLUDES@
 				
@@ -27,11 +30,11 @@ TESTS_CPPFLAGS = -DTEST_BUILD \
 ## test's helper lib
 check_LIBRARIES = libtest.a
 
-libtest_a_SOURCES = $(top_srcdir)/src/sctp_server/sctp_server.cpp \
-					$(top_srcdir)/src/sctp_server/sctp_server_client.cpp \
-					$(top_srcdir)/src/sctp_server/sctp_server_iclient_data.cpp \
-					$(top_srcdir)/src/sctp_client/sctp_client.cpp \
-					$(top_srcdir)/src/sctp_client/sctp_client_data.cpp
+libtest_a_SOURCES = $(LIBPATH)/sctp_server/sctp_server.cpp \
+					$(LIBPATH)/sctp_server/sctp_server_client.cpp \
+					$(LIBPATH)/sctp_server/sctp_server_iclient_data.cpp \
+					$(LIBPATH)/sctp_client/sctp_client.cpp \
+					$(LIBPATH)/sctp_client/sctp_client_data.cpp
 
 libtest_a_CXXFLAGS = $(AM_CXXFLAGS)
 libtest_a_CPPFLAGS = $(TESTS_CPPFLAGS)
@@ -47,8 +50,8 @@ TESTS = $(check_PROGRAMS)
 XFAIL_TESTS = $(check_PROGRAMS_FAIL)
 
 TESTS_LDADD = $(top_builddir)/tests/libtest.a \
-			$(top_builddir)/src/sctp_common/libcommon.a \
-			$(top_builddir)/src/third_party/usrsctp/usrsctplib/.libs/libusrsctp.a \
+			$(top_builddir)/src/lib/sctp_common/libcommon.a \
+			$(top_builddir)/src/lib/third_party/usrsctp/usrsctplib/.libs/libusrsctp.a \
 			@OPENSSL_LIBS@ @PTHREAD_LIBS@ @PTHREAD_CFLAGS@
 							
 ## test1

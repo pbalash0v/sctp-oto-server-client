@@ -5,4 +5,4 @@ MAYBEPROGRAMS = mjpeg_streaming
 endif
 
 
-SUBDIRS = broadcast $(MAYBEPROGRAMS) certs
+SUBDIRS = third_party broadcast $(MAYBEPROGRAMS) certs

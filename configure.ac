@@ -4,7 +4,7 @@
 AC_PREREQ([2.69])
 AC_INIT([simple-sctp-server-client], [0.01a], [psb1979@hotmail.com])
 
-AC_CONFIG_SRCDIR([src/sctp_server/sctp_server.cpp])
+AC_CONFIG_SRCDIR([src/lib/sctp_server/sctp_server.cpp])
 AC_CONFIG_AUX_DIR([build-aux])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_MACRO_DIRS([m4])
@@ -63,19 +63,22 @@ AC_TYPE_UINT32_T
 AC_CHECK_FUNCS([memset strerror])
 
 # Include usrsctp as subproject
-AC_CONFIG_SUBDIRS([src/third_party/usrsctp])
+AC_CONFIG_SUBDIRS([src/lib/third_party/usrsctp])
 
 AC_CONFIG_FILES([Makefile \
 				src/Makefile \
-				src/sctp_common/Makefile \
-				src/third_party/gopt-10.0/Makefile \
+				src/lib/Makefile \
+				src/lib/third_party/Makefile \
+				src/lib/sctp_common/Makefile \
+				src/lib/sctp_server/Makefile \
+				src/lib/sctp_client/Makefile \
 				src/certs/Makefile \
-				src/sctp_server/Makefile \
-				src/sctp_client/Makefile \
 				src/examples/Makefile \
+				src/examples/third_party/Makefile \
 				src/examples/broadcast/Makefile \
 				src/examples/mjpeg_streaming/Makefile \
 				src/examples/certs/Makefile \
+				src/examples/third_party/gopt-10.0/Makefile \
 				tests/Makefile])
 
 AC_OUTPUT
