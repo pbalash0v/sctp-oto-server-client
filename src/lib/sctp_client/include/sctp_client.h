@@ -60,6 +60,8 @@ public:
 		Data(Data&& other);
 		virtual ~Data();
 
+		Data& operator=(Data&& other);
+
    	size_t size { 0 };
    	void* buf { nullptr };
 	};

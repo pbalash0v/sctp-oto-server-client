@@ -27,6 +27,26 @@ SCTPClient::Data::Data(Data&& other): size(0), buf(nullptr)
 }
 
 
+SCTPClient::Data& SCTPClient::Data::operator=(SCTPClient::Data&& other)
+{
+	if (this != &other) {
+		// release the current object's resources
+		std::free(buf);
+		size = 0;
+
+		// other's resource
+		size = other.size;
+		buf = other.buf;
+
+		// reset other
+		other.size = 0;
+		other.buf = nullptr;
+	}
+
+	return *this;
+}
+
+
 SCTPClient::Data::~Data()
 {
 	std::free(buf);
