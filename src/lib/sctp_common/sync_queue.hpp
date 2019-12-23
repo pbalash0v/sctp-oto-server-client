@@ -8,8 +8,8 @@
 template <typename T>
 class SyncQueue {
 public:
-	SyncQueue(bool limited = false, size_t max_queued = 1) 
-		: limited_(limited), max_queued_(max_queued) {};
+	SyncQueue(size_t max_queued = 0) 
+		: max_queued_(max_queued) {};
 	~SyncQueue() {};
 	SyncQueue(const SyncQueue<T>& other) = delete;
 	SyncQueue<T>& operator=(const SyncQueue<T>& oth) = delete;
@@ -17,15 +17,12 @@ public:
 	T dequeue();
 
 	void enqueue(const T&);
-
 	void enqueue(T&&);
 
 	bool isEmpty();
-
 	size_t size();
 
 private:
-	bool limited_;
 	size_t max_queued_;
 	std::queue<T> q;
 	std::mutex qMutex;
@@ -51,7 +48,7 @@ void SyncQueue<T>::enqueue(const T& elem) {
 	{
 		std::lock_guard<std::mutex> _(qMutex);
 
-		if ((limited_) and (q.size() == max_queued_)) q.pop();
+		if ((max_queued_ > 0) and (q.size() == max_queued_)) q.pop();
 
 		q.push(elem);
 	}
@@ -65,7 +62,7 @@ void SyncQueue<T>::enqueue(T&& elem) {
 	{
 		std::lock_guard<std::mutex> _(qMutex);
 
-		if ((limited_) and (q.size() == max_queued_)) q.pop();
+		if ((max_queued_ > 0) and (q.size() == max_queued_)) q.pop();
 
 		q.push(std::move(elem));
 	}
@@ -76,12 +73,13 @@ void SyncQueue<T>::enqueue(T&& elem) {
 
 template <typename T>
 bool SyncQueue<T>::isEmpty() {
-	std::lock_guard<std::mutex> _(qMutex);
+	std::lock_guard<std::mutex> _ { qMutex };
 	return q.empty();
 }
 
+
 template <typename T>
 size_t SyncQueue<T>::size() {
-	std::lock_guard<std::mutex> _(qMutex);
+	std::lock_guard<std::mutex> _ { qMutex };
 	return q.size();
 }

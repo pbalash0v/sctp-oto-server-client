@@ -182,7 +182,7 @@ static std::shared_ptr<SCTPClient::Config> get_cfg_or_die(char* argv[], struct o
 
 SyncQueue<std::shared_ptr<cv::Mat>> local_frames_to_display;
 SyncQueue<std::shared_ptr<cv::Mat>> frames_to_encode;
-SyncQueue<std::shared_ptr<std::vector<uchar>>> frames_to_send {/*limited*/ true, 5};
+SyncQueue<std::shared_ptr<std::vector<uchar>>> frames_to_send {/* max queued */ 5};
 
 SyncQueue<std::unique_ptr<SCTPClient::Data>> recvd_data;
 SyncQueue<std::unique_ptr<cv::Mat>> recvd_frames_to_display;
