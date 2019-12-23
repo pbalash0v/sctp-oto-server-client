@@ -50,7 +50,7 @@ TESTS = $(check_PROGRAMS)
 XFAIL_TESTS = $(check_PROGRAMS_FAIL)
 
 TESTS_LDADD = $(top_builddir)/tests/libtest.a \
-			$(top_builddir)/src/lib/sctp_common/libcommon.a \
+			$(top_builddir)/src/lib/sctp_common/libcommon.la \
 			$(top_builddir)/src/lib/third_party/usrsctp/usrsctplib/.libs/libusrsctp.a \
 			@OPENSSL_LIBS@ @PTHREAD_LIBS@ @PTHREAD_CFLAGS@
 							

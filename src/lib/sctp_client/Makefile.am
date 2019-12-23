@@ -17,7 +17,7 @@ libclient_la_CPPFLAGS = -I$(srcdir)/include \
 libclient_la_CXXFLAGS = $(AM_CXXFLAGS)
 
 libclient_la_LIBADD = $(top_builddir)/src/lib/third_party/usrsctp/usrsctplib/libusrsctp.la \
-					$(top_builddir)/src/lib/sctp_common/libcommon.a
+					$(top_builddir)/src/lib/sctp_common/libcommon.la
 
 
 

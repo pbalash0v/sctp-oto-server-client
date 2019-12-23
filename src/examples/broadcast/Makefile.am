@@ -23,7 +23,6 @@ server_DEPENDENCIES = $(top_builddir)/src/lib/third_party/usrsctp/usrsctplib/lib
 server_LDADD = 	$(top_builddir)/src/lib/sctp_server/libserver.la \
 		$(top_builddir)/src/lib/third_party/usrsctp/usrsctplib/libusrsctp.la \
 		$(top_builddir)/src/examples/third_party/gopt-10.0/libgopt.a \
-		$(top_builddir)/src/lib/sctp_common/libcommon.a \
 		@OPENSSL_LIBS@ @PTHREAD_LIBS@ @PTHREAD_CFLAGS@
 
 
@@ -56,7 +55,6 @@ client_DEPENDENCIES = $(top_builddir)/src/lib/third_party/usrsctp/usrsctplib/lib
 client_LDADD =	$(top_builddir)/src/lib/sctp_client/libclient.la \
 			$(top_builddir)/src/lib/third_party/usrsctp/usrsctplib/libusrsctp.la \
 			$(top_builddir)/src/examples/third_party/gopt-10.0/libgopt.a \
-			$(top_builddir)/src/lib/sctp_common/libcommon.a \
 			@OPENSSL_LIBS@ @CURSES_LIB@ @PTHREAD_LIBS@ @PTHREAD_CFLAGS@
 	
 	
