@@ -21,7 +21,6 @@ constexpr uint16_t MAX_IP_PORT = std::numeric_limits<uint16_t>::max();
 constexpr const char* DEFAULT_LOG_FILENAME = "client_log.txt";
 
 
-
 enum CLIOptions
 {
 	HELP,
@@ -180,6 +179,7 @@ static std::shared_ptr<SCTPClient::Config> get_cfg_or_die(char* argv[], struct o
 	return cfg;
 }
 
+
 SyncQueue<std::shared_ptr<cv::Mat>> local_frames_to_display;
 SyncQueue<std::shared_ptr<cv::Mat>> frames_to_encode;
 SyncQueue<std::shared_ptr<std::vector<uchar>>> frames_to_send {/* max queued */ 5};
@@ -187,7 +187,7 @@ SyncQueue<std::shared_ptr<std::vector<uchar>>> frames_to_send {/* max queued */ 
 SyncQueue<std::unique_ptr<SCTPClient::Data>> recvd_data;
 SyncQueue<std::unique_ptr<cv::Mat>> recvd_frames_to_display;
 
-void capture_loop(const std::atomic_bool& running, cv::VideoCapture& camera)
+static void capture_loop(const std::atomic_bool& running, cv::VideoCapture& camera)
 {
 	while (running) {
 		auto frame_ptr = std::make_shared<cv::Mat>();
@@ -206,7 +206,7 @@ void capture_loop(const std::atomic_bool& running, cv::VideoCapture& camera)
 	spdlog::debug("{} finished.", __func__);
 }
 
-void local_display_loop(SyncQueue<std::shared_ptr<cv::Mat>>& q)
+static void local_display_loop(SyncQueue<std::shared_ptr<cv::Mat>>& q)
 {
 	do {
 		auto frame = *(q.dequeue());
@@ -223,7 +223,7 @@ void local_display_loop(SyncQueue<std::shared_ptr<cv::Mat>>& q)
 	spdlog::debug("{} finished.", __func__);
 }
 
-void encode_loop(SyncQueue<std::shared_ptr<cv::Mat>>& q)
+static void encode_loop(SyncQueue<std::shared_ptr<cv::Mat>>& q)
 {
 	do {
 		auto frame = *(q.dequeue());
@@ -243,7 +243,7 @@ void encode_loop(SyncQueue<std::shared_ptr<cv::Mat>>& q)
 	spdlog::debug("{} finished.", __func__);
 }
 
-void send_loop(SyncQueue<std::shared_ptr<std::vector<uchar>>>& q, SCTPClient& client)
+static void send_loop(SyncQueue<std::shared_ptr<std::vector<uchar>>>& q, SCTPClient& client)
 {
 	do {
 		auto jpeg = *(q.dequeue());
@@ -256,7 +256,7 @@ void send_loop(SyncQueue<std::shared_ptr<std::vector<uchar>>>& q, SCTPClient& cl
 	spdlog::debug("{} finished.", __func__);
 }
 
-void decode_loop(SyncQueue<std::unique_ptr<SCTPClient::Data>>& q)
+static void decode_loop(SyncQueue<std::unique_ptr<SCTPClient::Data>>& q)
 {
 	do {
 		auto data = q.dequeue();
@@ -335,15 +335,6 @@ int main(int /* argc */, char* argv[])
 		if (s->size == 0) return; //hack !
 
 		recvd_data.enqueue(std::move(s));
-
-		//auto jpeg_mat = cv::Mat(1, s->size, CV_8UC1, s->buf);
-		//auto frame = cv::imdecode(jpeg_mat, CV_LOAD_IMAGE_UNCHANGED);
-
-		// show the image on the window		
-		//cv::imshow("Echo", frame);
-		
-		// wait (10ms) for a key to be pressed
-		//cv::waitKey(10);		
 	};
 
 	client.cfg()->debug_cback_f = [&](const auto& level, const auto& s)
@@ -392,6 +383,7 @@ int main(int /* argc */, char* argv[])
 			break;
 		case SCTPClient::SSL_CONNECTED:
 			message += "SSL established.";
+
 			capture_thread = 
 				std::thread(&capture_loop,std::ref(running), std::ref(camera));
 			local_display_thread = 
@@ -400,7 +392,6 @@ int main(int /* argc */, char* argv[])
 				std::thread(&encode_loop, std::ref(frames_to_encode));
 			send_thread = 
 				std::thread(&send_loop, std::ref(frames_to_send), std::ref(client));
-
 			recvd_decode_thread = 
 				std::thread(&decode_loop, std::ref(recvd_data));
 			recvd_display_thread =
@@ -421,7 +412,6 @@ int main(int /* argc */, char* argv[])
 	};
 
 
-
 	try {
 		client.init();
 		spdlog::info("{}", client.to_string());
@@ -438,13 +428,12 @@ int main(int /* argc */, char* argv[])
 	} while (running);
 
 	running = false;
-	recvd_data.enqueue(std::make_unique<SCTPClient::Data>()); //hack !
+	recvd_data.enqueue(std::make_unique<SCTPClient::Data>());
 
 	capture_thread.join();
 	local_display_thread.join();
 	local_encode_thread.join();
 	send_thread.join();
-
 	recvd_decode_thread.join();
 	recvd_display_thread.join();
 
