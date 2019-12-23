@@ -11,6 +11,8 @@
 #include "sctp_server.h"
 
 
+#include <arpa/inet.h>
+
 /* 
 	Log macros depend on local object named cfg_.
 	Getting it here explicitly.
@@ -33,14 +35,11 @@ namespace {
 
 Client::Client(struct socket* sctp_sock, SCTPServer& s)
 	: Client(sctp_sock, s, DEFAULT_SCTP_MESSAGE_SIZE_BYTES)
-{
-	std::cerr << "Client::Client(struct socket* sctp_sock, SCTPServer& s)" << std::endl;
-};
+{};
 
 Client::Client(struct socket* sctp_sock, SCTPServer& s, size_t message_size)
 	: sock(sctp_sock), server_(s), msg_size_(message_size)
 {
-	std::cerr << "Client::Client(struct socket* sctp_sock, SCTPServer& s, size_t message_size)" << std::endl;
 	sctp_msg_buff().reserve(2*message_size);
 	decrypted_msg_buff().reserve(2*message_size);
 	encrypted_msg_buff().reserve(2*message_size);
@@ -60,16 +59,6 @@ void Client::init()
 	SSL_set_bio(ssl, input_bio, output_bio);
 
 	SSL_set_accept_state(ssl);
-
-	// buff = ([&]()
-	// {
-	// 	std::cerr << "***message_size_: " << message_size_ << std::endl;
-	// 	void* buf_ = calloc(message_size_, sizeof(char));
-	// 	if (not buf_) throw std::runtime_error("Calloc in init() failed.");
-
-	// 	available_buffer_space = message_size_;
-	// 	return std::unique_ptr<void, decltype(&std::free)> (buf_, std::free);
-	// })();
 }
 
 
@@ -89,67 +78,82 @@ void Client::state(Client::State new_state)
 	state_ = new_state;
 	
 	switch (new_state) {
-		case SCTP_ACCEPTED:
-		{
-			uint16_t event_types[] = {	SCTP_ASSOC_CHANGE,
-	                          			SCTP_PEER_ADDR_CHANGE,
-	                          			SCTP_REMOTE_ERROR,
-	                          			SCTP_SHUTDOWN_EVENT,
-	                          			SCTP_ADAPTATION_INDICATION,
-	                          			SCTP_PARTIAL_DELIVERY_EVENT
-	                          		};
-			struct sctp_event event;
-			memset(&event, 0, sizeof(event));
-			event.se_assoc_id = SCTP_ALL_ASSOC;
-			event.se_on = 1;
-			for (auto ev_type : event_types) {
-				event.se_type = ev_type;
-				if (usrsctp_setsockopt(sock, IPPROTO_SCTP, SCTP_EVENT, &event, sizeof(event)) < 0) {
-					ERROR("usrsctp_setsockopt SCTP_EVENT for " + to_string());
-					throw std::runtime_error(std::string("setsockopt SCTP_EVENT: ") + strerror(errno));
-				}
-			}
-
-			auto bufsize = 5*1024*1024; //this should depend on cfg_->message_size
-			if (usrsctp_setsockopt(sock, SOL_SOCKET, SO_RCVBUF, &bufsize, sizeof(int)) < 0) {
-				throw std::runtime_error("setsockopt: rcvbuf" + std::string(strerror(errno)));
-			}
-
-			if (usrsctp_setsockopt(sock, SOL_SOCKET, SO_SNDBUF, &bufsize, sizeof(int)) < 0) {
-				throw std::runtime_error("setsockopt: sndbuf" + std::string(strerror(errno)));
-			}
-			
-			if (usrsctp_set_upcall(sock, &SCTPServer::handle_client_upcall, &server_)) {
-				ERROR("usrsctp_set_upcall for " + to_string());
-				throw std::runtime_error(strerror(errno));
+	case SCTP_ACCEPTED:
+	{
+		uint16_t event_types[] = {	SCTP_ASSOC_CHANGE,
+                          			SCTP_PEER_ADDR_CHANGE,
+                          			SCTP_REMOTE_ERROR,
+                          			SCTP_SHUTDOWN_EVENT,
+                          			SCTP_ADAPTATION_INDICATION,
+                          			SCTP_PARTIAL_DELIVERY_EVENT
+                          		};
+		struct sctp_event event;
+		memset(&event, 0, sizeof(event));
+		event.se_assoc_id = SCTP_ALL_ASSOC;
+		event.se_on = 1;
+		for (auto ev_type : event_types) {
+			event.se_type = ev_type;
+			if (usrsctp_setsockopt(sock, IPPROTO_SCTP, SCTP_EVENT, &event, sizeof(event)) < 0) {
+				ERROR("usrsctp_setsockopt SCTP_EVENT for " + to_string());
+				throw std::runtime_error(std::string("setsockopt SCTP_EVENT: ") + strerror(errno));
 			}
 		}
-			break;
-		case SCTP_CONNECTED:
-			break;
-		case SCTP_SRV_INITIATED_SHUTDOWN:
-			usrsctp_shutdown(sock, SHUT_WR);
-			break;
-		case PURGE:
-			struct linger linger_option;
-			linger_option.l_onoff = 1;
-			linger_option.l_linger = 0;
-			if (usrsctp_setsockopt(sock, SOL_SOCKET,
-					 SO_LINGER, &linger_option, sizeof(linger_option))) {
-				ERROR("Could not set linger options for: "
-						 + to_string() 
-						 + std::string(strerror(errno)));
-			}
-			usrsctp_close(sock);
-			break;
-		default:
-			break;
+
+		auto bufsize = 1024*1024; //this should depend on cfg_->message_size
+		if (usrsctp_setsockopt(sock, SOL_SOCKET, SO_RCVBUF, &bufsize, sizeof(int))) {
+			ERROR("usrsctp_setsockopt SO_RCVBUF: " + to_string());
+			throw std::runtime_error("setsockopt: rcvbuf" + std::string(strerror(errno)));
+		}
+
+		if (usrsctp_setsockopt(sock, SOL_SOCKET, SO_SNDBUF, &bufsize, sizeof(int))) {
+			ERROR("usrsctp_setsockopt SO_SNDBUF: " + to_string());
+			throw std::runtime_error("setsockopt: sndbuf" + std::string(strerror(errno)));
+		}
+		
+		if (usrsctp_set_upcall(sock, &SCTPServer::handle_client_upcall, &server_)) {
+			ERROR("usrsctp_set_upcall for " + to_string());
+			throw std::runtime_error("usrsctp_set_upcall: " + std::string(strerror(errno)));
+		}
+		
+		sctp_paddrparams params;
+		memset(&params, 0, sizeof params);
+		params.spp_address.ss_family = AF_INET;
+		params.spp_flags = SPP_PMTUD_DISABLE;
+		params.spp_pathmtu = 1280;
+
+		if (usrsctp_setsockopt(sock, IPPROTO_SCTP, SCTP_PEER_ADDR_PARAMS, &params, sizeof(params))) {
+			ERROR("usrsctp_setsockopt SCTP_PEER_ADDR_PARAMS " + to_string());
+			throw std::runtime_error("setsockopt SCTP_PEER_ADDR_PARAMS: " + std::string(strerror(errno)));
+		}		
+	}			
+	break;
+
+	case SCTP_CONNECTED:
+		break;
+	case SCTP_SRV_INITIATED_SHUTDOWN:
+		usrsctp_shutdown(sock, SHUT_WR);
+		break;
+	case PURGE:
+		struct linger linger_option;
+		linger_option.l_onoff = 1;
+		linger_option.l_linger = 0;
+		if (usrsctp_setsockopt(sock, SOL_SOCKET,
+				 SO_LINGER, &linger_option, sizeof(linger_option))) {
+			ERROR("Could not set linger options for: "
+					 + to_string() 
+					 + std::string(strerror(errno)));
+		}
+		usrsctp_close(sock);
+		break;
+	default:
+		break;
 	}
 
 	TRACE(state_names[state_] + " -> " + state_names[new_state]);
 
 	TRACE_func_left();
 }
+
 
 IClient::State Client::state() const noexcept
 {
@@ -158,13 +162,20 @@ IClient::State Client::state() const noexcept
 
 size_t Client::send(const void* buf, size_t len)
 {
+	ENABLE_DEBUG();
+
 	// addrs - NULL for connected socket
 	// addrcnt: Number of addresses.
 	// As at most one address is supported, addrcnt is 0 if addrs is NULL and 1 otherwise.	
-	return usrsctp_sendv(sock, buf, len,
+	int sent = usrsctp_sendv(sock, buf, len,
 						 /* addrs */ NULL, /* addrcnt */ 0,
 						  /* info */ NULL, /* infolen */ 0,
 						   SCTP_SENDV_NOINFO, /* flags */ 0);
+	if (sent < 0) {
+		WARNING("usrsctp_sendv: " + std::string(strerror(errno)));
+	}
+
+	return sent;
 };
 
 void Client::close()
