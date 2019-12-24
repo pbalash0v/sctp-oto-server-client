@@ -298,6 +298,11 @@ void recvd_display_loop(SyncQueue<std::unique_ptr<cv::Mat>>& q)
 	spdlog::debug("{} finished.", __func__);
 }
 
+void set_thread_name(std::thread& thread, const char* name)
+{
+   auto handle = thread.native_handle();
+   pthread_setname_np(handle, name);
+}
 
 
 int main(int /* argc */, char* argv[])
@@ -326,6 +331,7 @@ int main(int /* argc */, char* argv[])
 
 	std::thread recvd_decode_thread;
 	std::thread recvd_display_thread;
+
 
 	cv::namedWindow("Webcam", cv::WINDOW_AUTOSIZE);
 	cv::namedWindow("Echo", cv::WINDOW_AUTOSIZE);
@@ -400,6 +406,11 @@ int main(int /* argc */, char* argv[])
 				std::thread(&decode_loop, std::ref(recvd_data));
 			recvd_display_thread =
 				std::thread(&recvd_display_loop, std::ref(recvd_frames_to_display));
+
+			set_thread_name(capture_thread, "cam_capturer");
+			set_thread_name(send_thread, "sender");
+			set_thread_name(local_encode_thread, "mjpeg_encoder");
+			set_thread_name(recvd_decode_thread, "mjpeg_decoder");
 			break;
 		case SCTPClient::SSL_SHUTDOWN:
 			message += "SSL shutdown.";
