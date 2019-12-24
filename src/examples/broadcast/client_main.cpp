@@ -306,8 +306,16 @@ int main(int /* argc */, char* argv[])
 
 	tui->init([&](const auto& s)
 	{
-		if (client.connected()) client.send(s.c_str(), s.size());
-		else tui->put_message("\n" + s + " not sent (client not connected).\n");
+		if (client.connected()) {
+			try {
+				client.send(s.c_str(), s.size());
+			} catch (std::runtime_error& exc) {
+				tui->put_log(ITUI::LogLevel::WARNING,
+						"Send failed: " + std::string(exc.what()));
+			}
+		} else {
+			tui->put_message("\n" + s + " not sent (client not connected).\n");
+		}
 	});
 
 

@@ -134,6 +134,8 @@ private:
 
 	std::atomic_bool usrsctp_lib_initialized { false };
 
+	std::atomic_bool sender_dry { false };
+
 	State state = NONE;
 
 	int udp_sock_fd;
@@ -159,18 +161,18 @@ private:
 	void handle_server_data(void* buffer, ssize_t n, const struct sockaddr_in& addr,
 		const struct sctp_recvv_rn& rcv_info, unsigned int infotype);
 
-	void handle_notification(union sctp_notification* notif, size_t n);
-	void handle_association_change_event(struct sctp_assoc_change* sac);
-	void handle_remote_error_event(struct sctp_remote_error* sre);
-	void handle_stream_change_event(struct sctp_stream_change_event* strchg);
-	void handle_stream_reset_event(struct sctp_stream_reset_event* strrst);
+	void handle_notification(union sctp_notification*, size_t);
+	void handle_association_change_event(struct sctp_assoc_change*);
+	void handle_remote_error_event(struct sctp_remote_error*);
+	void handle_stream_change_event(struct sctp_stream_change_event*);
+	void handle_stream_reset_event(struct sctp_stream_reset_event*);
 	void handle_shutdown_event(struct sctp_shutdown_event*);
-	void handle_adaptation_indication(struct sctp_adaptation_event* sai);
-	void handle_send_failed_event(struct sctp_send_failed_event* ssfe);
-	void handle_peer_address_change_event(struct sctp_paddr_change* spc);
+	void handle_adaptation_indication(struct sctp_adaptation_event*);
+	void handle_send_failed_event(struct sctp_send_failed_event*);
+	void handle_peer_address_change_event(struct sctp_paddr_change*);
+	void handle_sender_dry_event(struct sctp_sender_dry_event*);
 
-	void set_state(SCTPClient::State new_state);
-
+	void set_state(SCTPClient::State);
 };
 
 

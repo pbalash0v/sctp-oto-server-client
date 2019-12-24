@@ -249,8 +249,11 @@ static void send_loop(SyncQueue<std::shared_ptr<std::vector<uchar>>>& q, SCTPCli
 		auto jpeg = *(q.dequeue());
 
 		if (jpeg.size() == 0) break;
-
-		client.send(jpeg.data(), jpeg.size());
+		try {
+			client.send(jpeg.data(), jpeg.size());
+		} catch (std::runtime_error& exc) {
+			spdlog::warn("Send failed: {}.", exc.what());
+		}
 	} while (true);
 
 	spdlog::debug("{} finished.", __func__);

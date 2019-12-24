@@ -451,7 +451,8 @@ void SCTPClient::init_SCTP()
                        			SCTP_REMOTE_ERROR,
                        			SCTP_SHUTDOWN_EVENT,
                        			SCTP_ADAPTATION_INDICATION,
-                       			SCTP_PARTIAL_DELIVERY_EVENT
+                       			SCTP_PARTIAL_DELIVERY_EVENT,
+                       			SCTP_SENDER_DRY_EVENT
                        		};
 	struct sctp_event event;
 	memset(&event, 0, sizeof(event));
@@ -588,7 +589,7 @@ ssize_t SCTPClient::send_raw_(const void* buf, size_t len)
 	} else {
 		int written = SSL_write(ssl, buf, len);
 		if (SSL_ERROR_NONE != SSL_get_error(ssl, written)) {
-			throw std::runtime_error("SSL_write");
+			throw std::runtime_error("send_raw_: SSL_write");
 		}
 
 		encrypted_msg_buff_.clear();
@@ -597,25 +598,33 @@ ssize_t SCTPClient::send_raw_(const void* buf, size_t len)
 		int read = BIO_read(output_bio, 
 					encrypted_msg_buff_.data(), encrypted_msg_buff_.size());
 		if (SSL_ERROR_NONE != SSL_get_error(ssl, read)) {
-			throw std::runtime_error("BIO_read");
+			throw std::runtime_error("send_raw_: BIO_read");
 		}
 		
 		sent = usrsctp_sendv(sock, encrypted_msg_buff_.data(), read,
 						 /* addrs */ NULL, /* addrcnt */ 0,
 						  /* info */ NULL, /* infolen */ 0,
 						   SCTP_SENDV_NOINFO, /* flags */ 0);
-		TRACE("Sent: " + std::to_string(sent)
-				 + std::string(". Errno: ") + std::string(strerror(errno)));
-
+		TRACE("Sent: " + std::to_string(sent) + std::string(". Errno: ") + std::string(strerror(errno)));
 	}
 
+	if (sent < 0) {
+		WARNING("usrsctp_sendv: " + std::string(strerror(errno)));
+		throw std::runtime_error("usrsctp_sendv: " + std::string(strerror(errno)));
+	}
+		
 	return sent;
 }
 
 
 ssize_t SCTPClient::send(const void* buf, size_t len)
 {
-	return send_raw_(buf, len);
+	if (sender_dry) {
+		sender_dry = false;
+		return send_raw_(buf, len);
+	} else {
+		throw std::runtime_error("sender_dry");
+	}
 }
 
 /*
@@ -1114,6 +1123,12 @@ void SCTPClient::handle_remote_error_event(struct sctp_remote_error* sre)
 	return;
 }
 
+void SCTPClient::handle_sender_dry_event(struct sctp_sender_dry_event*)
+{
+	sender_dry = true;	
+}
+
+
 void SCTPClient::handle_notification(union sctp_notification* notif, size_t n)
 {
 	TRACE_func_entry();
@@ -1159,7 +1174,8 @@ void SCTPClient::handle_notification(union sctp_notification* notif, size_t n)
 		break;
 	case SCTP_SENDER_DRY_EVENT:
 		message += "SCTP_SENDER_DRY_EVENT\n";
-		DEBUG(message);		
+		handle_sender_dry_event(&(notif->sn_sender_dry_event));
+		TRACE(message);
 		break;
 	case SCTP_NOTIFICATIONS_STOPPED_EVENT:
 		message += "SCTP_NOTIFICATIONS_STOPPED_EVENT\n";
