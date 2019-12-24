@@ -198,7 +198,10 @@ int main(int /* argc */, char* argv[]) {
 
 	while (true) {
 		std::string _s;
-		if (not getline(std::cin, _s)) break;
+		if (not getline(std::cin, _s)) {
+			spdlog::info("Shutting down...");
+			break;
+		}
 	}
 
 	return EXIT_SUCCESS;
