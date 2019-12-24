@@ -75,8 +75,6 @@ void Client::state(Client::State new_state)
 
 	assert(new_state != state_);
 
-	state_ = new_state;
-	
 	switch (new_state) {
 	case SCTP_ACCEPTED:
 	{
@@ -151,6 +149,8 @@ void Client::state(Client::State new_state)
 
 	TRACE(state_names[state_] + " -> " + state_names[new_state]);
 
+	state_ = new_state;
+
 	TRACE_func_left();
 }
 
@@ -174,6 +174,8 @@ size_t Client::send(const void* buf, size_t len)
 	if (sent < 0) {
 		WARNING("usrsctp_sendv: " + std::string(strerror(errno)));
 	}
+	
+	TRACE("Sent: " + std::to_string(sent) + std::string(". Errno: ") + std::string(strerror(errno)));
 
 	return sent;
 };

@@ -605,14 +605,15 @@ ssize_t SCTPClient::send_raw_(const void* buf, size_t len)
 						 /* addrs */ NULL, /* addrcnt */ 0,
 						  /* info */ NULL, /* infolen */ 0,
 						   SCTP_SENDV_NOINFO, /* flags */ 0);
-		TRACE("Sent: " + std::to_string(sent) + std::string(". Errno: ") + std::string(strerror(errno)));
 	}
 
 	if (sent < 0) {
 		WARNING("usrsctp_sendv: " + std::string(strerror(errno)));
 		throw std::runtime_error("usrsctp_sendv: " + std::string(strerror(errno)));
 	}
-		
+	
+	TRACE("Sent: " + std::to_string(sent) + std::string(". Errno: ") + std::string(strerror(errno)));
+	
 	return sent;
 }
 
@@ -733,31 +734,34 @@ void SCTPClient::handle_server_data(void* buffer, ssize_t n, const struct sockad
 	{
 		TRACE(std::string("encrypted message length n: ") + std::to_string(n));
 
-		size_t total_decrypted_message_size = 0;
-
 		int written = BIO_write(input_bio, buffer, n);
-		assert(SSL_ERROR_NONE == SSL_get_error(ssl, written));
+		if (SSL_ERROR_NONE != SSL_get_error(ssl, written)) {
+			throw std::runtime_error("BIO_write");
+		}
 
-		do {
-			int read = SSL_read(ssl, static_cast<char*>(outbuf) + total_decrypted_message_size, MAX_TLS_RECORD_SIZE);
-			//TRACE(std::string("SSL read: ") + std::to_string(read));
+		size_t total_decrypted_message_size = 0;
+		int read = -1;
 
-			if (read == 0 and SSL_ERROR_ZERO_RETURN == SSL_get_error(ssl, read)) {
+		while (BIO_ctrl_pending(input_bio)) {
+			read = SSL_read(ssl, static_cast<char*>(outbuf) + total_decrypted_message_size, MAX_TLS_RECORD_SIZE);
+			TRACE(std::string("SSL read: ") + std::to_string(read));
+
+			if (read == 0 and (SSL_ERROR_ZERO_RETURN == SSL_get_error(ssl, read))) {
 				set_state(SCTPClient::SSL_SHUTDOWN);
 				break;
 			}
 
 			if (read < 0 and (SSL_ERROR_WANT_READ == SSL_get_error(ssl, read))) {
-				WARNING("SSL_ERROR_WANT_READ");
-				break;
+				TRACE("SSL_ERROR_WANT_READ");
+				continue;
 			}
 
-			assert(SSL_ERROR_NONE == SSL_get_error(ssl, written));
+			assert(SSL_ERROR_NONE == SSL_get_error(ssl, read));
 
 			total_decrypted_message_size += read;
-		} while (BIO_ctrl_pending(input_bio));
+		}
 
-		DEBUG(([&]
+		if (read > 0) DEBUG(([&]
 		{
 			char message[BUFFERSIZE] = {'\0'};
 			char name[INET_ADDRSTRLEN];
@@ -787,7 +791,7 @@ void SCTPClient::handle_server_data(void* buffer, ssize_t n, const struct sockad
 			return std::string(message);
 		})());
 
-		if (cfg_->data_cback_f) {
+		if (cfg_->data_cback_f and (read > 0)) {
 			std::unique_ptr<SCTPClient::Data> data;
 
 			try {

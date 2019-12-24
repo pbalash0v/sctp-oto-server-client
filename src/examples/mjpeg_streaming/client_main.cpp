@@ -298,7 +298,7 @@ void recvd_display_loop(SyncQueue<std::unique_ptr<cv::Mat>>& q)
 	spdlog::debug("{} finished.", __func__);
 }
 
-void set_thread_name(std::thread& thread, const char* name)
+static void set_thread_name(std::thread& thread, const char* name)
 {
    auto handle = thread.native_handle();
    pthread_setname_np(handle, name);
