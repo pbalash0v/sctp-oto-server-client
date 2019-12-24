@@ -52,8 +52,11 @@ int main(int, char const**)
 				client.send(_s.c_str(), _s.size());
 			 	running = false;
 			}
-
 		};
+
+		client.cfg()->debug_cback_f = [&](auto, const auto& s) {
+			std::cout << s << std::endl;
+		};		
 
 		client.init();
 
