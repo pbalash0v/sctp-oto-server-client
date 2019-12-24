@@ -53,7 +53,7 @@ static void parse_args(char* argv[], struct option options[])
 
 	options[CLIOptions::VERBOSITY].long_name  = "verbose";
 	options[CLIOptions::VERBOSITY].short_name = 'v';
-	options[CLIOptions::VERBOSITY].flags      = GOPT_ARGUMENT_FORBIDDEN;
+	options[CLIOptions::VERBOSITY].flags      = GOPT_ARGUMENT_FORBIDDEN | GOPT_REPEATABLE;
 
 	options[CLIOptions::UDP_ENCAPS_PORT].long_name  = "udp-port";
 	options[CLIOptions::UDP_ENCAPS_PORT].short_name = 'p';
@@ -66,6 +66,7 @@ static void parse_args(char* argv[], struct option options[])
 	options[CLIOptions::OPTIONS_COUNT].flags = GOPT_LAST;
 
 	gopt(argv, options);
+	gopt_errors(argv[0], options);
 }
 
 static std::shared_ptr<SCTPServer::Config> get_cfg_or_die(char* argv[], struct option options[])
