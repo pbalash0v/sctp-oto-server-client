@@ -100,8 +100,8 @@ static std::shared_ptr<SCTPClient::Config> get_cfg_or_die(char* argv[], struct o
 		"\t-v, --verbose\t\t -- be verbose" << std::endl << \
 		"\t-h, --help\t\t -- this message" << std::endl << \
 		"\t-V, --version\t\t -- print the version and exit" << std::endl << \
-
 		std::endl;
+		
 		exit(EXIT_SUCCESS);
 	}
 
@@ -180,11 +180,11 @@ static std::shared_ptr<SCTPClient::Config> get_cfg_or_die(char* argv[], struct o
 	return cfg;
 }
 
-
+// queues for local data
 SyncQueue<std::shared_ptr<cv::Mat>> local_frames_to_display;
 SyncQueue<std::shared_ptr<cv::Mat>> frames_to_encode;
 SyncQueue<std::shared_ptr<std::vector<uchar>>> frames_to_send {/* max queued */ 5};
-
+// queues for remote data
 SyncQueue<std::unique_ptr<SCTPClient::Data>> recvd_data;
 SyncQueue<std::unique_ptr<cv::Mat>> recvd_frames_to_display;
 
@@ -314,8 +314,8 @@ int main(int /* argc */, char* argv[])
 
 	std::atomic_bool running { true };
 
-	/* Client config */
-	auto cfg = get_cfg_or_die(argv, options);
+	/* Client */
+	SCTPClient client { get_cfg_or_die(argv, options) };
 
 	/* init video capturing/display/encoding/send threads */
 	cv::VideoCapture camera(0);
@@ -325,19 +325,20 @@ int main(int /* argc */, char* argv[])
 	}
 
 	std::thread capture_thread;
-	std::thread local_display_thread;
-	std::thread local_encode_thread;
-	std::thread send_thread;
+	std::thread local_display_thread { &local_display_loop, std::ref(local_frames_to_display) };
+	std::thread local_encode_thread { &encode_loop, std::ref(frames_to_encode) };
+	std::thread send_thread { &send_loop, std::ref(frames_to_send), std::ref(client) };
+	std::thread recvd_decode_thread { &decode_loop, std::ref(recvd_data) };
+	std::thread recvd_display_thread { &recvd_display_loop, std::ref(recvd_frames_to_display) };
 
-	std::thread recvd_decode_thread;
-	std::thread recvd_display_thread;
-
+	set_thread_name(send_thread, "sender");
+	set_thread_name(local_encode_thread, "mjpeg_encoder");
+	set_thread_name(recvd_decode_thread, "mjpeg_decoder");
 
 	cv::namedWindow("Webcam", cv::WINDOW_AUTOSIZE);
 	cv::namedWindow("Echo", cv::WINDOW_AUTOSIZE);
 
-	/* init sctp client */
-	SCTPClient client { cfg };
+	/* init client */
 	client.cfg()->data_cback_f = [&](auto s)
 	{ 
 		spdlog::trace("Server sent: {}", std::to_string(s->size));
@@ -394,23 +395,8 @@ int main(int /* argc */, char* argv[])
 		case SCTPClient::SSL_CONNECTED:
 			message += "SSL established.";
 
-			capture_thread = 
-				std::thread(&capture_loop,std::ref(running), std::ref(camera));
-			local_display_thread = 
-				std::thread(&local_display_loop, std::ref(local_frames_to_display));
-			local_encode_thread = 
-				std::thread(&encode_loop, std::ref(frames_to_encode));
-			send_thread = 
-				std::thread(&send_loop, std::ref(frames_to_send), std::ref(client));
-			recvd_decode_thread = 
-				std::thread(&decode_loop, std::ref(recvd_data));
-			recvd_display_thread =
-				std::thread(&recvd_display_loop, std::ref(recvd_frames_to_display));
-
+			capture_thread = std::thread(&capture_loop,std::ref(running), std::ref(camera));
 			set_thread_name(capture_thread, "cam_capturer");
-			set_thread_name(send_thread, "sender");
-			set_thread_name(local_encode_thread, "mjpeg_encoder");
-			set_thread_name(recvd_decode_thread, "mjpeg_decoder");
 			break;
 		case SCTPClient::SSL_SHUTDOWN:
 			message += "SSL shutdown.";
