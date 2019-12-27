@@ -155,7 +155,7 @@ int main(int /* argc */, char* argv[]) {
 
 	srv.cfg()->data_cback_f = [&](auto client, const auto& s)
 	{
-		spdlog::info("Received {} bytes message.", s->size);
+		spdlog::debug("Received {} bytes message.", s->size);
 		srv.send(client, s->data, s->size);
 	};
 

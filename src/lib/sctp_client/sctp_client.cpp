@@ -964,7 +964,8 @@ void SCTPClient::handle_association_change_event(struct sctp_assoc_change* sac)
 				int res = SSL_do_handshake(ssl);
 				assert(BIO_ctrl_pending(output_bio));
 
-				state(SCTPClient::SSL_HANDSHAKING);
+				state(SSL_HANDSHAKING);
+				
 				if (SSL_ERROR_WANT_READ == SSL_get_error(ssl, res)) {
 						char outbuf[MAX_TLS_RECORD_SIZE] = { 0 };
 						int read = BIO_read(output_bio, outbuf, sizeof(outbuf));
