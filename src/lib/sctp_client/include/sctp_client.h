@@ -14,6 +14,7 @@
 
 
 constexpr uint16_t DEFAULT_LOCAL_UDP_ENCAPS_PORT = 0; //choose ephemeral
+constexpr uint16_t DEFAULT_LOCAL_SCTP_PORT = 0; // set the same as udp encaps port
 
 constexpr const char* DEFAULT_SERVER_ADDRESS = "127.0.0.1";
 constexpr uint16_t DEFAULT_SERVER_UDP_ENCAPS_PORT = 9899;
@@ -54,7 +55,7 @@ public:
 
    struct Data {
    	Data();
-   	Data(const void*, size_t);
+   	explicit Data(const void*, size_t);
 		Data(const Data& oth) = delete;
 		Data& operator=(const Data& oth) = delete;
 		Data(Data&& other);
@@ -73,11 +74,12 @@ public:
 	struct Config
 	{
 		Config() = default;
-		Config(const Config& oth) = delete;
-		Config& operator=(const Config& oth) = delete;
+		Config(const Config&) = delete;
+		Config& operator=(const Config&) = delete;
 		virtual ~Config() = default;
 
 		uint16_t udp_encaps_port { DEFAULT_LOCAL_UDP_ENCAPS_PORT };
+		uint16_t sctp_port { DEFAULT_LOCAL_SCTP_PORT };
 		uint16_t server_udp_port { DEFAULT_SERVER_UDP_ENCAPS_PORT };
 		uint16_t server_sctp_port { DEFAULT_SERVER_SCTP_PORT };
 		std::string server_address { DEFAULT_SERVER_ADDRESS };
@@ -93,9 +95,9 @@ public:
 	};
 
 	SCTPClient();
-	SCTPClient(std::shared_ptr<SCTPClient::Config> p);
-	SCTPClient(const SCTPClient& oth) = delete;
-	SCTPClient& operator=(const SCTPClient& oth) = delete;
+	explicit SCTPClient(std::shared_ptr<SCTPClient::Config>);
+	SCTPClient(const SCTPClient&) = delete;
+	SCTPClient& operator=(const SCTPClient&) = delete;
 	virtual ~SCTPClient();
 
 	/*
@@ -109,13 +111,13 @@ public:
 	void init();
 
 	/* 
-		Start client. async
+		Starts client. Doesn't block.
 	*/
 	void operator()();
 
-	bool connected() const { return state == SSL_CONNECTED; };
+	bool connected() const { return state_ == SSL_CONNECTED; };
 
-	ssize_t send(const void* buf, size_t len);
+	ssize_t send(const void*, size_t);
 
 	void stop();
 
@@ -128,18 +130,20 @@ private:
 	std::shared_ptr<SCTPClient::Config> cfg_;
 
 	SSL_h ssl_obj { SSL_h::CLIENT };
-	SSL* ssl = nullptr;
-	BIO* output_bio = nullptr;
-	BIO* input_bio = nullptr;
+	SSL* ssl { nullptr };
+	BIO* output_bio { nullptr };
+	BIO* input_bio { nullptr };
 
 	std::atomic_bool usrsctp_lib_initialized { false };
+	static std::atomic_size_t number_of_instances;
 
 	std::atomic_bool sender_dry { false };
 
-	State state = NONE;
+	State state_ = NONE;
 
 	int udp_sock_fd;
-	struct socket* sock = nullptr;
+	uint16_t bound_udp_encaps_port_ { 0 };
+	struct socket* sock { nullptr };
 
 	std::vector<char> sctp_msg_buff_;
 	std::vector<char> decrypted_msg_buff_;
@@ -153,13 +157,13 @@ private:
 	void init_usrsctp_lib();		
 	void init_SCTP();	
 	
-	ssize_t send_raw_(const void* buf, size_t len);
+	ssize_t send_raw_(const void*, size_t);
 
-	static int conn_output(void* obj, void *buf, size_t length, uint8_t tos, uint8_t set_df);
-	static void handle_upcall(struct socket* sock, void* arg, int flgs);
+	static int conn_output(void*, void*, size_t, uint8_t, uint8_t);
+	static void handle_upcall(struct socket*, void*, int);
 
-	void handle_server_data(void* buffer, ssize_t n, const struct sockaddr_in& addr,
-		const struct sctp_recvv_rn& rcv_info, unsigned int infotype);
+	void handle_server_data(void*, ssize_t, const struct sockaddr_in&,
+		const struct sctp_recvv_rn&, unsigned int);
 
 	void handle_notification(union sctp_notification*, size_t);
 	void handle_association_change_event(struct sctp_assoc_change*);
@@ -172,8 +176,8 @@ private:
 	void handle_peer_address_change_event(struct sctp_paddr_change*);
 	void handle_sender_dry_event(struct sctp_sender_dry_event*);
 
-	void set_state(SCTPClient::State);
+	void state(SCTPClient::State);
 };
 
 
-std::ostream& operator<<(std::ostream& out, const SCTPClient::Config& c);		
+std::ostream& operator<<(std::ostream&, const SCTPClient::Config&);		

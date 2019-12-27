@@ -143,7 +143,7 @@ static std::shared_ptr<SCTPClient::Config> get_cfg_or_die(char* argv[], struct o
 
 		if (options[CLIOptions::SERVER_UDP_PORT].count) {
 			auto _p = std::strtoul(options[CLIOptions::SERVER_UDP_PORT].argument, NULL, 10);
-			if (errno == ERANGE or _p > MAX_IP_PORT or _p == 0) {
+			if ((errno == ERANGE) or (_p > MAX_IP_PORT) or (_p == 0)) {
 				std::cout << "Supplied UDP port " << options[CLIOptions::SERVER_UDP_PORT].argument
 							 << " is invalid." << std::endl;
 				exit(EXIT_FAILURE);	
@@ -160,7 +160,7 @@ static std::shared_ptr<SCTPClient::Config> get_cfg_or_die(char* argv[], struct o
 
 		if (options[CLIOptions::SERVER_SCTP_PORT].count) {
 			auto _p = std::strtoul(options[CLIOptions::SERVER_SCTP_PORT].argument, NULL, 10);
-			if (errno == ERANGE or _p > MAX_IP_PORT or _p == 0) {
+			if ((errno == ERANGE) or (_p > MAX_IP_PORT) or (_p == 0)) {
 				std::cout << "Supplied SCTP port " << options[CLIOptions::SERVER_SCTP_PORT].argument
 							 << " is invalid." << std::endl;
 				exit(EXIT_FAILURE);	

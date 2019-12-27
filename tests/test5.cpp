@@ -54,7 +54,8 @@ protected:
 constexpr static const char* TEST_STRING = "HELLO";
 constexpr static const char* START_SIGNAL = "START_SIGNAL";
 
-int main(int, char const**) {
+int main(int, char const**)
+{
 	/* 
 		we need two processes since simultaneously using 
 		two instances of usrsctp seems to be impossible

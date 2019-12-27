@@ -41,7 +41,7 @@ libtest_a_CPPFLAGS = $(TESTS_CPPFLAGS)
 				
 
 ## tests
-check_PROGRAMS = test1 test2 test3 test4 test5 test6
+check_PROGRAMS = test1 test2 test3 test4 test5 test6 test7
 check_PROGRAMS_FAIL = test5
 
 AM_DEFAULT_SOURCE_EXT = .cpp
@@ -66,21 +66,25 @@ test2_LDADD = 	$(TESTS_LDADD)
 		
 ## test3			
 test3_CXXFLAGS = $(AM_CXXFLAGS)
-test3_CPPFLAGS =$(TESTS_CPPFLAGS)
+test3_CPPFLAGS = $(TESTS_CPPFLAGS)
 test3_LDADD = 	$(TESTS_LDADD)
 
 ## test4			
 test4_CXXFLAGS = $(AM_CXXFLAGS)
-test4_CPPFLAGS =$(TESTS_CPPFLAGS)
+test4_CPPFLAGS = $(TESTS_CPPFLAGS)
 test4_LDADD = 	$(TESTS_LDADD)
 
 ## test5	
 test5_CXXFLAGS = $(AM_CXXFLAGS)
-test5_CPPFLAGS =$(TESTS_CPPFLAGS)
+test5_CPPFLAGS = $(TESTS_CPPFLAGS)
 test5_LDADD = 	$(TESTS_LDADD)
 
 ## test6	
 test6_CXXFLAGS = $(AM_CXXFLAGS)
-test6_CPPFLAGS =$(TESTS_CPPFLAGS)
+test6_CPPFLAGS = $(TESTS_CPPFLAGS)
 test6_LDADD = 	$(TESTS_LDADD)
 
+## test7
+test7_CXXFLAGS = $(AM_CXXFLAGS)
+test7_CPPFLAGS = $(TESTS_CPPFLAGS)
+test7_LDADD = 	$(TESTS_LDADD)
