@@ -121,7 +121,7 @@ void SCTPServer::cleanup()
 	TRACE_func_entry();
 
 	{
-		std::lock_guard<std::mutex> lock(clients_mutex_);
+		std::lock_guard<std::mutex> _ { clients_mutex_ };
 
 		if (serv_sock_) {
 			TRACE("before serv_sock_ usrsctp_shutdown");
@@ -154,10 +154,12 @@ void SCTPServer::cleanup()
 */
 void SCTPServer::try_init_local_UDP()
 {
+	TRACE_func_entry();
+
 	/* will point to the result */
-	struct addrinfo* serv_info = NULL;
+	struct addrinfo* serv_info { nullptr };
 	/* RAII for serv_info */
-	std::shared_ptr<struct addrinfo*> ptr (&serv_info,
+	std::shared_ptr<struct addrinfo*> _ (&serv_info,
 					 [&](struct addrinfo** s) { if (*s) freeaddrinfo(*s); });
 
 	struct addrinfo hints;
@@ -170,6 +172,7 @@ void SCTPServer::try_init_local_UDP()
 	int status;
 	if ((status = getaddrinfo(NULL, std::to_string(cfg_->udp_encaps_port).c_str(),
 		 &hints, &serv_info)) != 0) {
+		CRITICAL(std::string("getaddrinfo: ") + gai_strerror(status));
 		throw std::runtime_error(gai_strerror(status));
 	}
 
@@ -182,17 +185,21 @@ void SCTPServer::try_init_local_UDP()
 
 	int temp_sock_fd;
 	if ((temp_sock_fd = socket(serv_info->ai_family, serv_info->ai_socktype, serv_info->ai_protocol)) <= 0) {
+		CRITICAL(std::string("socket: ") + strerror(errno));
 		throw std::runtime_error(strerror(errno));
 	}
 
 	if (bind(temp_sock_fd, serv_info->ai_addr, serv_info->ai_addrlen) < 0) {
+		CRITICAL(std::string("bind: ") + strerror(errno));
 		throw std::runtime_error(strerror(errno));
 	}
 
 	if (close(temp_sock_fd) < 0) {
+		CRITICAL(std::string("close: ") + strerror(errno));
 		throw std::runtime_error(strerror(errno));
 	}
-	
+
+	TRACE_func_left();
 }
 
 void SCTPServer::init()
@@ -280,7 +287,7 @@ void SCTPServer::init()
 	for (auto ev_type : event_types) {
 		event.se_type = ev_type;
 		if (usrsctp_setsockopt(serv_sock_, IPPROTO_SCTP, SCTP_EVENT, &event, sizeof(event)) < 0) {
-			ERROR("usrsctp_setsockopt SCTP_EVENT for serv_sock");
+			CRITICAL("usrsctp_setsockopt SCTP_EVENT for serv_sock");
 			throw std::runtime_error(std::string("setsockopt SCTP_EVENT: ") + strerror(errno));
 		}
 	}
@@ -339,7 +346,7 @@ void SCTPServer::broadcast(const void* data, size_t len)
 {
 	TRACE_func_entry();
 
-	std::lock_guard<std::mutex> lock(clients_mutex_);
+	std::lock_guard<std::mutex> _ { clients_mutex_ };
 	for (auto& c : clients_) {
 		send(c, data, len);
 	}
@@ -393,7 +400,7 @@ void SCTPServer::drop_client(std::shared_ptr<IClient>& c)
 {
 	TRACE_func_entry();
 
-	std::lock_guard<std::mutex> lock(clients_mutex_);
+	std::lock_guard<std::mutex> _ { clients_mutex_ };
 	clients_.erase(std::remove_if(clients_.begin(), clients_.end(),
 	 [&] (auto s_ptr) { return s_ptr->socket() == c->socket(); }), clients_.end());
 
@@ -433,7 +440,7 @@ void SCTPServer::handle_server_upcall(struct socket* serv_sock, void* arg, int)
 		}
 
 		{
-			std::lock_guard<std::mutex> lock(s->clients_mutex_);
+			std::lock_guard<std::mutex> _ { s->clients_mutex_ } ;
 
 			auto new_client = s->client_factory(conn_sock);
 			s->clients_.push_back(new_client);
@@ -493,7 +500,7 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 			auto& clients = s->clients_;
 
 			{
-				std::lock_guard<std::mutex> lock(s->clients_mutex_);
+				std::lock_guard<std::mutex> _ { s->clients_mutex_ };
 
 				auto it = std::find_if(clients.cbegin(), clients.cend(),
 					[&] (const auto& s_ptr) { return s_ptr->socket() == upcall_sock; });
@@ -1313,8 +1320,8 @@ std::ostream& operator<<(std::ostream& out, const SCTPServer::Config& c)
 {
 	out << "UDP encaps port: " << std::to_string(c.udp_encaps_port) << ", ";
 	out << "SCTP port: " << std::to_string(c.sctp_port) << ", ";	
-	out << "Data callback: " << (c.data_cback_f == nullptr ? "nullptr" : "set") << ", ";
-	out << "Debug callback: " << (c.debug_f == nullptr ? "nullptr" : "set") << ", ";
+	out << "Data callback: " << (c.data_cback_f == nullptr ? "not set" : "set") << ", ";
+	out << "Debug callback: " << (c.debug_f == nullptr ? "not set" : "set") << ", ";
 	out << "SSL certificate: " << c.cert_filename << ", ";
 	out << "SSL key: " << c.key_filename;	
 	return out;
