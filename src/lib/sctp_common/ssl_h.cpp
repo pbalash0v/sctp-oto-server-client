@@ -16,7 +16,7 @@ SSL_h::SSL_h(SSL_h::SSLType type) : type_(type) {}
 
 SSL_h::~SSL_h()
 {
-	if (type_ == SERVER && nullptr != ctx_) SSL_CTX_free(ctx_);
+	if (nullptr != ctx_) SSL_CTX_free(ctx_);	
 }
 
 void SSL_h::init(const std::string& cert_file, const std::string& key_file)
