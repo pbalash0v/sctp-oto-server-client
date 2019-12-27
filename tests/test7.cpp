@@ -1,5 +1,7 @@
 #include <string>
+#include <string.h>
 #include <atomic>
+#include <thread>
 #include <memory>
 #include <cassert>
 #include <algorithm>
@@ -38,7 +40,10 @@ int main(int, char const**)
  	if (pid == 0) { 	// child client process
  		assert(prctl(PR_SET_PDEATHSIG, SIGHUP) >= 0);
 
-		std::atomic_bool running { true };
+		std::atomic_bool client1_done { false };
+		std::atomic_bool client2_done { false };
+
+		std::mutex cout_mutex;
 
 		auto cli1_cfg = ([]
 		{
@@ -51,14 +56,16 @@ int main(int, char const**)
 		SCTPClient client1 { cli1_cfg };
 		client1.cfg()->state_cback_f = [&](auto state) {
 			if (state == SCTPClient::SSL_CONNECTED) {
-				std::string _s = std::string(TEST_STRING_CLIENT_1);
-				client1.send(_s.c_str(), _s.size());
-			 	running = false;
+				//std::string _s = std::string(TEST_STRING_CLIENT_1);
+				//client1.send(_s.c_str(), _s.size());
+				client1.send(TEST_STRING_CLIENT_1, strlen(TEST_STRING_CLIENT_1) + 1);
+			 	client1_done = true;
 			}
 		};
 		client1.cfg()->debug_cback_f = [&](auto, const auto& s) {
 			std::string s_ { s };
 			s_.erase(std::remove(s_.begin(), s_.end(), '\n'), s_.end());
+			std::lock_guard<std::mutex> _ { cout_mutex };
 			std::cout << client1 << ": " + s_ << std::endl;
 		};
 
@@ -72,14 +79,16 @@ int main(int, char const**)
 		SCTPClient client2 { cli2_cfg };
 		client2.cfg()->state_cback_f = [&](auto state) {
 			if (state == SCTPClient::SSL_CONNECTED) {
-				std::string _s = std::string(TEST_STRING_CLIENT_2);
-				client2.send(_s.c_str(), _s.size());
-			 	running = false;
+				//std::string _s = std::string(TEST_STRING_CLIENT_2);
+				//client2.send(_s.c_str(), _s.size());
+				client2.send(TEST_STRING_CLIENT_2, strlen(TEST_STRING_CLIENT_2) + 1);
+			 	client2_done = true;
 			}
 		};
 		client2.cfg()->debug_cback_f = [&](auto, const auto& s) {
 			std::string s_ { s };
-			s_.erase(std::remove(s_.begin(), s_.end(), '\n'), s_.end());			
+			s_.erase(std::remove(s_.begin(), s_.end(), '\n'), s_.end());
+			std::lock_guard<std::mutex> _ { cout_mutex };
 			std::cout << client2 << ": " + s_ << std::endl;
 		};
 
@@ -94,9 +103,10 @@ int main(int, char const**)
 		client1();
 		client2();
 
-		while (running) {
-			std::this_thread::sleep_for(std::chrono::milliseconds(10));
+		while (not (client1_done and client2_done)) {
+			std::this_thread::sleep_for(std::chrono::milliseconds(100));
 		}
+
  	} else if (pid > 0) {      // server process
 		std::atomic_bool running { true };
 
@@ -108,23 +118,23 @@ int main(int, char const**)
 		server.cfg()->cert_filename = "../src/certs/server-cert.pem";
 		server.cfg()->key_filename = "../src/certs/server-key.pem";
 		server.cfg()->data_cback_f = [&](auto, const auto& s) {
-			auto msg { static_cast<const char*> (s->data) };
+			std::string msg { static_cast<const char*>(s->data) };
 
-			if (msg == TEST_STRING_CLIENT_1) {
+			if (not strcmp(static_cast<const char*>(s->data), TEST_STRING_CLIENT_1)) {
 				std::cout << msg << std::endl;
 				client1_done = true;
 			}
-			if (msg == TEST_STRING_CLIENT_2) {
+			if (not strcmp(static_cast<const char*>(s->data), TEST_STRING_CLIENT_2)) {
 				std::cout << msg << std::endl;
 				client2_done = true;
 			}
 				
-	 		running = (client1_done && client2_done) ? true : false;
+	 		running = (client1_done and client2_done) ? false : true;
 		};
 		server.cfg()->debug_f = [&](auto, const auto& s) {
 			std::string s_ { s };
 			s_.erase(std::remove(s_.begin(), s_.end(), '\n'), s_.end());			
-			std::cout << s_ << std::endl;
+			std::cout << "S:" << s_ << std::endl;
 		};
 
 		try {
