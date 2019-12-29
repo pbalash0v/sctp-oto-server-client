@@ -56,8 +56,6 @@ int main(int, char const**)
 		SCTPClient client1 { cli1_cfg };
 		client1.cfg()->state_cback_f = [&](auto state) {
 			if (state == SCTPClient::SSL_CONNECTED) {
-				//std::string _s = std::string(TEST_STRING_CLIENT_1);
-				//client1.send(_s.c_str(), _s.size());
 				client1.send(TEST_STRING_CLIENT_1, strlen(TEST_STRING_CLIENT_1) + 1);
 			 	client1_done = true;
 			}
@@ -79,8 +77,6 @@ int main(int, char const**)
 		SCTPClient client2 { cli2_cfg };
 		client2.cfg()->state_cback_f = [&](auto state) {
 			if (state == SCTPClient::SSL_CONNECTED) {
-				//std::string _s = std::string(TEST_STRING_CLIENT_2);
-				//client2.send(_s.c_str(), _s.size());
 				client2.send(TEST_STRING_CLIENT_2, strlen(TEST_STRING_CLIENT_2) + 1);
 			 	client2_done = true;
 			}

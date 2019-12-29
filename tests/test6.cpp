@@ -19,7 +19,7 @@ int main(int, char const**) {
 
 
 	{
-		SyncQueue<int> q(Q_LIMIT);
+		SyncQueue<int> q { Q_LIMIT };
 		for (int i = 0; i < Q_SIZE; ++i) q.enqueue(i);
 		assert(q.size() == Q_LIMIT);
 		q.dequeue();

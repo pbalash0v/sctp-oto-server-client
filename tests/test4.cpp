@@ -2,6 +2,7 @@
 #include <atomic>
 #include <memory>
 #include <algorithm>
+
 #include <cassert>
 
 #include <sys/prctl.h>
@@ -50,8 +51,9 @@ int main(int, char const**)
 		
 		client.cfg()->state_cback_f = [&](auto state) {
 			if (state == SCTPClient::SSL_CONNECTED) {
-				std::string _s = std::string(TEST_STRING);
-				client.send(_s.c_str(), _s.size());
+				client.send(TEST_STRING, strlen(TEST_STRING) + 1);
+				std::this_thread::sleep_for(std::chrono::milliseconds(510));
+
 			 	running = false;
 			}
 		};
@@ -84,8 +86,11 @@ int main(int, char const**)
 		server.cfg()->cert_filename = "../src/certs/server-cert.pem";
 		server.cfg()->key_filename = "../src/certs/server-key.pem";
 		server.cfg()->data_cback_f = [&](auto, const auto& s) {
-			assert(std::string(static_cast<const char*> (s->data)) == TEST_STRING);
-		 	running = false;
+			if (strcmp(static_cast<const char*>(s->data), TEST_STRING)) {
+				assert(false);
+			} else {
+				running = false;
+			}
 		};
 		server.cfg()->debug_f = [&](auto, const auto& s) {
 			std::string s_ { s };
