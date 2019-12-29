@@ -12,6 +12,7 @@
 
 #include "ssl_h.h"
 #include "sctp_server_client.h"
+#include "sctp_server_client_data.h"
 
 
 #ifdef TEST_BUILD
@@ -69,7 +70,7 @@ public:
    };
 
 	using SCTPServer_cback_t = std::function<void(const std::shared_ptr<IClient>,
-																 std::unique_ptr<IClient::Data>)>;
+																 std::unique_ptr<Data>)>;
 	using SCTPServer_debug_t = std::function<void(SCTPServer::LogLevel, const std::string&)>;	
 
 	class Config

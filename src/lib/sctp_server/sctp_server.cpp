@@ -553,6 +553,7 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 		memset(&rn, 0, sizeof(struct sctp_recvv_rn));
 		//struct sctp_rcvinfo rcv_info;
 		ssize_t n;
+		size_t nbytes;
 		struct sockaddr_in addr;
 		int flags = 0;
 		socklen_t from_len = (socklen_t) sizeof(struct sockaddr_in);
@@ -566,7 +567,7 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 										 (struct sockaddr*) &addr, &from_len, (void *) &rn,
 											&infolen, &infotype, &flags)) > 0) {
 
-			if (not (flags & MSG_EOR)) {
+			if (not (flags & MSG_EOR)) { /* usrsctp_recvv incomplete */
 				//TRACE("usrsctp_recvv incomplete: " + std::to_string(n));
 				client->sctp_msg_buff().insert(client->sctp_msg_buff().end(), recv_buf, recv_buf + n);
 
@@ -574,23 +575,26 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 				memset(recv_buf, 0, sizeof recv_buf);
 				//TRACE("usrsctp_recvv so far: " + std::to_string(client->sctp_msg_buff().size()));
 				continue;
-			} else {
-				if (not client->sctp_msg_buff().empty())
+			} else { /* receive complete */
+				if (not client->sctp_msg_buff().empty()) { /* some data already buffered. append last chunk*/
 					client->sctp_msg_buff().insert(client->sctp_msg_buff().end(), recv_buf, recv_buf + n);
+				}
 			}
 
 			assert(flags & MSG_EOR);
-			// Here we got full sctp message. Processing it.
-			n = (client->sctp_msg_buff().empty()) ? n : client->sctp_msg_buff().size();
+			// Now we got full sctp message. Processing it.
+			// At this point we can have message buffered in vector or in char array on a stack.
+			// Unifying.
+			nbytes = (client->sctp_msg_buff().empty()) ? n : client->sctp_msg_buff().size();
 			void* data_buf = (client->sctp_msg_buff().empty()) ? recv_buf : client->sctp_msg_buff().data();
 
 			try {
 				if (flags & MSG_NOTIFICATION) {
-					TRACE(std::string("Notification of length ")+ std::to_string(n) + std::string(" received."));
-					s->handle_notification(client, static_cast<union sctp_notification*>(data_buf), n);
+					TRACE(std::string("Notification of length ") + std::to_string(nbytes) + std::string(" received."));
+					s->handle_notification(client, static_cast<union sctp_notification*>(data_buf), nbytes);
 				} else {
-					TRACE(std::string("Socket data of length ")+ std::to_string(n) + std::string(" received "));
-					client->server().handle_client_data(client, data_buf, n, addr, rn, infotype);
+					TRACE(std::string("SCTP msg of length ") + std::to_string(nbytes) + std::string(" received."));
+					client->server().handle_client_data(client, data_buf, nbytes, addr, rn, infotype);
 				}
 			} catch (const std::runtime_error& exc) {
 				log_client_error("handle_client_data", client);
@@ -845,7 +849,7 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 
 		if (cfg_->data_cback_f and (read >0)) {
 			try {
-				cfg_->data_cback_f(c, std::make_unique<IClient::Data>(outbuf, total_decrypted_message_size));
+				cfg_->data_cback_f(c, std::make_unique<Data>(outbuf, total_decrypted_message_size));
 			} catch (const std::runtime_error& exc) {
 				ERROR(exc.what());
 			} catch (...) {

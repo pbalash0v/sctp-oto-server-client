@@ -118,6 +118,8 @@ SCTPClient::~SCTPClient()
 
 	SSL_free(ssl_);
 
+	usrsctp_deregister_address(this); // ?
+
 	TRACE("About to usrsctp_close");
 	usrsctp_close(sock_);
 	TRACE("usrsctp sock closed");
@@ -157,7 +159,6 @@ void SCTPClient::state(SCTPClient::State new_state)
 		ssl_ = SSL_new(ssl_obj_.ctx_);
 		output_bio_ = BIO_new(BIO_s_mem());
 		input_bio_ = BIO_new(BIO_s_mem());
-
 		assert(ssl_); assert(output_bio_); assert(input_bio_);
 
 		SSL_set_bio(ssl_, input_bio_, output_bio_);
@@ -167,24 +168,24 @@ void SCTPClient::state(SCTPClient::State new_state)
 	case SSL_HANDSHAKING:
 		{
 			int res = SSL_do_handshake(ssl_);
-			assert(BIO_ctrl_pending(output_bio_));
 
 			if (SSL_ERROR_WANT_READ == SSL_get_error(ssl_, res)) {
-					char outbuf[MAX_TLS_RECORD_SIZE] = { 0 };
-					int read = BIO_read(output_bio_, outbuf, sizeof(outbuf));
-					if (SSL_ERROR_NONE != SSL_get_error(ssl_, read)) {
-						throw std::runtime_error("BIO_read");
-					}
+				char outbuf[MAX_TLS_RECORD_SIZE] = { 0 };
+				int read = BIO_read(output_bio_, outbuf, sizeof(outbuf));
+				if (SSL_ERROR_NONE != SSL_get_error(ssl_, read)) {
+					throw std::runtime_error("BIO_read");
+				}
 
-					if (send_raw(outbuf, read) < 0) {
-						throw std::runtime_error(strerror(errno));
-					}
+				if (send_raw(outbuf, read) < 0) {
+					throw std::runtime_error(strerror(errno));
+				}
 			} else {
 				throw std::runtime_error("SSL handshake error");
 			}	
 		}
 		break;
 	case PURGE:
+		/* end udp data processing thread by queueing empty data*/
 		raw_udp_data_.enqueue(std::make_unique<SCTPClient::Data>());
 		break;
 
@@ -298,10 +299,9 @@ void SCTPClient::handle_upcall(struct socket* sock, void* arg, int /* flgs */)
 
 
 		if (n == 0) {
-			TRACE("Socket shutdown");
-			//usrsctp_deregister_address(c); // ?
-			//usrsctp_close(c->sock);
-			//shutdown(c->udp_sock_fd, SHUT_RDWR);			
+			TRACE("SCTP socket has been shutdown");
+			 /* this should wake recv in udp thread */
+			shutdown(c->udp_sock_fd_, SHUT_RDWR);
 		}
 
 		if (n < 0) {
@@ -389,8 +389,7 @@ void SCTPClient::init_local_UDP()
       struct sockaddr_in* ipv4 = (struct sockaddr_in *) p->ai_addr;
       void* addr = &(ipv4->sin_addr);
 		inet_ntop(p->ai_family, addr, ipstr, sizeof ipstr);
-		TRACE(ipstr);
-		TRACE(std::to_string(ipv4->sin_port));
+		TRACE(ipstr + std::string(":") + std::to_string(ipv4->sin_port));
 		memset(ipstr, 0, sizeof ipstr);
 	}
 	
@@ -1012,10 +1011,7 @@ void SCTPClient::handle_association_change_event(struct sctp_assoc_change* sac)
 		break;
 
 	case SCTP_SHUTDOWN_COMP:
-		usrsctp_deregister_address(this); // ?
-		//usrsctp_close(sock_);
-		 /* this should wake recv in udp thread */
-		shutdown(udp_sock_fd_, SHUT_RDWR);
+
 		break;
 
 	case SCTP_CANT_STR_ASSOC:
@@ -1195,11 +1191,11 @@ void SCTPClient::handle_sender_dry_event(struct sctp_sender_dry_event*)
 
 void SCTPClient::handle_notification(union sctp_notification* notif, size_t n)
 {
-	TRACE_func_entry();
-
 	if (notif->sn_header.sn_length != (uint32_t) n) {
+		WARNING("notif->sn_header.sn_length != n");
 		return;
 	}
+
 	std::string message { "handle_notification : " };
 
 	switch (notif->sn_header.sn_type) {
@@ -1267,9 +1263,6 @@ void SCTPClient::handle_notification(union sctp_notification* notif, size_t n)
 	default:
 		break;
 	}
-
-
-	TRACE_func_left();
 }
 
 

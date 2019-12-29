@@ -10,7 +10,7 @@ class SyncQueue {
 public:
 	SyncQueue(size_t max_queued = 0) 
 		: max_queued_(max_queued) {};
-	~SyncQueue() {};
+	~SyncQueue() = default;
 	SyncQueue(const SyncQueue<T>& other) = delete;
 	SyncQueue<T>& operator=(const SyncQueue<T>& oth) = delete;
 
