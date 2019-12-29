@@ -50,7 +50,8 @@
 #define TRACE_func_left() TRACE("Left " + std::string(__func__))
 
 
-constexpr auto BUFFERSIZE = 1 << 16; /* or use dynamic alloc with BIO_ctrl_pending(output_bio) ? */
+constexpr auto BUFFERSIZE = 1 << 16;
+constexpr auto MAX_TLS_RECORD_SIZE  = 1 << 14;
 
 std::atomic_size_t SCTPClient::number_of_instances_ { 0 };
 
@@ -61,7 +62,6 @@ namespace {
 	std::map<std::string, std::vector<SCTPClient::State>> state_allowed_funcs {
 			{"init", std::vector<SCTPClient::State> { SCTPClient::NONE }},
 			{"init_usrsctp_lib", std::vector<SCTPClient::State> { SCTPClient::NONE }},
-			{"init_local_UDP", std::vector<SCTPClient::State> { SCTPClient::NONE }},
 			{"init_local_UDP", std::vector<SCTPClient::State> { SCTPClient::NONE }},
 			{"init_remote_UDP", std::vector<SCTPClient::State> { SCTPClient::NONE }},
 			{"init_SCTP", std::vector<SCTPClient::State> { SCTPClient::NONE }},
@@ -96,7 +96,8 @@ static inline bool _check_state(const std::string& func_name, SCTPClient::State 
 
 SCTPClient::SCTPClient() : SCTPClient(std::make_shared<SCTPClient::Config>()) {};
 
-SCTPClient::SCTPClient(std::shared_ptr<SCTPClient::Config> p) : cfg_(p) {
+SCTPClient::SCTPClient(std::shared_ptr<SCTPClient::Config> p) : cfg_(p)
+{
 	sctp_msg_buff_.reserve(cfg_->message_size*2);
 	decrypted_msg_buff_.reserve(cfg_->message_size*2);
 	encrypted_msg_buff_.reserve(cfg_->message_size*2);
@@ -162,9 +163,27 @@ void SCTPClient::state(SCTPClient::State new_state)
 		SSL_set_bio(ssl_, input_bio_, output_bio_);
 
 		SSL_set_connect_state(ssl_);
-		
 		break;
+	case SSL_HANDSHAKING:
+		{
+			int res = SSL_do_handshake(ssl_);
+			assert(BIO_ctrl_pending(output_bio_));
 
+			if (SSL_ERROR_WANT_READ == SSL_get_error(ssl_, res)) {
+					char outbuf[MAX_TLS_RECORD_SIZE] = { 0 };
+					int read = BIO_read(output_bio_, outbuf, sizeof(outbuf));
+					if (SSL_ERROR_NONE != SSL_get_error(ssl_, read)) {
+						throw std::runtime_error("BIO_read");
+					}
+
+					if (send_raw(outbuf, read) < 0) {
+						throw std::runtime_error(strerror(errno));
+					}
+			} else {
+				throw std::runtime_error("SSL handshake error");
+			}	
+		}
+		break;
 	case PURGE:
 		raw_udp_data_.enqueue(std::make_unique<SCTPClient::Data>());
 		break;
@@ -172,6 +191,7 @@ void SCTPClient::state(SCTPClient::State new_state)
 	default:
 		break;
 	}
+
 	state_ = new_state;
 
 	if (cfg_->state_cback_f) {
@@ -746,7 +766,6 @@ void SCTPClient::handle_server_data(void* buffer, ssize_t n, const struct sockad
 {
 	TRACE(state_names[state_]);
 
-	#define MAX_TLS_RECORD_SIZE (1 << 14)
 	size_t outbuf_len = (state_ != SSL_CONNECTED) ?
 								MAX_TLS_RECORD_SIZE : n;
 
@@ -926,8 +945,6 @@ void SCTPClient::handle_association_change_event(struct sctp_assoc_change* sac)
 				message += "UNKNOWN";
 				break;
 		}
-
-
 		message += ", streams (in/out) = (";
 		message += std::to_string(sac->sac_inbound_streams);
 		message += "/";
@@ -979,51 +996,32 @@ void SCTPClient::handle_association_change_event(struct sctp_assoc_change* sac)
 	})();
 	DEBUG(message);
 
-
-
 	/*
 		Real association change handling
 	*/
 	switch (sac->sac_state) {
-		case SCTP_COMM_UP:
-			{
-				state(SCTP_CONNECTED);
+	case SCTP_COMM_UP:
+		state(SCTP_CONNECTED);
+		state(SSL_HANDSHAKING);
+		break;
 
-				int res = SSL_do_handshake(ssl_);
-				assert(BIO_ctrl_pending(output_bio_));
+	case SCTP_COMM_LOST:
+		break;
 
-				state(SSL_HANDSHAKING);
+	case SCTP_RESTART:
+		break;
 
-				if (SSL_ERROR_WANT_READ == SSL_get_error(ssl_, res)) {
-						char outbuf[MAX_TLS_RECORD_SIZE] = { 0 };
-						int read = BIO_read(output_bio_, outbuf, sizeof(outbuf));
-						if (SSL_ERROR_NONE != SSL_get_error(ssl_, read)) {
-							throw std::runtime_error("BIO_read");
-						}
+	case SCTP_SHUTDOWN_COMP:
+		usrsctp_deregister_address(this); // ?
+		//usrsctp_close(sock_);
+		 /* this should wake recv in udp thread */
+		shutdown(udp_sock_fd_, SHUT_RDWR);
+		break;
 
-						if (send_raw(outbuf, read) < 0) {
-							throw std::runtime_error(strerror(errno));
-						}
-
-				} else {
-					throw std::runtime_error("SSL handshake error");
-				}
-			}
-			break;
-		case SCTP_COMM_LOST:
-			break;
-		case SCTP_RESTART:
-			break;
-		case SCTP_SHUTDOWN_COMP:
-			usrsctp_deregister_address(this); // ?
-			usrsctp_close(sock_);
-			 /* this should wake recv in udp thread */
-			shutdown(udp_sock_fd_, SHUT_RDWR);
-			break;
-		case SCTP_CANT_STR_ASSOC:
-			break;
-		default:
-			break;
+	case SCTP_CANT_STR_ASSOC:
+		break;
+	default:
+		break;
 	}
 
 	return;
