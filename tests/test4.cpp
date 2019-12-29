@@ -1,6 +1,7 @@
 #include <string>
 #include <atomic>
 #include <memory>
+#include <algorithm>
 #include <cassert>
 
 #include <sys/prctl.h>
@@ -56,7 +57,9 @@ int main(int, char const**)
 		};
 
 		client.cfg()->debug_cback_f = [&](auto, const auto& s) {
-			std::cout << s << std::endl;
+			std::string s_ { s };
+			s_.erase(std::remove(s_.begin(), s_.end(), '\n'), s_.end());			
+			std::cout << s_ << std::endl;
 		};
 
 		client.init();
@@ -72,7 +75,7 @@ int main(int, char const**)
 			std::this_thread::sleep_for(std::chrono::milliseconds(10));
 		}
 
-
+		client.stop();
  	} else if (pid > 0) {      // server process
 		std::atomic_bool running { true };
 
@@ -85,7 +88,9 @@ int main(int, char const**)
 		 	running = false;
 		};
 		server.cfg()->debug_f = [&](auto, const auto& s) {
-			std::cout << s << std::endl;
+			std::string s_ { s };
+			s_.erase(std::remove(s_.begin(), s_.end(), '\n'), s_.end());
+			std::cout << "S:" << s_ << std::endl;
 		};
 
 		try {
