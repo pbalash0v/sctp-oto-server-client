@@ -10,6 +10,7 @@
 
 #include <arpa/inet.h>
 
+#include "sync_queue.hpp"
 #include "ssl_h.h"
 
 
@@ -129,35 +130,39 @@ public:
 private:
 	std::shared_ptr<SCTPClient::Config> cfg_;
 
-	SSL_h ssl_obj { SSL_h::CLIENT };
-	SSL* ssl { nullptr };
-	BIO* output_bio { nullptr };
-	BIO* input_bio { nullptr };
+	SSL_h ssl_obj_ { SSL_h::CLIENT };
+	SSL* ssl_ { nullptr };
+	BIO* output_bio_ { nullptr };
+	BIO* input_bio_ { nullptr };
 
-	std::atomic_bool usrsctp_lib_initialized { false };
-	static std::atomic_size_t number_of_instances;
+	std::atomic_bool usrsctp_lib_initialized_ { false };
+	static std::atomic_size_t number_of_instances_;
 
-	std::atomic_bool sender_dry { false };
+	std::atomic_bool sender_dry_ { false };
 
 	State state_ = NONE;
 
-	int udp_sock_fd;
+	int udp_sock_fd_;
 	uint16_t bound_udp_encaps_port_ { 0 };
-	struct socket* sock { nullptr };
+	struct socket* sock_ { nullptr };
 
+	SyncQueue<std::unique_ptr<SCTPClient::Data>> raw_udp_data_;
 	std::vector<char> sctp_msg_buff_;
 	std::vector<char> decrypted_msg_buff_;
 	std::vector<char> encrypted_msg_buff_;
 
-	std::thread udp_thr;
-	void udp_loop();
+	std::thread udp_recv_thr_;
+	void udp_recv_loop();
+
+	std::thread udp_data_thr_;
+	void handle_raw_udp_data_loop();
 
 	void init_local_UDP();
 	void init_remote_UDP();
 	void init_usrsctp_lib();		
 	void init_SCTP();	
 	
-	ssize_t send_raw_(const void*, size_t);
+	ssize_t send_raw(const void*, size_t);
 
 	static int conn_output(void*, void*, size_t, uint8_t, uint8_t);
 	static void handle_upcall(struct socket*, void*, int);

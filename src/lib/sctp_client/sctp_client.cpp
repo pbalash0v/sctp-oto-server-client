@@ -52,7 +52,7 @@
 
 constexpr auto BUFFERSIZE = 1 << 16; /* or use dynamic alloc with BIO_ctrl_pending(output_bio) ? */
 
-std::atomic_size_t SCTPClient::number_of_instances { 0 };
+std::atomic_size_t SCTPClient::number_of_instances_ { 0 };
 
 namespace {
 	/*
@@ -67,8 +67,9 @@ namespace {
 			{"init_SCTP", std::vector<SCTPClient::State> { SCTPClient::NONE }},
 			{"operator()", std::vector<SCTPClient::State> { SCTPClient::INITIALIZED }},
 			{"send", std::vector<SCTPClient::State> { SCTPClient::SSL_CONNECTED }},
-			{"udp_loop", std::vector<SCTPClient::State> { SCTPClient::SCTP_CONNECTING }},
-			{"send_raw_", std::vector<SCTPClient::State> 
+			{"udp_recv_loop", std::vector<SCTPClient::State> { SCTPClient::SCTP_CONNECTING }},
+			{"handle_raw_udp_data_loop", std::vector<SCTPClient::State> { SCTPClient::SCTP_CONNECTING }},
+			{"send_raw", std::vector<SCTPClient::State> 
 				{ SCTPClient::SCTP_CONNECTING, SCTPClient::SCTP_CONNECTED, 
 					SCTPClient::SSL_HANDSHAKING, SCTPClient::SSL_CONNECTED, SCTPClient::SSL_SHUTDOWN, }}
 	};
@@ -99,26 +100,30 @@ SCTPClient::SCTPClient(std::shared_ptr<SCTPClient::Config> p) : cfg_(p) {
 	sctp_msg_buff_.reserve(cfg_->message_size*2);
 	decrypted_msg_buff_.reserve(cfg_->message_size*2);
 	encrypted_msg_buff_.reserve(cfg_->message_size*2);
-	SCTPClient::number_of_instances++;
+	SCTPClient::number_of_instances_++;
 };
 
 SCTPClient::~SCTPClient()
 {
 	TRACE_func_entry();
 
-	TRACE("About to join udp thread");
-	if (udp_thr.joinable()) udp_thr.join();
-	TRACE("udp thread joined");
+	TRACE("About to join udp receive thread");
+	if (udp_recv_thr_.joinable()) udp_recv_thr_.join();
+	TRACE("udp receive thread joined");
 
-	SSL_free(ssl);
+	TRACE("About to join udp data handling thread");
+	if (udp_data_thr_.joinable()) udp_data_thr_.join();
+	TRACE("udp data handling thread joined");
+
+	SSL_free(ssl_);
 
 	TRACE("About to usrsctp_close");
-	usrsctp_close(sock);
+	usrsctp_close(sock_);
 	TRACE("usrsctp sock closed");
 
-	SCTPClient::number_of_instances--;
+	SCTPClient::number_of_instances_--;
 
-	if (SCTPClient::number_of_instances == 0) {
+	if (SCTPClient::number_of_instances_ == 0) {
 		TRACE("About to usrsctp_finish");
 		bool finished_clean = false;
 		for (int i = 0; i < 3; i++) {
@@ -138,8 +143,6 @@ SCTPClient::~SCTPClient()
 
 void SCTPClient::state(SCTPClient::State new_state)
 {
-	TRACE_func_entry();
-
 	if (new_state == state_) {
 		CRITICAL("Wrong state transition.");
 		throw std::logic_error("Wrong state transition.");
@@ -147,6 +150,28 @@ void SCTPClient::state(SCTPClient::State new_state)
 
 	TRACE(state_names[state_] + " -> " + state_names[new_state]);
 
+	switch (new_state) {
+	case SCTP_CONNECTED:
+		// TODO: should be refactored into ssl_obj
+		ssl_ = SSL_new(ssl_obj_.ctx_);
+		output_bio_ = BIO_new(BIO_s_mem());
+		input_bio_ = BIO_new(BIO_s_mem());
+
+		assert(ssl_); assert(output_bio_); assert(input_bio_);
+
+		SSL_set_bio(ssl_, input_bio_, output_bio_);
+
+		SSL_set_connect_state(ssl_);
+		
+		break;
+
+	case PURGE:
+		raw_udp_data_.enqueue(std::make_unique<SCTPClient::Data>());
+		break;
+
+	default:
+		break;
+	}
 	state_ = new_state;
 
 	if (cfg_->state_cback_f) {
@@ -156,8 +181,6 @@ void SCTPClient::state(SCTPClient::State new_state)
 			CRITICAL("Exception in user state_cback function");
 		}
 	}
-
-	TRACE_func_left();
 }
 
 
@@ -295,7 +318,7 @@ int SCTPClient::conn_output(void* arg, void *buf, size_t length,
 	}
 #endif
 
-	int numbytes = ::send(c->udp_sock_fd, buf, length, 0);
+	int numbytes = ::send(c->udp_sock_fd_, buf, length, 0);
 
 	if (numbytes < 0) {
 		CRITICAL(strerror(errno));
@@ -351,11 +374,11 @@ void SCTPClient::init_local_UDP()
 		memset(ipstr, 0, sizeof ipstr);
 	}
 	
-	if ((udp_sock_fd = socket(cli_info->ai_family, cli_info->ai_socktype, cli_info->ai_protocol)) <= 0) {
+	if ((udp_sock_fd_ = socket(cli_info->ai_family, cli_info->ai_socktype, cli_info->ai_protocol)) <= 0) {
 		throw std::runtime_error(strerror(errno));
 	}
 
-	if (bind(udp_sock_fd, cli_info->ai_addr, cli_info->ai_addrlen) < 0) {
+	if (bind(udp_sock_fd_, cli_info->ai_addr, cli_info->ai_addrlen) < 0) {
 		throw std::runtime_error(strerror(errno));
 	}
 
@@ -401,7 +424,7 @@ void SCTPClient::init_remote_UDP()
 	if (not found) throw std::runtime_error("Error resolving server address.");
 
 
-	if (connect(udp_sock_fd, ipv4, sizeof (struct sockaddr_in)) < 0) {
+	if (connect(udp_sock_fd_, ipv4, sizeof (struct sockaddr_in)) < 0) {
 		throw std::runtime_error(strerror(errno));
 	}
 
@@ -425,7 +448,7 @@ void SCTPClient::init_usrsctp_lib()
 	CHECK_STATE();
 	TRACE_func_entry();
 
-	if (usrsctp_lib_initialized) return;
+	if (usrsctp_lib_initialized_) return;
 
 	void (*debug_printf)(const char *format, ...) = NULL;
 
@@ -437,7 +460,7 @@ void SCTPClient::init_usrsctp_lib()
   	/* Disable the Explicit Congestion Notification extension */
 	usrsctp_sysctl_set_sctp_ecn_enable(0);
 
-	usrsctp_lib_initialized = true;
+	usrsctp_lib_initialized_ = true;
 
 	TRACE_func_left();
 }
@@ -458,7 +481,7 @@ void SCTPClient::init_SCTP()
 	uint32_t sb_threshold = 0;
 	void* recv_cback_data = NULL;
 
-	if ((sock = usrsctp_socket(AF_CONN, SOCK_STREAM, IPPROTO_SCTP, 
+	if ((sock_ = usrsctp_socket(AF_CONN, SOCK_STREAM, IPPROTO_SCTP, 
 					receive_cb, send_cb, sb_threshold, recv_cback_data)) == NULL) {
 		throw std::runtime_error(strerror(errno));
 	}
@@ -477,20 +500,19 @@ void SCTPClient::init_SCTP()
 	event.se_on = 1;
 	for (auto ev_type : event_types) {
 		event.se_type = ev_type;
-		if (usrsctp_setsockopt(sock, IPPROTO_SCTP, SCTP_EVENT, &event, sizeof(event)) < 0) {
+		if (usrsctp_setsockopt(sock_, IPPROTO_SCTP, SCTP_EVENT, &event, sizeof(event)) < 0) {
 			ERROR("usrsctp_setsockopt SCTP_EVENT");
 			throw std::runtime_error(std::string("setsockopt SCTP_EVENT: "));
 		}
 	}
 
-	usrsctp_set_non_blocking(sock, 1);
-	usrsctp_set_upcall(sock, handle_upcall, this);
-
+	usrsctp_set_non_blocking(sock_, 1);
+	usrsctp_set_upcall(sock_, handle_upcall, this);
 
 	// get bound UDP port
    struct sockaddr_in bound;
    socklen_t len = sizeof bound;
-	if (getsockname(udp_sock_fd, (struct sockaddr*) &bound, &len) < 0) {
+	if (getsockname(udp_sock_fd_, (struct sockaddr*) &bound, &len) < 0) {
 		throw std::runtime_error(strerror(errno));
 	}
 	TRACE("Bound udp encaps port: " + std::to_string(htons(bound.sin_port)));
@@ -512,22 +534,22 @@ void SCTPClient::init_SCTP()
 	*/
 	sconn.sconn_port = (cfg_->sctp_port == 0) ? bound.sin_port : htons(cfg_->sctp_port);
 	sconn.sconn_addr = this;
-	if (usrsctp_bind(sock, (struct sockaddr *)&sconn, sizeof(struct sockaddr_conn)) < 0) {
+	if (usrsctp_bind(sock_, (struct sockaddr *)&sconn, sizeof(struct sockaddr_conn)) < 0) {
 		throw std::runtime_error(strerror(errno));
 	}
 
 	//no Nagle
 	uint32_t optval = 1;
-	if (usrsctp_setsockopt(sock, IPPROTO_SCTP, SCTP_NODELAY, &optval, sizeof(int)) < 0) {
+	if (usrsctp_setsockopt(sock_, IPPROTO_SCTP, SCTP_NODELAY, &optval, sizeof(int)) < 0) {
 		throw std::runtime_error(strerror(errno));
 	}
 
 	// send/recv buffers
 	auto bufsize = 1024*1024;
-	if (usrsctp_setsockopt(sock, SOL_SOCKET, SO_RCVBUF, &bufsize, sizeof(int)) < 0) {
+	if (usrsctp_setsockopt(sock_, SOL_SOCKET, SO_RCVBUF, &bufsize, sizeof(int)) < 0) {
 		throw std::runtime_error("setsockopt: rcvbuf" + std::string(strerror(errno)));
 	}
-	if (usrsctp_setsockopt(sock, SOL_SOCKET, SO_SNDBUF, &bufsize, sizeof(int)) < 0) {
+	if (usrsctp_setsockopt(sock_, SOL_SOCKET, SO_SNDBUF, &bufsize, sizeof(int)) < 0) {
 		throw std::runtime_error("setsockopt: sndbuf" + std::string(strerror(errno)));
 	}
 
@@ -541,7 +563,7 @@ void SCTPClient::init()
 	TRACE_func_entry();
 
 	try {
-		ssl_obj.init(cfg_->cert_filename, cfg_->key_filename);
+		ssl_obj_.init(cfg_->cert_filename, cfg_->key_filename);
 		init_local_UDP();
 		init_remote_UDP();
 		init_usrsctp_lib();
@@ -565,7 +587,8 @@ void SCTPClient::operator()()
 
 	state(SCTP_CONNECTING);
 
-	udp_thr = std::thread(&SCTPClient::udp_loop, this);
+	udp_recv_thr_ = std::thread(&SCTPClient::udp_recv_loop, this);
+	udp_data_thr_ = std::thread(&SCTPClient::handle_raw_udp_data_loop, this);
 
 	struct sockaddr_conn sconn;
 	memset(&sconn, 0, sizeof(struct sockaddr_conn));
@@ -578,7 +601,7 @@ void SCTPClient::operator()()
 	sconn.sconn_addr = this; // ??????
 
 	//doesn't block
-	int res = usrsctp_connect(sock, (struct sockaddr *)&sconn, sizeof(struct sockaddr_conn));
+	int res = usrsctp_connect(sock_, (struct sockaddr *)&sconn, sizeof(struct sockaddr_conn));
 	if ((res < 0) and (errno != EINPROGRESS)) {
 		throw std::runtime_error(strerror(errno));
 	}
@@ -591,24 +614,24 @@ void SCTPClient::stop()
 {
 	TRACE_func_entry();
 
-	if (sock) {
+	if (sock_) {
 		TRACE("About to usrsctp_shutdown SHUT_WR");
 		/* 
 			(we are not going to send anything more, so SHUT_WR)
 			Call is async, we should handle assoc notification in upcall.
 		 */
-		usrsctp_shutdown(sock, SHUT_WR);
+		usrsctp_shutdown(sock_, SHUT_WR);
 	}
 
-	if (state_ == SCTP_CONNECTING) shutdown(udp_sock_fd, SHUT_RDWR);			
+	if (state_ == SCTP_CONNECTING) shutdown(udp_sock_fd_, SHUT_RDWR);
 
 	TRACE_func_left();
 }
 
 
-ssize_t SCTPClient::send_raw_(const void* buf, size_t len)
+ssize_t SCTPClient::send_raw(const void* buf, size_t len)
 {
-	assert(sock);
+	assert(sock_);
 	CHECK_STATE();
 
 	ssize_t sent = -1;
@@ -617,26 +640,26 @@ ssize_t SCTPClient::send_raw_(const void* buf, size_t len)
 		// addrs - NULL for connected socket
 		// addrcnt: Number of addresses.
 		// As at most one address is supported, addrcnt is 0 if addrs is NULL and 1 otherwise.
-		sent = usrsctp_sendv(sock, buf, len,
+		sent = usrsctp_sendv(sock_, buf, len,
 						 /* addrs */ NULL, /* addrcnt */ 0,
 						  /* info */ NULL, /* infolen */ 0,
 						   SCTP_SENDV_NOINFO, /* flags */ 0);
 	} else {
-		int written = SSL_write(ssl, buf, len);
-		if (SSL_ERROR_NONE != SSL_get_error(ssl, written)) {
+		int written = SSL_write(ssl_, buf, len);
+		if (SSL_ERROR_NONE != SSL_get_error(ssl_, written)) {
 			throw std::runtime_error("send_raw_: SSL_write");
 		}
 
 		encrypted_msg_buff_.clear();
-		encrypted_msg_buff_.resize(BIO_ctrl_pending(output_bio));
+		encrypted_msg_buff_.resize(BIO_ctrl_pending(output_bio_));
 
-		int read = BIO_read(output_bio, 
+		int read = BIO_read(output_bio_, 
 					encrypted_msg_buff_.data(), encrypted_msg_buff_.size());
-		if (SSL_ERROR_NONE != SSL_get_error(ssl, read)) {
+		if (SSL_ERROR_NONE != SSL_get_error(ssl_, read)) {
 			throw std::runtime_error("send_raw_: BIO_read");
 		}
 		
-		sent = usrsctp_sendv(sock, encrypted_msg_buff_.data(), read,
+		sent = usrsctp_sendv(sock_, encrypted_msg_buff_.data(), read,
 						 /* addrs */ NULL, /* addrcnt */ 0,
 						  /* info */ NULL, /* infolen */ 0,
 						   SCTP_SENDV_NOINFO, /* flags */ 0);
@@ -655,9 +678,9 @@ ssize_t SCTPClient::send_raw_(const void* buf, size_t len)
 
 ssize_t SCTPClient::send(const void* buf, size_t len)
 {
-	if (sender_dry) {
-		sender_dry = false;
-		return send_raw_(buf, len);
+	if (sender_dry_) {
+		sender_dry_ = false;
+		return send_raw(buf, len);
 	} else {
 		throw std::runtime_error("sender_dry");
 	}
@@ -665,8 +688,9 @@ ssize_t SCTPClient::send(const void* buf, size_t len)
 
 /*
 	Reads from raw udp socket in a loop
+	and enqueues.
 */
-void SCTPClient::udp_loop()
+void SCTPClient::udp_recv_loop()
 {
 	CHECK_STATE();
 	TRACE_func_entry();
@@ -675,7 +699,7 @@ void SCTPClient::udp_loop()
 
 	try {
 		while (true) {
-			int numbytes = recv(udp_sock_fd, buf, BUFFERSIZE, 0);
+			int numbytes = recv(udp_sock_fd_, buf, BUFFERSIZE, 0);
 
 	 		if (numbytes == 0) {  /* socket has been shutdown */
 				break;
@@ -689,7 +713,7 @@ void SCTPClient::udp_loop()
 				}
 			}
 
-			usrsctp_conninput(this, buf, (size_t) numbytes, /* ecn_bits */ 0);
+			raw_udp_data_.enqueue(std::make_unique<SCTPClient::Data>(buf, numbytes));
 		}
 	} catch (const std::runtime_error& exc) {
 		CRITICAL(exc.what());
@@ -699,6 +723,22 @@ void SCTPClient::udp_loop()
 
 	TRACE_func_left();
 }
+
+void SCTPClient::handle_raw_udp_data_loop()
+{
+	TRACE_func_entry();
+
+	while (true) {
+		auto data = raw_udp_data_.dequeue();
+
+		if (not data->buf) break;
+
+		usrsctp_conninput(this, data->buf, data->size, /* ecn_bits */ 0);		
+	}
+
+	TRACE_func_left();
+}
+
 
 
 void SCTPClient::handle_server_data(void* buffer, ssize_t n, const struct sockaddr_in& addr,
@@ -718,29 +758,29 @@ void SCTPClient::handle_server_data(void* buffer, ssize_t n, const struct sockad
 	case SCTPClient::SSL_HANDSHAKING:
 	{
 
-		int written = BIO_write(input_bio, buffer, n);
-		if (SSL_ERROR_NONE != SSL_get_error(ssl, written)) throw std::runtime_error("SSL_write");
+		int written = BIO_write(input_bio_, buffer, n);
+		if (SSL_ERROR_NONE != SSL_get_error(ssl_, written)) throw std::runtime_error("SSL_write");
 
-		int res = SSL_do_handshake(ssl);
+		int res = SSL_do_handshake(ssl_);
 
-		if (not SSL_is_init_finished(ssl)) {
-			if (SSL_ERROR_WANT_READ == SSL_get_error(ssl, res) and BIO_ctrl_pending(output_bio)) {
-				int read = BIO_read(output_bio, outbuf, outbuf_len);
-				if (SSL_ERROR_NONE != SSL_get_error(ssl, read)) {
+		if (not SSL_is_init_finished(ssl_)) {
+			if (SSL_ERROR_WANT_READ == SSL_get_error(ssl_, res) and BIO_ctrl_pending(output_bio_)) {
+				int read = BIO_read(output_bio_, outbuf, outbuf_len);
+				if (SSL_ERROR_NONE != SSL_get_error(ssl_, read)) {
 					throw std::runtime_error("BIO_read");
 				}
-				if (send_raw_(outbuf, read) < 0) {
+				if (send_raw(outbuf, read) < 0) {
 					throw std::runtime_error(strerror(errno));
 				}
 				break;
 			}
 
-			if (SSL_ERROR_NONE == SSL_get_error(ssl, res) and BIO_ctrl_pending(output_bio)) {
-				int read = BIO_read(output_bio, outbuf, outbuf_len);
-				if (SSL_ERROR_NONE != SSL_get_error(ssl, read)) {
+			if (SSL_ERROR_NONE == SSL_get_error(ssl_, res) and BIO_ctrl_pending(output_bio_)) {
+				int read = BIO_read(output_bio_, outbuf, outbuf_len);
+				if (SSL_ERROR_NONE != SSL_get_error(ssl_, read)) {
 					throw std::runtime_error("BIO_read");
 				}
-				if (send_raw_(outbuf, read) < 0) {
+				if (send_raw(outbuf, read) < 0) {
 					throw std::runtime_error(strerror(errno));
 				}
 
@@ -748,17 +788,17 @@ void SCTPClient::handle_server_data(void* buffer, ssize_t n, const struct sockad
 				break;
 			}
 
-			if (SSL_ERROR_NONE == SSL_get_error(ssl, res) and !BIO_ctrl_pending(output_bio)) {
+			if (SSL_ERROR_NONE == SSL_get_error(ssl_, res) and !BIO_ctrl_pending(output_bio_)) {
 				state(SSL_CONNECTED);
 				break;
 			}
 
 		} else {
-			if (BIO_ctrl_pending(output_bio)) {
-				int read = BIO_read(output_bio, outbuf, outbuf_len);
-				if (SSL_ERROR_NONE != SSL_get_error(ssl, read)) throw std::runtime_error("BIO_read");
+			if (BIO_ctrl_pending(output_bio_)) {
+				int read = BIO_read(output_bio_, outbuf, outbuf_len);
+				if (SSL_ERROR_NONE != SSL_get_error(ssl_, read)) throw std::runtime_error("BIO_read");
 
-				if (send_raw_(outbuf, read) < 0) throw std::runtime_error(strerror(errno));
+				if (send_raw(outbuf, read) < 0) throw std::runtime_error(strerror(errno));
 			}
 
 			state(SSL_CONNECTED);
@@ -770,29 +810,29 @@ void SCTPClient::handle_server_data(void* buffer, ssize_t n, const struct sockad
 	{
 		TRACE(std::string("encrypted message length n: ") + std::to_string(n));
 
-		int written = BIO_write(input_bio, buffer, n);
-		if (SSL_ERROR_NONE != SSL_get_error(ssl, written)) {
+		int written = BIO_write(input_bio_, buffer, n);
+		if (SSL_ERROR_NONE != SSL_get_error(ssl_, written)) {
 			throw std::runtime_error("BIO_write");
 		}
 
 		size_t total_decrypted_message_size = 0;
 		int read = -1;
 
-		while (BIO_ctrl_pending(input_bio)) {
-			read = SSL_read(ssl, static_cast<char*>(outbuf) + total_decrypted_message_size, MAX_TLS_RECORD_SIZE);
+		while (BIO_ctrl_pending(input_bio_)) {
+			read = SSL_read(ssl_, static_cast<char*>(outbuf) + total_decrypted_message_size, MAX_TLS_RECORD_SIZE);
 			TRACE(std::string("SSL read: ") + std::to_string(read));
 
-			if (read == 0 and (SSL_ERROR_ZERO_RETURN == SSL_get_error(ssl, read))) {
+			if (read == 0 and (SSL_ERROR_ZERO_RETURN == SSL_get_error(ssl_, read))) {
 				state(SSL_SHUTDOWN);
 				break;
 			}
 
-			if (read < 0 and (SSL_ERROR_WANT_READ == SSL_get_error(ssl, read))) {
+			if (read < 0 and (SSL_ERROR_WANT_READ == SSL_get_error(ssl_, read))) {
 				TRACE("SSL_ERROR_WANT_READ");
 				continue;
 			}
 
-			assert(SSL_ERROR_NONE == SSL_get_error(ssl, read));
+			assert(SSL_ERROR_NONE == SSL_get_error(ssl_, read));
 
 			total_decrypted_message_size += read;
 		}
@@ -949,31 +989,19 @@ void SCTPClient::handle_association_change_event(struct sctp_assoc_change* sac)
 			{
 				state(SCTP_CONNECTED);
 
-				// TODO: should be refactored into ssl_obj
-				{
-					ssl = SSL_new(ssl_obj.ctx_);
-					output_bio = BIO_new(BIO_s_mem());
-					input_bio = BIO_new(BIO_s_mem());
-
-					assert(ssl); assert(output_bio); assert(input_bio);
-
-					SSL_set_bio(ssl, input_bio, output_bio);
-
-					SSL_set_connect_state(ssl);
-				}
-				int res = SSL_do_handshake(ssl);
-				assert(BIO_ctrl_pending(output_bio));
+				int res = SSL_do_handshake(ssl_);
+				assert(BIO_ctrl_pending(output_bio_));
 
 				state(SSL_HANDSHAKING);
-				
-				if (SSL_ERROR_WANT_READ == SSL_get_error(ssl, res)) {
+
+				if (SSL_ERROR_WANT_READ == SSL_get_error(ssl_, res)) {
 						char outbuf[MAX_TLS_RECORD_SIZE] = { 0 };
-						int read = BIO_read(output_bio, outbuf, sizeof(outbuf));
-						if (SSL_ERROR_NONE != SSL_get_error(ssl, read)) {
+						int read = BIO_read(output_bio_, outbuf, sizeof(outbuf));
+						if (SSL_ERROR_NONE != SSL_get_error(ssl_, read)) {
 							throw std::runtime_error("BIO_read");
 						}
 
-						if (send_raw_(outbuf, read) < 0) {
+						if (send_raw(outbuf, read) < 0) {
 							throw std::runtime_error(strerror(errno));
 						}
 
@@ -988,9 +1016,9 @@ void SCTPClient::handle_association_change_event(struct sctp_assoc_change* sac)
 			break;
 		case SCTP_SHUTDOWN_COMP:
 			usrsctp_deregister_address(this); // ?
-			usrsctp_close(sock);
+			usrsctp_close(sock_);
 			 /* this should wake recv in udp thread */
-			shutdown(udp_sock_fd, SHUT_RDWR);
+			shutdown(udp_sock_fd_, SHUT_RDWR);
 			break;
 		case SCTP_CANT_STR_ASSOC:
 			break;
@@ -1108,8 +1136,6 @@ void SCTPClient::handle_adaptation_indication(struct sctp_adaptation_event* sai)
 	return;
 }
 
-
-
 void SCTPClient::handle_stream_reset_event(struct sctp_stream_reset_event* strrst)
 {
 	uint32_t n, i;
@@ -1166,9 +1192,8 @@ void SCTPClient::handle_remote_error_event(struct sctp_remote_error* sre)
 
 void SCTPClient::handle_sender_dry_event(struct sctp_sender_dry_event*)
 {
-	sender_dry = true;	
+	sender_dry_ = true;
 }
-
 
 void SCTPClient::handle_notification(union sctp_notification* notif, size_t n)
 {
