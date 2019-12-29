@@ -31,8 +31,9 @@ TESTS_CPPFLAGS = -DTEST_BUILD \
 check_LIBRARIES = libtest.a
 
 libtest_a_SOURCES = $(LIBPATH)/sctp_server/sctp_server.cpp \
-					$(LIBPATH)/sctp_server/sctp_server_client.cpp \
-					$(LIBPATH)/sctp_server/sctp_server_client_data.cpp \
+					$(LIBPATH)/sctp_server/client.cpp \
+					$(LIBPATH)/sctp_server/client_data.cpp \
+					$(LIBPATH)/sctp_server/client_sctp_message.cpp \
 					$(LIBPATH)/sctp_client/sctp_client.cpp \
 					$(LIBPATH)/sctp_client/sctp_client_data.cpp
 

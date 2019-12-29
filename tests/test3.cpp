@@ -8,7 +8,7 @@
 #include <cassert>
 
 #include "sctp_server.h"
-#include "sctp_server_client.h"
+#include "client.h"
 
 
 std::atomic_bool running { true };

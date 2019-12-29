@@ -1,10 +1,10 @@
 #include <memory>
 #include <cstring>
 
-#include "sctp_server_client_data.h"
+#include "client_sctp_message.h"
 
 
-Data::Data(const void* buf, size_t len)
+SCTPMessage::SCTPMessage(const void* buf, size_t len)
 {
 	data = calloc(len, sizeof(char));
 	if (not data) throw std::runtime_error("Calloc failed.");
@@ -13,7 +13,7 @@ Data::Data(const void* buf, size_t len)
 	size = len;
 }
 
-Data::~Data() {
+SCTPMessage::~SCTPMessage() {
 	std::free(data);
 }
 

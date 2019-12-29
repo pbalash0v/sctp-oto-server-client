@@ -11,8 +11,8 @@
 #include <sys/socket.h> //socklen_t
 
 #include "ssl_h.h"
-#include "sctp_server_client.h"
-#include "sctp_server_client_data.h"
+#include "client.h"
+#include "client_data.h"
 
 
 #ifdef TEST_BUILD

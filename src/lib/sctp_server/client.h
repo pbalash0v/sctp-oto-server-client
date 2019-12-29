@@ -2,8 +2,8 @@
 
 #include <iostream>
 
+#include "iclient.h"
 #include "ssl_h.h"
-#include "sctp_server_iclient.h"
 
 
 class Client : public IClient {

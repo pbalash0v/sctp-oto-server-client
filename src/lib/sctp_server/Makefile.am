@@ -5,8 +5,9 @@ AUTOMAKE_OPTIONS = subdir-objects
 noinst_LTLIBRARIES = libserver.la
 
 libserver_la_SOURCES = sctp_server.cpp \
-					sctp_server_client.cpp \
-					sctp_server_client_data.cpp
+					client.cpp \
+					client_data.cpp \
+					client_sctp_message.cpp
 				
 libserver_la_CPPFLAGS = -I$(srcdir)/include \
 					-I$(srcdir) \

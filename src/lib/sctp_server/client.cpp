@@ -7,7 +7,7 @@
 
 #include "usrsctp.h"
 
-#include "sctp_server_client.h"
+#include "client.h"
 #include "sctp_server.h"
 
 

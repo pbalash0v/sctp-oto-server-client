@@ -497,7 +497,7 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 	try {
 		client = ([&]
 		{
-			auto& clients = s->clients_;
+			const auto& clients = s->clients_;
 
 			{
 				std::lock_guard<std::mutex> _ { s->clients_mutex_ };
@@ -562,7 +562,7 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 		//infolen = (socklen_t) sizeof(struct sctp_rcvinfo);
 		char recv_buf[1<<16] = { 0 };
 
-		// got data or socket api notification
+		/* got data or socket api notification */
 		while ((n = usrsctp_recvv(upcall_sock, recv_buf, sizeof recv_buf,
 										 (struct sockaddr*) &addr, &from_len, (void *) &rn,
 											&infolen, &infotype, &flags)) > 0) {
@@ -594,7 +594,7 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 					s->handle_notification(client, static_cast<union sctp_notification*>(data_buf), nbytes);
 				} else {
 					TRACE(std::string("SCTP msg of length ") + std::to_string(nbytes) + std::string(" received."));
-					client->server().handle_client_data(client, data_buf, nbytes, addr, rn, infotype);
+					s->handle_client_data(client, data_buf, nbytes, addr, rn, infotype);
 				}
 			} catch (const std::runtime_error& exc) {
 				log_client_error("handle_client_data", client);

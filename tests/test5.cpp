@@ -13,7 +13,7 @@
 #include <signal.h>
 
 #include "sctp_server.h"
-#include "sctp_server_client.h"
+#include "client.h"
 #include "sctp_client.h"
 
 std::atomic_bool running { true };
