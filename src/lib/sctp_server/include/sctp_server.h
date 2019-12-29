@@ -10,9 +10,11 @@
 
 #include <sys/socket.h> //socklen_t
 
+#include "sync_queue.hpp"
 #include "ssl_h.h"
 #include "client.h"
 #include "client_data.h"
+
 
 
 #ifdef TEST_BUILD
@@ -73,9 +75,8 @@ public:
 																 std::unique_ptr<Data>)>;
 	using SCTPServer_debug_t = std::function<void(SCTPServer::LogLevel, const std::string&)>;	
 
-	class Config
+	struct Config
 	{
-	public:
 		Config() = default;
 		virtual ~Config() = default;
 		Config(const Config& oth) = delete;
@@ -89,8 +90,7 @@ public:
 		std::string key_filename { DEFAULT_SERVER_KEY_FILENAME };
 		SCTPServer_cback_t data_cback_f { nullptr };
 		SCTPServer_debug_t debug_f { nullptr };
-		
-		friend class SCTPServer;
+
     	friend std::ostream& operator<<(std::ostream &out, const Config &c); 
 	};
 
@@ -160,34 +160,34 @@ protected:
 private:
 	std::shared_ptr<SCTPServer::Config> cfg_;
 
-	void try_init_local_UDP();
-
-	void handle_notification(std::shared_ptr<IClient>&, union sctp_notification*, size_t);
-
-	void handle_client_data(std::shared_ptr<IClient>& c, const void* buffer, size_t n,
-		 const struct sockaddr_in& addr, const struct sctp_recvv_rn& rcv_info, unsigned int infotype);
-
-	static void handle_client_upcall(struct socket* sock, void* arg, int flgs);
-
-	static void handle_server_upcall(struct socket* sock, void* arg, int flgs);
-
-	void cleanup();
-
-	ssize_t send_raw(std::shared_ptr<IClient>&, const void*, size_t);
-
-	void drop_client(std::shared_ptr<IClient>&);
-
-
-	std::atomic_bool initialized { false };
-	static std::atomic_bool instance_exists;
+	std::atomic_bool initialized_ { false };
+	static std::atomic_bool instance_exists_;
 
 	/* holds main SSL context etc */
 	SSL_h ssl_obj_ { SSL_h::SERVER };
 
 	struct socket* serv_sock_ { nullptr };
 
+	std::thread sctp_msg_handler_;
+	void sctp_msg_handler_loop();
+
 	std::mutex clients_mutex_;
 	std::vector<std::shared_ptr<IClient>> clients_;
+
+	void try_init_local_UDP();
+
+	static void handle_server_upcall(struct socket* sock, void* arg, int flgs);
+	static void handle_client_upcall(struct socket* sock, void* arg, int flgs);
+
+	void handle_notification(std::shared_ptr<IClient>&, union sctp_notification*, size_t);
+	void handle_client_data(std::shared_ptr<IClient>& c, const void* buffer, size_t n,
+		 const struct sockaddr_in& addr, const struct sctp_recvv_rn& rcv_info, unsigned int infotype);
+
+	void cleanup();
+
+	ssize_t send_raw(std::shared_ptr<IClient>&, const void*, size_t);
+
+	void drop_client(std::shared_ptr<IClient>&);
 };
 
 

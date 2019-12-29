@@ -4,57 +4,71 @@
 #include <chrono>
 #include <cassert>
 #include <algorithm>
+#include <thread>
 
 #include <sys/socket.h>
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
-#include <pthread.h>
+//#include <pthread.h>
 #include <unistd.h>
 
 #include <usrsctp.h>
 
 #include "sctp_server.h"
-
-
-
-#define BUFFERSIZE (1<<16)
-
-static void _log_client_error_and_throw(const char* func, std::shared_ptr<IClient>& c,
-													 bool should_throw)
-{
-	auto cfg_ = c->server().cfg();
-
-	std::string error { func };
-	error += ": ";
-	error += c->to_string();
-	error += " ";
-	error += strerror(errno);
-	ERROR(error);
-	if (should_throw) throw std::runtime_error(error);
-}
-
-static void log_client_error(const char* func, std::shared_ptr<IClient>& c)
-{
-	_log_client_error_and_throw(func, c, false);
-}
-
-static void log_client_error_and_throw(const char* func, std::shared_ptr<IClient>& c)
-{
-	_log_client_error_and_throw(func, c, true);
-}
+#include "client_sctp_message.h"
 
 
 constexpr auto BUFFER_SIZE = 1 << 16;
 
-std::atomic_bool SCTPServer::instance_exists { false };
+/* bad signleton-like implementation */
+std::atomic_bool SCTPServer::instance_exists_ { false };
+
+
+namespace
+{
+	SyncQueue<std::unique_ptr<SCTPMessage>> sctp_msgs_;
+
+	void set_thread_name(std::thread& thread, const char* name)
+	{
+	   auto handle = thread.native_handle();
+	   pthread_setname_np(handle, name);
+	}
+
+
+	void _log_client_error_and_throw(const char* func, std::shared_ptr<IClient>& c,
+														 bool should_throw)
+	{
+		auto cfg_ = c->server().cfg();
+
+		std::string error { func };
+		error += ": ";
+		error += c->to_string();
+		error += " ";
+		error += strerror(errno);
+		ERROR(error);
+		if (should_throw) throw std::runtime_error(error);
+	}
+
+
+	void log_client_error(const char* func, std::shared_ptr<IClient>& c)
+	{
+		_log_client_error_and_throw(func, c, false);
+	}
+
+
+	void log_client_error_and_throw(const char* func, std::shared_ptr<IClient>& c)
+	{
+		_log_client_error_and_throw(func, c, true);
+	}
+}
 
 SCTPServer::SCTPServer() : SCTPServer(std::make_shared<SCTPServer::Config>()) {}
 
 SCTPServer::SCTPServer(std::shared_ptr<SCTPServer::Config> ptr) : cfg_(ptr)
 {
-	if (instance_exists) throw std::logic_error("Singleton !");
-	instance_exists = true;
+	if (instance_exists_) throw std::logic_error("Singleton !");
+	instance_exists_ = true;
 }
 
 std::shared_ptr<IClient> SCTPServer::client_factory(struct socket* s)
@@ -103,7 +117,14 @@ SCTPServer::~SCTPServer()
 		TRACE("before usrsctp_finish loop");
 	}
 
-	instance_exists = false;
+	TRACE("About to join sctp msgs handling thread");
+	if (sctp_msg_handler_.joinable()) {
+		sctp_msgs_.enqueue(std::make_unique<SCTPMessage>());
+		sctp_msg_handler_.join();
+	}
+	TRACE("sctp msgs handling thread joined");
+
+	instance_exists_ = false;
 
 	TRACE_func_left();
 }
@@ -206,10 +227,12 @@ void SCTPServer::init()
 {
 	TRACE_func_entry();
 
-	if (initialized) throw std::logic_error("Server is already initialized.");
+	if (initialized_) throw std::logic_error("Server is already initialized.");
 
 	ssl_obj_.init(cfg_->cert_filename, cfg_->key_filename);
 
+	sctp_msg_handler_ = std::thread { &SCTPServer::sctp_msg_handler_loop, this };
+	
 	try_init_local_UDP();
 
 	usrsctp_init(cfg_->udp_encaps_port,
@@ -308,7 +331,7 @@ void SCTPServer::init()
 		throw std::runtime_error(std::string("usrsctp_bind: ") + strerror(errno));
 	}
 
-	initialized = true;
+	initialized_ = true;
 
 	TRACE_func_left();
 }
@@ -318,7 +341,9 @@ void SCTPServer::operator()()
 {
 	TRACE_func_entry();
 
-	if (not initialized) throw std::logic_error("Server not initialized.");
+	if (not initialized_) throw std::logic_error("Server not initialized.");
+
+	set_thread_name(sctp_msg_handler_, "SCTP msgs");
 
 	/* set listen on server socket */
 	if (usrsctp_listen(serv_sock_, 1) < 0) {
@@ -588,13 +613,17 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 			nbytes = (client->sctp_msg_buff().empty()) ? n : client->sctp_msg_buff().size();
 			void* data_buf = (client->sctp_msg_buff().empty()) ? recv_buf : client->sctp_msg_buff().data();
 
+			/*
+				We process notification in this thread 
+				and just enqueue copies of client messages to be processed in another thread
+			*/
 			try {
 				if (flags & MSG_NOTIFICATION) {
 					TRACE(std::string("Notification of length ") + std::to_string(nbytes) + std::string(" received."));
 					s->handle_notification(client, static_cast<union sctp_notification*>(data_buf), nbytes);
 				} else {
 					TRACE(std::string("SCTP msg of length ") + std::to_string(nbytes) + std::string(" received."));
-					s->handle_client_data(client, data_buf, nbytes, addr, rn, infotype);
+					sctp_msgs_.enqueue(std::make_unique<SCTPMessage>(client, data_buf, nbytes, addr, rn, infotype));
 				}
 			} catch (const std::runtime_error& exc) {
 				log_client_error("handle_client_data", client);
@@ -632,8 +661,26 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 	}
 
 	//TRACE_func_left();
-
 	return;
+}
+
+
+void SCTPServer::sctp_msg_handler_loop()
+{
+	TRACE_func_entry();
+
+	while (true) {
+		auto msg = sctp_msgs_.dequeue();
+		if (msg->size == 0) break;
+		try {
+			handle_client_data(msg->client, msg->msg, msg->size, 
+				msg->addr, msg->rn, msg->infotype);
+		} catch (const std::runtime_error& exc) {
+			log_client_error("handle_client_data", msg->client);
+		}
+	}
+
+	TRACE_func_left();
 }
 
 
@@ -813,7 +860,7 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 		} 
 
 
-		if (read > 0) DEBUG(([&]
+		if (read > 0) TRACE(([&]
 		{
 			char message[BUFFER_SIZE] = {'\0'};
 
@@ -998,7 +1045,7 @@ static void handle_peer_address_change_event(std::shared_ptr<IClient>& c, struct
 
 	char addr_buf[INET6_ADDRSTRLEN];
 	const char* addr;
-	char buf[BUFFERSIZE] = { '\0' };
+	char buf[BUFFER_SIZE] = { '\0' };
 	struct sockaddr_in *sin;
 	struct sockaddr_in6* sin6;
 	struct sockaddr_conn* sconn;
@@ -1066,7 +1113,7 @@ static void handle_send_failed_event(std::shared_ptr<IClient>& c, struct sctp_se
 
 	size_t i, n;
 
-	char buf[BUFFERSIZE] = { '\0' };
+	char buf[BUFFER_SIZE] = { '\0' };
 
 	int written	= 0;
 	if (ssfe->ssfe_flags & SCTP_DATA_UNSENT) {
@@ -1107,7 +1154,7 @@ static void handle_adaptation_indication(std::shared_ptr<IClient>& c, struct sct
 	auto cfg_ = c->server().cfg();
 	/* from here on we can use log macros */
 
-	char buf[BUFFERSIZE] = { '\0' };
+	char buf[BUFFER_SIZE] = { '\0' };
 	snprintf(buf, sizeof buf, "Adaptation indication: %x.\n", sai-> sai_adaptation_ind);
 	DEBUG(buf);
 	return;
@@ -1122,7 +1169,7 @@ static void handle_shutdown_event(std::shared_ptr<IClient>& c, struct sctp_shutd
 	auto cfg_ = c->server().cfg();
 	/* from here on we can use log macros */
 
-	char buf[BUFFERSIZE] = { '\0' };
+	char buf[BUFFER_SIZE] = { '\0' };
 	snprintf(buf, sizeof buf, "Shutdown event.");
 	DEBUG(buf);
 	/* XXX: notify all channels. */
@@ -1142,7 +1189,7 @@ static void handle_stream_reset_event(std::shared_ptr<IClient>& c, struct sctp_s
 
 	n = (strrst->strreset_length - sizeof(struct sctp_stream_reset_event)) / sizeof(uint16_t);
 
-	char buf[BUFFERSIZE] = { '\0' };
+	char buf[BUFFER_SIZE] = { '\0' };
 	int written = snprintf(buf, sizeof buf, "Stream reset event: flags = %x, ", strrst->strreset_flags);
 
 	if (strrst->strreset_flags & SCTP_STREAM_RESET_INCOMING_SSN) {
@@ -1179,7 +1226,7 @@ static void handle_stream_change_event(std::shared_ptr<IClient>& c, struct sctp_
 	auto cfg_ = c->server().cfg();
 	/* from here on we can use log macros */
 
-	char buf[BUFFERSIZE] = { '\0' };
+	char buf[BUFFER_SIZE] = { '\0' };
 	snprintf(buf, sizeof buf, "Stream change event: streams (in/out) = (%u/%u), flags = %x.\n",
 	       strchg->strchange_instrms, strchg->strchange_outstrms, strchg->strchange_flags);
 	DEBUG(buf);
@@ -1201,7 +1248,7 @@ static void handle_remote_error_event(std::shared_ptr<IClient>& c, struct sctp_r
 	n = sre->sre_length - sizeof(struct sctp_remote_error);
 
 	int written = 0;
-	char buf[BUFFERSIZE] = { '\0' };
+	char buf[BUFFER_SIZE] = { '\0' };
 	written = snprintf(buf, sizeof buf, "Remote Error (error = 0x%04x): ", sre->sre_error);
 	for (i = 0; i < n; i++) {
 		written += snprintf(buf + written, sizeof buf - written, " 0x%02x", sre-> sre_data[i]);
