@@ -178,10 +178,10 @@ void SCTPServer::try_init_local_UDP()
 	TRACE_func_entry();
 
 	/* will point to the result */
-	struct addrinfo* serv_info { nullptr };
+	struct addrinfo* serv_info = NULL;
 	/* RAII for serv_info */
-	std::shared_ptr<struct addrinfo*> _ (&serv_info,
-					 [&](struct addrinfo** s) { if (*s) freeaddrinfo(*s); });
+	std::shared_ptr<struct addrinfo> serv_info_ptr (nullptr,
+					 [&](struct addrinfo* s) { freeaddrinfo(s); });
 
 	struct addrinfo hints;
 
@@ -195,6 +195,8 @@ void SCTPServer::try_init_local_UDP()
 		 &hints, &serv_info)) != 0) {
 		CRITICAL(std::string("getaddrinfo: ") + gai_strerror(status));
 		throw std::runtime_error(gai_strerror(status));
+	} else {
+		serv_info_ptr.reset(serv_info);
 	}
 
 	char ipstr[INET_ADDRSTRLEN];

@@ -358,8 +358,9 @@ void SCTPClient::init_local_UDP()
 	int status;
 	struct addrinfo* cli_info = NULL; /* will point to the result */
 	/* RAII for cli_info */
-	std::shared_ptr<struct addrinfo*> _ (&cli_info,
-					 [&](struct addrinfo** s) { if (*s) freeaddrinfo(*s); });
+	std::shared_ptr<struct addrinfo> cli_info_ptr (nullptr,
+					 [&](struct addrinfo* s) { freeaddrinfo(s); });
+
 	struct addrinfo hints;
 
 	memset(&hints, 0, sizeof hints); // make sure the struct is empty
@@ -370,6 +371,8 @@ void SCTPClient::init_local_UDP()
 	if ((status = getaddrinfo(NULL, std::to_string(cfg_->udp_encaps_port).c_str(),
 		 &hints, &cli_info)) != 0) {
 		throw std::runtime_error(gai_strerror(status));
+	} else {
+		cli_info_ptr.reset(cli_info);
 	}
 
 	// struct addrinfo {
@@ -413,8 +416,8 @@ void SCTPClient::init_remote_UDP()
 	int status;
 
 	struct addrinfo* serv_info { nullptr };  // will point to the results
-	std::shared_ptr<struct addrinfo*> _ (&serv_info,
-					 [&](struct addrinfo** s) { freeaddrinfo(*s); }); //RAII for servinfo
+	std::shared_ptr<struct addrinfo> serv_info_ptr (nullptr,
+					 [&](struct addrinfo* s) { freeaddrinfo(s); }); //RAII for servinfo
 
 	struct addrinfo hints;
 	memset(&hints, 0, sizeof hints); // make sure the struct is empty
@@ -424,6 +427,8 @@ void SCTPClient::init_remote_UDP()
 	if ((status = getaddrinfo(cfg_->server_address.c_str(),
 		 std::to_string(cfg_->server_udp_port).c_str(), &hints, &serv_info)) != 0) {
 		throw std::runtime_error(gai_strerror(status));
+	} else {
+		serv_info_ptr.reset(serv_info);
 	}
 
 	TRACE(cfg_->server_address + " " + std::to_string(cfg_->server_udp_port));
