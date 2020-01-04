@@ -85,8 +85,11 @@ int main(int, char const**)
 
 		server.cfg()->cert_filename = "../src/certs/server-cert.pem";
 		server.cfg()->key_filename = "../src/certs/server-key.pem";
-		server.cfg()->data_cback_f = [&](auto, const auto& s) {
-			if (strcmp(static_cast<const char*>(s->data), TEST_STRING)) {
+		server.cfg()->event_cback_f = [&](const auto& evt) {
+			if (evt->type != Event::CLIENT_DATA) return;
+			
+			const char* msg = static_cast<const char*>(evt->client_data->data);
+			if (strcmp(msg, TEST_STRING)) {
 				assert(false);
 			} else {
 				running = false;

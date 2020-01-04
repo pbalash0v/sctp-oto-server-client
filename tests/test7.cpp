@@ -113,15 +113,18 @@ int main(int, char const**)
 
 		server.cfg()->cert_filename = "../src/certs/server-cert.pem";
 		server.cfg()->key_filename = "../src/certs/server-key.pem";
-		server.cfg()->data_cback_f = [&](auto, const auto& s) {
-			std::string msg { static_cast<const char*>(s->data) };
+		server.cfg()->event_cback_f = [&](const auto& evt) {
+			if (evt->type != Event::CLIENT_DATA) return;
 
-			if (not strcmp(static_cast<const char*>(s->data), TEST_STRING_CLIENT_1)) {
-				std::cout << msg << std::endl;
+			const char* msg = static_cast<const char*>(evt->client_data->data);
+			std::string msg_str { msg };
+
+			if (not strcmp(msg, TEST_STRING_CLIENT_1)) {
+				std::cout << msg_str << std::endl;
 				client1_done = true;
 			}
-			if (not strcmp(static_cast<const char*>(s->data), TEST_STRING_CLIENT_2)) {
-				std::cout << msg << std::endl;
+			if (not strcmp(msg, TEST_STRING_CLIENT_2)) {
+				std::cout << msg_str << std::endl;
 				client2_done = true;
 			}
 				
