@@ -228,8 +228,7 @@ int main(int /* argc */, char* argv[])
 
 	client.cfg()->data_cback_f = [&](const auto& s)
 	{ 
-		std::string server_message = 
-			((s->size < 30) ? 
+		std::string server_message = ((s->size < 30) ? 
 				std::string(static_cast<char*>(s->buf))
 		 		: std::string(static_cast<char*>(s->buf)).substr(0, 30));
 		tui->put_message("Server sent: "

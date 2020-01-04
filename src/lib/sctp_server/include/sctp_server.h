@@ -148,11 +148,10 @@ protected:
 		In real code scope-resolved to calls of usrsctp lib functions.
 	 */
 	MAYBE_VIRTUAL struct socket* usrsctp_socket(int domain, int type, int protocol,
-               int (*receive_cb)(struct socket *sock, union sctp_sockstore addr, void *data,
-                                 size_t datalen, struct sctp_rcvinfo, int flags, void *ulp_info),
-               int (*send_cb)(struct socket *sock, uint32_t sb_free),
-               uint32_t sb_threshold,
-               void *ulp_info);
+               int (*receive_cb)(struct socket* sock, union sctp_sockstore addr, void* data,
+                                 size_t datalen, struct sctp_rcvinfo, int flags, void* ulp_info),
+               int (*send_cb)(struct socket*, uint32_t),
+               uint32_t, void*);
 	MAYBE_VIRTUAL int usrsctp_bind(struct socket*, struct sockaddr*, socklen_t);
 	MAYBE_VIRTUAL int usrsctp_listen(struct socket*, int);
 	MAYBE_VIRTUAL struct socket* usrsctp_accept(struct socket*, struct sockaddr*, socklen_t*);

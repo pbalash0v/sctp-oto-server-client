@@ -603,15 +603,17 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 				//TRACE("usrsctp_recvv so far: " + std::to_string(client->sctp_msg_buff().size()));
 				continue;
 			} else { /* receive complete */
-				if (not client->sctp_msg_buff().empty()) { /* some data already buffered. append last chunk*/
+				if (not client->sctp_msg_buff().empty()) { /* some data already buffered. appending last chunk*/
 					client->sctp_msg_buff().insert(client->sctp_msg_buff().end(), recv_buf, recv_buf + n);
 				}
 			}
-
 			assert(flags & MSG_EOR);
-			// Now we got full sctp message. Processing it.
-			// At this point we can have message buffered in vector or in char array on a stack.
-			// Unifying.
+
+			/*
+			 Now we got full sctp message. Processing it.
+			 At this point we can have message buffered in vector or in char array on a stack.
+			 Unifying.
+			*/
 			nbytes = (client->sctp_msg_buff().empty()) ? n : client->sctp_msg_buff().size();
 			void* data_buf = (client->sctp_msg_buff().empty()) ? recv_buf : client->sctp_msg_buff().data();
 
@@ -1261,6 +1263,11 @@ static void handle_remote_error_event(std::shared_ptr<IClient>& c, struct sctp_r
 	return;
 }
 
+static void handle_sender_dry_event(std::shared_ptr<IClient>& c, struct sctp_sender_dry_event*)
+{
+
+}
+
 void SCTPServer::handle_notification(std::shared_ptr<IClient>& c, union sctp_notification* notif, size_t n)
 {
 	TRACE_func_entry();
@@ -1308,6 +1315,7 @@ void SCTPServer::handle_notification(std::shared_ptr<IClient>& c, union sctp_not
 		break;
 	case SCTP_SENDER_DRY_EVENT:
 		message += "SCTP_SENDER_DRY_EVENT\n";
+		handle_sender_dry_event(c, &(notif->sn_sender_dry_event));
 		TRACE(message);		
 		break;
 	case SCTP_NOTIFICATIONS_STOPPED_EVENT:

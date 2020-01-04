@@ -83,7 +83,8 @@ void Client::state(Client::State new_state)
                           			SCTP_REMOTE_ERROR,
                           			SCTP_SHUTDOWN_EVENT,
                           			SCTP_ADAPTATION_INDICATION,
-                          			SCTP_PARTIAL_DELIVERY_EVENT
+                          			SCTP_PARTIAL_DELIVERY_EVENT,
+                          			SCTP_SENDER_DRY_EVENT
                           		};
 		struct sctp_event event;
 		memset(&event, 0, sizeof(event));
