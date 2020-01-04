@@ -14,6 +14,7 @@
 #include "ssl_h.h"
 #include "client.h"
 #include "client_data.h"
+#include "server_event.h"
 
 
 
@@ -71,8 +72,8 @@ public:
 		CRITICAL
    };
 
-	using SCTPServer_cback_t = std::function<void(const std::shared_ptr<IClient>,
-																 std::unique_ptr<Data>)>;
+
+	using SCTPServer_event_cback_t = std::function<void(std::unique_ptr<Event>)>;
 	using SCTPServer_debug_t = std::function<void(SCTPServer::LogLevel, const std::string&)>;	
 
 	struct Config
@@ -88,7 +89,7 @@ public:
 
 		std::string cert_filename { DEFAULT_SERVER_CERT_FILENAME };
 		std::string key_filename { DEFAULT_SERVER_KEY_FILENAME };
-		SCTPServer_cback_t data_cback_f { nullptr };
+		SCTPServer_event_cback_t event_cback_f { nullptr };
 		SCTPServer_debug_t debug_f { nullptr };
 
     	friend std::ostream& operator<<(std::ostream &out, const Config &c); 
@@ -178,9 +179,14 @@ private:
 	static void handle_server_upcall(struct socket* sock, void* arg, int flgs);
 	static void handle_client_upcall(struct socket* sock, void* arg, int flgs);
 
+	void client_state(std::shared_ptr<IClient>&, IClient::State);
+	std::shared_ptr<IClient> get_client(const struct socket* sock);
+
 	void handle_notification(std::shared_ptr<IClient>&, union sctp_notification*, size_t);
 	void handle_client_data(std::shared_ptr<IClient>& c, const void* buffer, size_t n,
 		 const struct sockaddr_in& addr, const struct sctp_recvv_rn& rcv_info, unsigned int infotype);
+
+	void handle_association_change_event(std::shared_ptr<IClient>&, struct sctp_assoc_change*);
 
 	void cleanup();
 

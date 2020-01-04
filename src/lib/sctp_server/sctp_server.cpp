@@ -10,7 +10,6 @@
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
-//#include <pthread.h>
 #include <unistd.h>
 
 #include <usrsctp.h>
@@ -67,7 +66,7 @@ SCTPServer::SCTPServer() : SCTPServer(std::make_shared<SCTPServer::Config>()) {}
 
 SCTPServer::SCTPServer(std::shared_ptr<SCTPServer::Config> ptr) : cfg_(ptr)
 {
-	if (instance_exists_) throw std::logic_error("Singleton !");
+	if (instance_exists_) throw std::logic_error("Singleton !"); // :(
 	instance_exists_ = true;
 }
 
@@ -106,7 +105,7 @@ SCTPServer::~SCTPServer()
 	if (needs_force_close) {
 		TRACE("before force close of clients");
 		for (auto& c : clients_) {
-			c->state(Client::PURGE);
+			client_state(c, Client::PURGE);
 		}
 		TRACE("force close of clients done");
 
@@ -159,7 +158,7 @@ void SCTPServer::cleanup()
 		/* shutdown and cleanup clients */
 		TRACE("before clients shutdown");
 		for (auto& c : clients_) {
-			c->state(Client::SCTP_SRV_INITIATED_SHUTDOWN);
+			client_state(c, Client::SCTP_SRV_INITIATED_SHUTDOWN);
 		}
 		TRACE("clients shutdown done");
 	}
@@ -458,31 +457,31 @@ void SCTPServer::handle_server_upcall(struct socket* serv_sock, void* arg, int)
 		socklen_t addr_len = sizeof(struct sockaddr_in);
 		struct socket* conn_sock;
 
-		DEBUG("Accepting new connection.");
+		TRACE("Accepting new connection.");
 		
 		memset(&remote_addr, 0, sizeof(struct sockaddr_in));
 		if ((conn_sock = s->usrsctp_accept(serv_sock, (struct sockaddr *) &remote_addr, &addr_len)) == NULL) {
-			DEBUG(strerror(errno));
+			ERROR(strerror(errno));
 			throw std::runtime_error(strerror(errno));
 		}
 
+		auto new_client = s->client_factory(conn_sock);
+
 		{
 			std::lock_guard<std::mutex> _ { s->clients_mutex_ } ;
-
-			auto new_client = s->client_factory(conn_sock);
 			s->clients_.push_back(new_client);
-
-			try {
-				new_client->init();
-				new_client->state(Client::SCTP_ACCEPTED);
-			} catch (const std::runtime_error& exc) {
-				ERROR(std::string("Dropping client: ") + exc.what());
-				new_client->state(Client::PURGE);
-				s->drop_client(new_client);
-			}
-			
-			INFO("Accepted: " + new_client->to_string());
 		}
+
+		try {
+			new_client->init();
+			s->client_state(new_client, IClient::SCTP_ACCEPTED);
+		} catch (const std::runtime_error& exc) {
+			ERROR(std::string("Dropping client: ") + exc.what());
+			s->client_state(new_client, IClient::PURGE);
+			s->drop_client(new_client);
+		}
+		
+		INFO("Accepted: " + new_client->to_string());
 	}
 
 	if (events & SCTP_EVENT_ERROR) {
@@ -494,6 +493,31 @@ void SCTPServer::handle_server_upcall(struct socket* serv_sock, void* arg, int)
 	}
 }
 
+void SCTPServer::client_state(std::shared_ptr<IClient>& c, IClient::State s)
+{
+	c->state(s);
+
+	if (cfg_->event_cback_f) {
+		try {
+			cfg_->event_cback_f(
+				std::make_unique<Event>(Event::Type::CLIENT_STATE, c, s));
+		} catch (...) {
+			CRITICAL("Exception in user's event_cback function");
+		}
+	}
+}
+
+std::shared_ptr<IClient> SCTPServer::get_client(const struct socket* sock)
+{
+	std::lock_guard<std::mutex> _ { clients_mutex_ };
+
+	auto it = std::find_if(clients_.cbegin(), clients_.cend(),
+		[&] (const auto& s_ptr) { return s_ptr->socket() == sock; });
+
+	if (it == clients_.cend()) throw std::runtime_error("client socket not found");
+		 
+	return *it;
+}
 
 /*
 	handle_client_upcall is called by usrsctp engine on *client* socket event,
@@ -522,27 +546,12 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 
 	std::shared_ptr<IClient> client;
 	try {
-		client = ([&]
-		{
-			const auto& clients = s->clients_;
-
-			{
-				std::lock_guard<std::mutex> _ { s->clients_mutex_ };
-
-				auto it = std::find_if(clients.cbegin(), clients.cend(),
-					[&] (const auto& s_ptr) { return s_ptr->socket() == upcall_sock; });
-
-				if (it != clients.cend()) {
-					 return *it;
-				} else {
-					throw std::runtime_error("client socket not found");
-				}
-			}
-		})();
+		client = s->get_client(upcall_sock);
 	} catch (const std::runtime_error& exc) {
 		ERROR(exc.what());
 		return;
 	}
+
 #if 0
 	TRACE(([&] {
 		std::string m { "Socket events: "};
@@ -646,7 +655,7 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 			So we drop client here.
 		 */
 		if (n == 0) {
-			INFO(client->to_string() + std::string(" disconnected."));
+			DEBUG(client->to_string() + std::string(" disconnected."));
 			client->close();
 			//usrsctp_close(client->sock);
 			s->drop_client(client);
@@ -741,7 +750,7 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 		}
 
 		try {
-			c->state(Client::SSL_HANDSHAKING);
+			client_state(c, Client::SSL_HANDSHAKING);
 		} catch (const std::runtime_error& exc) {
 			log_client_error_and_throw((std::string("set_state") + 
 				std::string(exc.what())).c_str(), c);
@@ -786,7 +795,7 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 				}
 
 				try {
-					c->state(Client::SSL_CONNECTED);
+					client_state(c, Client::SSL_CONNECTED);
 				} catch (const std::runtime_error& exc) {
 					log_client_error_and_throw((std::string("set_state") + 
 						std::string(exc.what())).c_str(), c);
@@ -796,7 +805,7 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 
 			if (SSL_ERROR_NONE == SSL_get_error(c->ssl, r) and not BIO_ctrl_pending(c->output_bio)) {
 				try {
-					c->state(Client::SSL_CONNECTED);
+					client_state(c, Client::SSL_CONNECTED);
 				} catch (const std::runtime_error& exc) {
 					log_client_error_and_throw((std::string("set_state") + 
 						std::string(exc.what())).c_str(), c);
@@ -819,7 +828,7 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 			}
 
 			try {
-				c->state(Client::SSL_CONNECTED);
+				client_state(c, Client::SSL_CONNECTED);
 			} catch (const std::runtime_error& exc) {
 				log_client_error_and_throw((std::string("set_state") + 
 					std::string(exc.what())).c_str(), c);
@@ -847,7 +856,7 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 
 			if (read == 0 and SSL_ERROR_ZERO_RETURN == SSL_get_error(c->ssl, read)) {
 				DEBUG("SSL_ERROR_ZERO_RETURN");
-				c->state(Client::SSL_SHUTDOWN);
+				client_state(c, Client::SSL_SHUTDOWN);
 				break;
 			}
 
@@ -897,14 +906,16 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 			return std::string(message);
 		})());
 		
-
-		if (cfg_->data_cback_f and (read >0)) {
+		/* pass data to user */
+		if (cfg_->event_cback_f and (read >0)) {
 			try {
-				cfg_->data_cback_f(c, std::make_unique<Data>(outbuf, total_decrypted_message_size));
+				cfg_->event_cback_f(
+					std::make_unique<Event>(Event::Type::CLIENT_DATA, c,
+					 std::make_unique<Data>(outbuf, total_decrypted_message_size)));
 			} catch (const std::runtime_error& exc) {
-				ERROR(exc.what());
+				ERROR(exc.what());				
 			} catch (...) {
-				CRITICAL("Exception in user data_cback function");
+				CRITICAL("Exception in user's event_cback function");
 			}
 		}
 	}
@@ -923,15 +934,8 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 /*
 	Functions to handle assoc notifications
 */
-static void handle_association_change_event(std::shared_ptr<IClient>& c, struct sctp_assoc_change* sac)
+void SCTPServer::handle_association_change_event(std::shared_ptr<IClient>& c, struct sctp_assoc_change* sac)
 {
-	/* 
-		log macros depend on local object named cfg_.
-		Getting it here explicitly.
-	*/
-	auto cfg_ = c->server().cfg();
-	/* from here on we can use log macros */
-
 	unsigned int i, n;
 
 	auto log_message = ([&]
@@ -1015,10 +1019,10 @@ static void handle_association_change_event(std::shared_ptr<IClient>& c, struct 
 	switch (sac->sac_state) {
 		case SCTP_COMM_UP:
 			try {
-				c->state(Client::SCTP_CONNECTED);
+				client_state(c, Client::SCTP_CONNECTED);
 			} catch (const std::runtime_error& exc) {
 				ERROR(std::string("Dropping client: ") + exc.what());
-				c->state(Client::PURGE);
+				client_state(c, Client::PURGE);
 				return;
 			}
 			INFO("Connected: " + c->to_string());		
@@ -1265,7 +1269,16 @@ static void handle_remote_error_event(std::shared_ptr<IClient>& c, struct sctp_r
 
 static void handle_sender_dry_event(std::shared_ptr<IClient>& c, struct sctp_sender_dry_event*)
 {
+	auto cfg_ = c->server().cfg();
 
+	if (cfg_->event_cback_f) {
+		try {
+			cfg_->event_cback_f(
+				std::make_unique<Event>(Event::Type::CLIENT_SEND_POSSIBLE, c));
+		} catch (...) {
+			CRITICAL("Exception in user's event_cback function");
+		}
+	}
 }
 
 void SCTPServer::handle_notification(std::shared_ptr<IClient>& c, union sctp_notification* notif, size_t n)
@@ -1277,7 +1290,7 @@ void SCTPServer::handle_notification(std::shared_ptr<IClient>& c, union sctp_not
 		return;
 	}
 
-	std::string message { "handle_notification : " };
+	std::string message { "handle_notification: " };
 
 	switch (notif->sn_header.sn_type) {
 	case SCTP_ASSOC_CHANGE:
@@ -1306,38 +1319,38 @@ void SCTPServer::handle_notification(std::shared_ptr<IClient>& c, union sctp_not
 		handle_adaptation_indication(c, &(notif->sn_adaptation_event));
 		break;
 	case SCTP_PARTIAL_DELIVERY_EVENT:
-		message += "SCTP_PARTIAL_DELIVERY_EVENT\n";
+		message += "SCTP_PARTIAL_DELIVERY_EVENT";
 		TRACE(message);
 		break;
 	case SCTP_AUTHENTICATION_EVENT:
-		message += "SCTP_AUTHENTICATION_EVENT\n";
+		message += "SCTP_AUTHENTICATION_EVENT";
 		TRACE(message);		
 		break;
 	case SCTP_SENDER_DRY_EVENT:
-		message += "SCTP_SENDER_DRY_EVENT\n";
+		message += "SCTP_SENDER_DRY_EVENT";
 		handle_sender_dry_event(c, &(notif->sn_sender_dry_event));
 		TRACE(message);		
 		break;
 	case SCTP_NOTIFICATIONS_STOPPED_EVENT:
-		message += "SCTP_NOTIFICATIONS_STOPPED_EVENT\n";
+		message += "SCTP_NOTIFICATIONS_STOPPED_EVENT";
 		TRACE(message);		
 		break;
 	case SCTP_SEND_FAILED_EVENT:
-		message += "SCTP_SEND_FAILED_EVENT\n";
+		message += "SCTP_SEND_FAILED_EVENT";
 		TRACE(message);		
 		handle_send_failed_event(c, &(notif->sn_send_failed_event));
 		break;
 	case SCTP_STREAM_RESET_EVENT:
-		message += "SCTP_STREAM_RESET_EVENT\n";
+		message += "SCTP_STREAM_RESET_EVENT";
 		TRACE(message);
 		handle_stream_reset_event(c, &(notif->sn_strreset_event));
 		break;
 	case SCTP_ASSOC_RESET_EVENT:
-		message += "SCTP_ASSOC_RESET_EVENT\n";
+		message += "SCTP_ASSOC_RESET_EVENT";
 		TRACE(message);
 		break;
 	case SCTP_STREAM_CHANGE_EVENT:
-		message += "SCTP_STREAM_CHANGE_EVENT\n";
+		message += "SCTP_STREAM_CHANGE_EVENT";
 		TRACE(message);
 		handle_stream_change_event(c, &(notif->sn_strchange_event));
 		break;
@@ -1346,7 +1359,6 @@ void SCTPServer::handle_notification(std::shared_ptr<IClient>& c, union sctp_not
 		ERROR(message);
 		break;
 	}
-
 
 	TRACE_func_left();
 }
@@ -1381,7 +1393,7 @@ std::ostream& operator<<(std::ostream& out, const SCTPServer::Config& c)
 {
 	out << "UDP encaps port: " << std::to_string(c.udp_encaps_port) << ", ";
 	out << "SCTP port: " << std::to_string(c.sctp_port) << ", ";	
-	out << "Data callback: " << (c.data_cback_f == nullptr ? "not set" : "set") << ", ";
+	out << "Event callback: " << (c.event_cback_f == nullptr ? "not set" : "set") << ", ";
 	out << "Debug callback: " << (c.debug_f == nullptr ? "not set" : "set") << ", ";
 	out << "SSL certificate: " << c.cert_filename << ", ";
 	out << "SSL key: " << c.key_filename;	

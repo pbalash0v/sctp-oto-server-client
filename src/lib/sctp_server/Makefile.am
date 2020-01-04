@@ -7,8 +7,9 @@ noinst_LTLIBRARIES = libserver.la
 libserver_la_SOURCES = sctp_server.cpp \
 					client.cpp \
 					client_data.cpp \
-					client_sctp_message.cpp
-				
+					client_sctp_message.cpp \
+					server_event.cpp
+
 libserver_la_CPPFLAGS = -I$(srcdir)/include \
 					-I$(srcdir) \
 					-I$(top_srcdir)/src/lib/sctp_common \

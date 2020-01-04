@@ -203,8 +203,9 @@ std::string Client::to_string() const
 
 std::ostream& operator<<(std::ostream &out, const Client& c)
 {
-	out << std::string("Client: socket: ") << (static_cast<const void*>(c.sock)) << ", ";
-	out << c.state_;
+	out << std::string("Client [socket: ") << (static_cast<void*>(c.socket())) << ", ";
+	out << c.state();
+	out << std::string("]");
 	return out;
 }
 
@@ -221,7 +222,7 @@ std::ostream& operator<<(std::ostream &out, const Client::State s)
 			state_name = "SCTP_ACCEPTED";
 			break;
 		case Client::SCTP_CONNECTED:
-			state_name = "SCTP_CONNECTED.";
+			state_name = "SCTP_CONNECTED";
 			break;
 		case Client::SSL_HANDSHAKING:
 			state_name = "SSL_HANDSHAKING";

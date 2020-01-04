@@ -8,14 +8,10 @@
 
 class Client : public IClient {
 public:
-	Client(struct socket* sock, SCTPServer& server);
-	
-	Client(struct socket* sctp_sock, SCTPServer& s, size_t msg_size); 
-
+	explicit Client(struct socket* sock, SCTPServer& server);
+	explicit Client(struct socket* sctp_sock, SCTPServer& s, size_t msg_size); 
 	Client(const Client& oth) = delete;
-	
 	Client& operator=(const Client& oth) = delete;
-
 	virtual ~Client();
 
 	virtual void init() override;
@@ -24,7 +20,7 @@ public:
 	virtual IClient::State state() const noexcept override;
 
 	virtual SCTPServer& server() override { return server_; };
-	virtual struct socket* socket() override { return sock; };
+	virtual struct socket* socket() const override { return sock; };
 
 	virtual size_t send(const void* buf, size_t len) override;
 	virtual void close() override;
