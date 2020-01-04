@@ -227,7 +227,7 @@ int main(int /* argc */, char* argv[])
 	SCTPClient client { get_cfg_or_die(argv, options) };
 
 	client.cfg()->data_cback_f = [&](const auto& s)
-	{ 
+	{
 		std::string server_message = ((s->size < 30) ? 
 				std::string(static_cast<char*>(s->buf))
 		 		: std::string(static_cast<char*>(s->buf)).substr(0, 30));

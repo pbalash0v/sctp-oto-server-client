@@ -153,10 +153,23 @@ int main(int /* argc */, char* argv[]) {
 
 	SCTPServer srv { get_cfg_or_die(argv, options) };
 
-	srv.cfg()->data_cback_f = [&](auto client, const auto& s)
+	srv.cfg()->event_cback_f = [&](const auto& evt)
 	{
-		spdlog::debug("Received {} bytes message.", s->size);
-		srv.send(client, s->data, s->size);
+		switch (evt->type) {
+		case Event::CLIENT_DATA:
+			{	
+				spdlog::debug("Received {} bytes message.", evt->client_data->size);
+				srv.send(evt->client, evt->client_data->data, evt->client_data->size);
+			}
+			break;
+		case Event::CLIENT_STATE:
+			spdlog::info("{}", evt->client->to_string());
+			break;
+		case Event::CLIENT_SEND_POSSIBLE:
+			break;
+		default:
+			break;
+		}
 	};
 
 	srv.cfg()->debug_f = [&](const auto& level, const auto& s)

@@ -152,10 +152,23 @@ int main(int /* argc */, char* argv[]) {
 
 	SCTPServer srv { get_cfg_or_die(argv, options) };
 
-	srv.cfg()->data_cback_f = [&](auto /* client */, const auto& s) {
-		std::string message { static_cast<const char*> (s->data) };
-		spdlog::info("{}", ((message.size() < 30) ? message : message.substr(0, 30)));
-		srv.broadcast(message.c_str(), message.size());
+	srv.cfg()->event_cback_f = [&](const auto& evt) {
+		switch (evt->type) {
+		case Event::CLIENT_DATA:
+			{	
+				std::string message { static_cast<const char*> (evt->client_data->data) };
+				spdlog::info("{}", ((message.size() < 30) ? message : message.substr(0, 30)));
+				srv.broadcast(message.c_str(), message.size());
+			}
+			break;
+		case Event::CLIENT_STATE:
+			spdlog::info("{}", evt->client->to_string());
+			break;
+		case Event::CLIENT_SEND_POSSIBLE:
+			break;
+		default:
+			break;
+		}
 	};
 
 	srv.cfg()->debug_f = [&](auto level, const auto& s) {
