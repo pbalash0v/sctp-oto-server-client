@@ -6,6 +6,7 @@
 #include "client.h"
 #include "client_data.h"
 
+class IClient;
 
 struct Event
 {

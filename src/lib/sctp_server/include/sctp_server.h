@@ -17,13 +17,11 @@
 #include "server_event.h"
 
 
-
 #ifdef TEST_BUILD
 #define MAYBE_VIRTUAL virtual
 #else
 #define MAYBE_VIRTUAL
 #endif
-
 
 #ifndef NDEBUG
 #define log(level, text) do { \
@@ -48,9 +46,7 @@
 
 #define TRACE_func_entry() TRACE("Entered " + std::string(__func__))
 #define TRACE_func_left() TRACE("Left " + std::string(__func__))
-
-
-
+						
 constexpr uint16_t DEFAULT_UDP_ENCAPS_PORT = 9899;
 constexpr uint16_t DEFAULT_SCTP_PORT = 5001;
 
@@ -187,7 +183,15 @@ private:
 	void handle_client_data(std::shared_ptr<IClient>& c, const void* buffer, size_t n,
 		 const struct sockaddr_in& addr, const struct sctp_recvv_rn& rcv_info, unsigned int infotype);
 
+	void handle_sender_dry_event(std::shared_ptr<IClient>&, struct sctp_sender_dry_event*);
 	void handle_association_change_event(std::shared_ptr<IClient>&, struct sctp_assoc_change*);
+	void handle_peer_address_change_event(std::shared_ptr<IClient>&, struct sctp_paddr_change* spc);
+	void handle_adaptation_indication(std::shared_ptr<IClient>&, struct sctp_adaptation_event* sai);
+	void handle_shutdown_event(std::shared_ptr<IClient>&, struct sctp_shutdown_event*);
+	void handle_stream_reset_event(std::shared_ptr<IClient>&, struct sctp_stream_reset_event* strrst);
+	void handle_send_failed_event(std::shared_ptr<IClient>&, struct sctp_send_failed_event* ssfe);
+	void handle_stream_change_event(std::shared_ptr<IClient>&, struct sctp_stream_change_event* strchg);
+	void handle_remote_error_event(std::shared_ptr<IClient>&, struct sctp_remote_error* sre);
 
 	void cleanup();
 

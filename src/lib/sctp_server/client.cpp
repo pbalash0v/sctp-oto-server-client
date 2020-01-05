@@ -8,7 +8,10 @@
 #include "usrsctp.h"
 
 #include "client.h"
+#include "client_sctp_message.h"
+
 #include "sctp_server.h"
+#include "server_event.h"
 
 
 #include <arpa/inet.h>
@@ -21,6 +24,8 @@
 #define ENABLE_DEBUG() std::shared_ptr<SCTPServer::Config> cfg_ = server_.cfg_
 
 namespace {
+	//constexpr auto BUFFER_SIZE = 1 << 16;
+
 	std::map<IClient::State, std::string> state_names {
 		{ IClient::NONE, "NONE" },
 		{ IClient::SCTP_ACCEPTED, "SCTP_ACCEPTED" },
@@ -32,6 +37,31 @@ namespace {
 		{ IClient::SCTP_SRV_INITIATED_SHUTDOWN, "SCTP_SRV_INITIATED_SHUTDOWN"},
 		{ IClient::PURGE, "PURGE"}
 	};
+
+	void inline _log_client_error_and_throw(const char* func, bool should_throw)
+	{
+		//ENABLE_DEBUG();
+
+		std::string error { func };
+		error += ": ";
+		//error += to_string();
+		error += " ";
+		error += strerror(errno);
+		//ERROR(error);
+		if (should_throw) throw std::runtime_error(error);
+	}
+
+
+	// void inline log_client_error(const char* func)
+	// {
+	// 	_log_client_error_and_throw(func, false);
+	// }
+
+
+	void inline log_client_error_and_throw(const char* func)
+	{
+		_log_client_error_and_throw(func, true);
+	}	
 }
 
 Client::Client(struct socket* sctp_sock, SCTPServer& s)
@@ -41,9 +71,9 @@ Client::Client(struct socket* sctp_sock, SCTPServer& s)
 Client::Client(struct socket* sctp_sock, SCTPServer& s, size_t message_size)
 	: sock(sctp_sock), server_(s), msg_size_(message_size)
 {
-	sctp_msg_buff().reserve(2*message_size);
-	decrypted_msg_buff().reserve(2*message_size);
-	encrypted_msg_buff().reserve(2*message_size);
+	sctp_msg_buff_.reserve(2*message_size);
+	decrypted_msg_buff_.reserve(2*message_size);
+	encrypted_msg_buff_.reserve(2*message_size);
 };
 
 void Client::init()
@@ -162,9 +192,42 @@ IClient::State Client::state() const noexcept
 	return state_;
 }
 
+ssize_t Client::send_raw(const void* buf, size_t len)
+{
+	ssize_t sent = -1;
+
+	if (state() != IClient::SSL_CONNECTED) {
+		sent = send(buf, len);
+	} else {
+		int written = SSL_write(ssl, buf, len);
+		if (SSL_ERROR_NONE != SSL_get_error(ssl, written)) {
+			log_client_error_and_throw("SSL_write");
+		}
+
+		encrypted_msg_buff_.clear();
+		encrypted_msg_buff_.resize(BIO_ctrl_pending(output_bio));
+
+		int read = BIO_read(output_bio,
+					 encrypted_msg_buff_.data(), encrypted_msg_buff_.size());
+		if (SSL_ERROR_NONE != SSL_get_error(ssl, read)) {
+			log_client_error_and_throw("BIO_read");
+		}
+
+		sent = send(encrypted_msg_buff_.data(), read);
+	}
+
+	if (sent < 0) {
+		log_client_error_and_throw((std::string("usrsctp_sendv: ") + strerror(errno)).c_str());
+	}
+
+	return sent;
+}
+
 size_t Client::send(const void* buf, size_t len)
 {
 	ENABLE_DEBUG();
+
+
 
 	// addrs - NULL for connected socket
 	// addrcnt: Number of addresses.
@@ -185,6 +248,230 @@ size_t Client::send(const void* buf, size_t len)
 void Client::close()
 {
 	usrsctp_close(sock);
+}
+
+
+std::unique_ptr<Event> Client::handle_data(const std::unique_ptr<SCTPMessage>& m)
+{
+	ENABLE_DEBUG();
+
+	TRACE(([&]()
+	{
+		return std::string("client data of size: ") +
+				 std::to_string(m->size) + 
+				 std::string(" for: ") + 
+				 to_string();
+	})());
+
+	#define MAX_TLS_RECORD_SIZE (1 << 14)
+	size_t outbuf_len = (state() != IClient::SSL_CONNECTED) ?
+			MAX_TLS_RECORD_SIZE : m->size;
+
+	decrypted_msg_buff_.clear();
+	decrypted_msg_buff_.resize(outbuf_len);
+
+	void* outbuf = decrypted_msg_buff_.data();
+
+	auto evt = std::make_unique<Event>();
+	evt->type = Event::CLIENT_STATE;
+
+	switch (state()) {
+	case IClient::SCTP_CONNECTED:
+	{
+		TRACE("IClient::SCTP_CONNECTED");
+
+		// got client hello etc
+		int written = BIO_write(input_bio, m->msg, m->size);
+		if (SSL_ERROR_NONE != SSL_get_error(ssl, written)) {
+			log_client_error_and_throw("BIO_write");
+		}
+
+		// we generate server hello etc
+		int r = SSL_do_handshake(ssl);
+		if (SSL_ERROR_WANT_READ != SSL_get_error(ssl, r)) {
+			log_client_error_and_throw("SSL_do_handshake");
+		}
+
+		while (BIO_ctrl_pending(output_bio)) {
+			TRACE("output BIO_ctrl_pending");
+
+			int read = BIO_read(output_bio, outbuf, outbuf_len);
+			if (SSL_ERROR_NONE != SSL_get_error(ssl, read)) {
+				log_client_error_and_throw("BIO_read");
+			}
+
+			ssize_t sent = send(outbuf, read);
+			if (sent < 0) {
+				log_client_error_and_throw("usrsctp_sendv");
+			}
+		}
+
+		evt->client_state = IClient::SSL_HANDSHAKING;
+	}
+	break;
+
+	case IClient::SSL_HANDSHAKING:
+	{
+		TRACE("IClient::SSL_HANDSHAKING");
+
+		int written = BIO_write(input_bio, m->msg, m->size);
+		if (SSL_ERROR_NONE != SSL_get_error(ssl, written)) {
+			log_client_error_and_throw("BIO_write");
+		}
+
+		int r = SSL_do_handshake(ssl);
+
+		if (not SSL_is_init_finished(ssl)) {
+			if (SSL_ERROR_WANT_READ == SSL_get_error(ssl, r) and BIO_ctrl_pending(output_bio)) {
+				int read = BIO_read(output_bio, outbuf, outbuf_len);
+				if (SSL_ERROR_NONE != SSL_get_error(ssl, read)) {
+					log_client_error_and_throw("BIO_read");
+				}
+
+				ssize_t sent = send(outbuf, read);
+				if (sent < 0) {
+					log_client_error_and_throw("usrsctp_sendv");
+				}
+				break;
+			}
+
+			if (SSL_ERROR_NONE == SSL_get_error(ssl, r) and BIO_ctrl_pending(output_bio)) {
+				int read = BIO_read(output_bio, outbuf, outbuf_len);						
+				if (SSL_ERROR_NONE != SSL_get_error(ssl, read)) {
+					log_client_error_and_throw("BIO_read");
+				}
+
+				ssize_t sent = send(outbuf, read);
+				if (sent < 0) {
+					log_client_error_and_throw("usrsctp_sendv");
+				}
+
+				evt->client_state = IClient::SSL_CONNECTED;
+
+				// try {
+				// 	server_.client_state(IClient::SSL_CONNECTED);
+				// } catch (const std::runtime_error& exc) {
+				// 	log_client_error_and_throw((std::string("set_state") + 
+				// 		std::string(exc.what())).c_str());
+				// }						
+				break;
+			}
+
+			if (SSL_ERROR_NONE == SSL_get_error(ssl, r) and not BIO_ctrl_pending(output_bio)) {
+				evt->client_state = IClient::SSL_CONNECTED;
+
+				// try {
+				// 	server_.client_state(c, IClient::SSL_CONNECTED);
+				// } catch (const std::runtime_error& exc) {
+				// 	log_client_error_and_throw((std::string("client_state") + 
+				// 		std::string(exc.what())).c_str());
+				// }						
+				break;
+			}				
+		} else {
+			while (BIO_ctrl_pending(output_bio)) {
+				TRACE("output BIO_ctrl_pending");
+
+				int read = BIO_read(output_bio, outbuf, outbuf_len);
+				if (SSL_ERROR_NONE != SSL_get_error(ssl, read)) {
+					log_client_error_and_throw("BIO_read");
+				}
+
+				ssize_t sent = send(outbuf, read);
+				if (sent < 0) {
+					log_client_error_and_throw("usrsctp_sendv");
+				}
+			}
+
+			evt->client_state = IClient::SSL_CONNECTED;
+			break;
+		}
+	}
+	break;
+
+	case IClient::SSL_CONNECTED:
+	{
+		TRACE(std::string("encrypted message length n: ") + std::to_string(m->size));
+
+		size_t total_decrypted_message_size = 0;
+
+		int written = BIO_write(input_bio, m->msg, m->size);
+		if (SSL_ERROR_NONE != SSL_get_error(ssl, written)) {
+			log_client_error_and_throw("BIO_write");
+		}
+
+		int read = -1;
+		while (BIO_ctrl_pending(input_bio)) {
+			read = SSL_read(ssl, static_cast<char*>(outbuf) + total_decrypted_message_size, MAX_TLS_RECORD_SIZE);
+			TRACE(std::string("SSL read: ") + std::to_string(read));
+
+			if (read == 0 and SSL_ERROR_ZERO_RETURN == SSL_get_error(ssl, read)) {
+				DEBUG("SSL_ERROR_ZERO_RETURN");
+				evt->client_state = IClient::SSL_SHUTDOWN;
+				break;
+			}
+
+			if (read < 0 and SSL_ERROR_WANT_READ == SSL_get_error(ssl, read)) {
+				TRACE("SSL_ERROR_WANT_READ");
+				break;
+			}
+
+			if (SSL_ERROR_NONE != SSL_get_error(ssl, read)) {
+				log_client_error_and_throw("SSL_read");
+			}
+
+			total_decrypted_message_size += read;
+		} 
+
+
+		// if (read > 0) TRACE(([&]
+		// {
+		// 	char message[BUFFER_SIZE] = {'\0'};
+
+		// 	char name[INET_ADDRSTRLEN] = {'\0'};
+
+		// 	if (m->infotype == SCTP_RECVV_RCVINFO) {
+		// 		snprintf(message, sizeof message,
+		// 					"Msg %s of length %llu received from %s:%u on stream %u with SSN %u and TSN %u, PPID %u, context %u.",
+		// 					(char*) outbuf,
+		// 					(unsigned long long) total_decrypted_message_size,
+		// 					inet_ntop(AF_INET, &(m->addr.sin_addr), name, INET_ADDRSTRLEN),
+		// 					ntohs(m->addr.sin_port),
+		// 					m->rcv_info.recvv_rcvinfo.rcv_sid,	rcv_info.recvv_rcvinfo.rcv_ssn,
+		// 					m->rcv_info.recvv_rcvinfo.rcv_tsn,
+		// 					ntohl(rcv_info.recvv_rcvinfo.rcv_ppid), rcv_info.recvv_rcvinfo.rcv_context);
+		// 	} else {
+		// 		if (n < 30) 
+		// 			snprintf(message, sizeof message, "Msg %s of length %llu received from %s:%u.",
+		// 				(char*) outbuf,
+		// 				(unsigned long long) total_decrypted_message_size,
+		// 				inet_ntop(AF_INET, &addr.sin_addr, name, INET_ADDRSTRLEN),
+		// 				ntohs(addr.sin_port));
+		// 		else 
+		// 			snprintf(message, sizeof message, "Msg of length %llu received from %s:%u",
+		// 				(unsigned long long) total_decrypted_message_size,
+		// 				inet_ntop(AF_INET, &addr.sin_addr, name, INET_ADDRSTRLEN),
+		// 				ntohs(addr.sin_port));						
+		// 	}
+
+		// 	return std::string(message);
+		// })());
+
+		evt->type = Event::CLIENT_DATA;
+		evt->client_state = IClient::SSL_CONNECTED;
+		evt->client_data = std::make_unique<Data>(outbuf, total_decrypted_message_size);
+	}
+	break;
+
+	case IClient::SSL_SHUTDOWN:
+		break;
+
+	default:
+		log_client_error_and_throw("Unknown client state !");
+	break;
+	} //end of switch
+
+	return evt;
 }
 
 

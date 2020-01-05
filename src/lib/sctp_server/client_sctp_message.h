@@ -5,6 +5,8 @@
 
 #include "iclient.h"
 
+
+
 struct SCTPMessage
 {
 	enum Type
@@ -22,7 +24,7 @@ struct SCTPMessage
 	SCTPMessage& operator=(const SCTPMessage& oth) = delete;
 
 	virtual ~SCTPMessage();
-	
+
 	Type type;
 	std::shared_ptr<IClient> client;
 	void* msg { nullptr };

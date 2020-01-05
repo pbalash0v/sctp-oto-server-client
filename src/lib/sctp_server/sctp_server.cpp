@@ -52,31 +52,15 @@ namespace
 	   pthread_setname_np(handle, name);
 	}
 
-
-	void _log_client_error_and_throw(const char* func, std::shared_ptr<IClient>& c,
-														 bool should_throw)
+	std::string inline client_errno(const char* func, std::shared_ptr<IClient>& c)
 	{
-		auto cfg_ = c->server().cfg();
-
 		std::string error { func };
 		error += ": ";
 		error += c->to_string();
 		error += " ";
 		error += strerror(errno);
-		ERROR(error);
-		if (should_throw) throw std::runtime_error(error);
-	}
 
-
-	void log_client_error(const char* func, std::shared_ptr<IClient>& c)
-	{
-		_log_client_error_and_throw(func, c, false);
-	}
-
-
-	void log_client_error_and_throw(const char* func, std::shared_ptr<IClient>& c)
-	{
-		_log_client_error_and_throw(func, c, true);
+		return error;
 	}
 }
 
@@ -402,42 +386,42 @@ void SCTPServer::broadcast(const void* data, size_t len)
 void SCTPServer::send(std::shared_ptr<IClient>& c, const void* data, size_t len)
 {
 	assert(c->state() == IClient::SSL_CONNECTED);
-	send_raw(c, data, len);
+	c->send_raw(data, len);
 }
 
-/*
-	Private. Accounts for client state.
-*/
-ssize_t SCTPServer::send_raw(std::shared_ptr<IClient>& c, const void* buf, size_t len)
-{
-	ssize_t sent = -1;
+// /*
+// 	Private. Accounts for client state.
+// */
+// ssize_t SCTPServer::send_raw(std::shared_ptr<IClient>& c, const void* buf, size_t len)
+// {
+// 	ssize_t sent = -1;
 
-	if (c->state() != IClient::SSL_CONNECTED) {
-		sent = c->send(buf, len);
-	} else {
-		int written = SSL_write(c->ssl, buf, len);
-		if (SSL_ERROR_NONE != SSL_get_error(c->ssl, written)) {
-			log_client_error_and_throw("SSL_write", c);
-		}
+// 	if (c->state() != IClient::SSL_CONNECTED) {
+// 		sent = c->send(buf, len);
+// 	} else {
+// 		int written = SSL_write(c->ssl, buf, len);
+// 		if (SSL_ERROR_NONE != SSL_get_error(c->ssl, written)) {
+// 			log_client_error_and_throw("SSL_write", c);
+// 		}
 
-		c->encrypted_msg_buff().clear();
-		c->encrypted_msg_buff().resize(BIO_ctrl_pending(c->output_bio));
+// 		c->encrypted_msg_buff().clear();
+// 		c->encrypted_msg_buff().resize(BIO_ctrl_pending(c->output_bio));
 
-		int read = BIO_read(c->output_bio,
-					 c->encrypted_msg_buff().data(), c->encrypted_msg_buff().size());
-		if (SSL_ERROR_NONE != SSL_get_error(c->ssl, read)) {
-			log_client_error_and_throw("BIO_read", c);
-		}
+// 		int read = BIO_read(c->output_bio,
+// 					 c->encrypted_msg_buff().data(), c->encrypted_msg_buff().size());
+// 		if (SSL_ERROR_NONE != SSL_get_error(c->ssl, read)) {
+// 			log_client_error_and_throw("BIO_read", c);
+// 		}
 
-		sent = c->send(c->encrypted_msg_buff().data(), read);
-	}
+// 		sent = c->send(c->encrypted_msg_buff().data(), read);
+// 	}
 
-	if (sent < 0) {
-		log_client_error_and_throw((std::string("usrsctp_sendv: ") + strerror(errno)).c_str(), c);
-	}
+// 	if (sent < 0) {
+// 		log_client_error_and_throw((std::string("usrsctp_sendv: ") + strerror(errno)).c_str(), c);
+// 	}
 
-	return sent;
-}
+// 	return sent;
+// }
 
 
 void SCTPServer::drop_client(std::shared_ptr<IClient>& c)
@@ -464,8 +448,8 @@ void SCTPServer::handle_server_upcall(struct socket* serv_sock, void* arg, int)
 		Getting it here explicitly.
 	*/
 	auto cfg_ = s->cfg();
-
 	/* from here on we can use log macros */
+
 	TRACE_func_entry();
 
 	int events = usrsctp_get_events(serv_sock);
@@ -509,6 +493,8 @@ void SCTPServer::handle_server_upcall(struct socket* serv_sock, void* arg, int)
 	if (events & SCTP_EVENT_WRITE) {
 		ERROR("SCTP_EVENT_WRITE on server socket.");
 	}
+
+	TRACE_func_left();
 }
 
 void SCTPServer::client_state(std::shared_ptr<IClient>& c, IClient::State s)
@@ -652,15 +638,13 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 				+ std::to_string(nbytes) + std::string(" received."));
 
 			try {
-				if (flags & MSG_NOTIFICATION) {
-					sctp_msgs_.enqueue(std::make_unique<SCTPMessage>(SCTPMessage::NOTIFICATION,
-					 	client, data_buf, nbytes));
-				} else {
-					sctp_msgs_.enqueue(std::make_unique<SCTPMessage>(SCTPMessage::MESSAGE,
-					 	client, data_buf, nbytes, addr, rn, infotype));
-				}
+				sctp_msgs_.enqueue((flags & MSG_NOTIFICATION) ?
+						std::make_unique<SCTPMessage>(SCTPMessage::NOTIFICATION, client, data_buf, nbytes)
+						:
+						std::make_unique<SCTPMessage>(SCTPMessage::MESSAGE, client, data_buf, nbytes,
+						 addr, rn, infotype));
 			} catch (const std::runtime_error& exc) {
-				log_client_error("handle_client_data", client);
+				ERROR(client_errno("handle_client_data", client));
 			}
 
 			client->sctp_msg_buff().clear();
@@ -689,7 +673,7 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 				(errno == EINTR)) {
 				//TRACE(strerror(errno));
 			} else {
-				log_client_error("usrsctp_recvv: ", client);
+				ERROR(client_errno("usrsctp_recvv: ", client));
 			}
 		}		
 	}
@@ -705,239 +689,31 @@ void SCTPServer::sctp_msg_handler_loop()
 
 	while (true) {
 		auto msg = sctp_msgs_.dequeue();
+		auto client = msg->client;
 
 		if (msg->size == 0) break;
 
+		std::unique_ptr<Event> evt { nullptr };
 		try {
 			if (msg->type == SCTPMessage::NOTIFICATION) {
-				handle_notification(msg->client, static_cast<union sctp_notification*>(msg->msg), msg->size);
+				handle_notification(client, static_cast<union sctp_notification*>(msg->msg), msg->size);
+				continue;
 			} else {
-				handle_client_data(msg->client, msg->msg, msg->size, msg->addr, msg->rn, msg->infotype);
+				evt = client->handle_data(std::move(msg));
 			}
 		} catch (const std::runtime_error& exc) {
-			log_client_error("handle_client_data", msg->client);
-		}
-	}
-
-	TRACE_func_left();
-}
-
-
-void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buffer, size_t n, 
-						const struct sockaddr_in& addr, const struct sctp_recvv_rn& rcv_info,
-						unsigned int infotype)
-{
-	TRACE(([&]()
-	{
-		return std::string("client_data of size: ") +
-				 std::to_string(n) + 
-				 std::string(" for: ") + 
-				 c->to_string();
-	})());
-
-	#define MAX_TLS_RECORD_SIZE (1 << 14)
-	size_t outbuf_len = (c->state() != IClient::SSL_CONNECTED) ?
-			MAX_TLS_RECORD_SIZE : n;
-
-	c->decrypted_msg_buff().clear();
-	c->decrypted_msg_buff().resize(outbuf_len);
-
-	void* outbuf = c->decrypted_msg_buff().data();
-
-	switch (c->state()) {
-	case IClient::SCTP_CONNECTED:
-	{
-		TRACE("IClient::SCTP_CONNECTED");
-
-		// got client hello etc
-		int written = BIO_write(c->input_bio, buffer, n);
-		if (SSL_ERROR_NONE != SSL_get_error(c->ssl, written)) {
-			log_client_error_and_throw("BIO_write", c);
+			ERROR(client_errno("handle_client_data", msg->client));
 		}
 
-		// we generate server hello etc
-		int r = SSL_do_handshake(c->ssl);
-		if (SSL_ERROR_WANT_READ != SSL_get_error(c->ssl, r)) {
-			log_client_error_and_throw("SSL_do_handshake", c);
+		if (evt->type == Event::CLIENT_STATE) {
+			client_state(client, evt->client_state);
+			continue;
 		}
 
-		while (BIO_ctrl_pending(c->output_bio)) {
-			TRACE("output BIO_ctrl_pending");
-
-			int read = BIO_read(c->output_bio, outbuf, outbuf_len);
-			if (SSL_ERROR_NONE != SSL_get_error(c->ssl, read)) {
-				log_client_error_and_throw("BIO_read", c);
-			}
-
-			ssize_t sent = c->send(outbuf, read);
-			if (sent < 0) {
-				log_client_error_and_throw("usrsctp_sendv", c);
-			}
-		}
-
-		try {
-			client_state(c, IClient::SSL_HANDSHAKING);
-		} catch (const std::runtime_error& exc) {
-			log_client_error_and_throw((std::string("set_state") + 
-				std::string(exc.what())).c_str(), c);
-		}
-	}
-	break;
-
-	case IClient::SSL_HANDSHAKING:
-	{
-		TRACE("IClient::SSL_HANDSHAKING");
-
-		int written = BIO_write(c->input_bio, buffer, n);
-		if (SSL_ERROR_NONE != SSL_get_error(c->ssl, written)) {
-			log_client_error_and_throw("BIO_write", c);
-		}
-
-		int r = SSL_do_handshake(c->ssl);
-
-		if (not SSL_is_init_finished(c->ssl)) {
-			if (SSL_ERROR_WANT_READ == SSL_get_error(c->ssl, r) and BIO_ctrl_pending(c->output_bio)) {
-				int read = BIO_read(c->output_bio, outbuf, outbuf_len);
-				if (SSL_ERROR_NONE != SSL_get_error(c->ssl, read)) {
-					log_client_error_and_throw("BIO_read", c);
-				}
-
-				ssize_t sent = c->send(outbuf, read);
-				if (sent < 0) {
-					log_client_error_and_throw("usrsctp_sendv", c);
-				}
-				break;
-			}
-
-			if (SSL_ERROR_NONE == SSL_get_error(c->ssl, r) and BIO_ctrl_pending(c->output_bio)) {
-				int read = BIO_read(c->output_bio, outbuf, outbuf_len);						
-				if (SSL_ERROR_NONE != SSL_get_error(c->ssl, read)) {
-					log_client_error_and_throw("BIO_read", c);
-				}
-
-				ssize_t sent = c->send(outbuf, read);
-				if (sent < 0) {
-					log_client_error_and_throw("usrsctp_sendv", c);
-				}
-
-				try {
-					client_state(c, IClient::SSL_CONNECTED);
-				} catch (const std::runtime_error& exc) {
-					log_client_error_and_throw((std::string("set_state") + 
-						std::string(exc.what())).c_str(), c);
-				}						
-				break;
-			}
-
-			if (SSL_ERROR_NONE == SSL_get_error(c->ssl, r) and not BIO_ctrl_pending(c->output_bio)) {
-				try {
-					client_state(c, IClient::SSL_CONNECTED);
-				} catch (const std::runtime_error& exc) {
-					log_client_error_and_throw((std::string("set_state") + 
-						std::string(exc.what())).c_str(), c);
-				}						
-				break;
-			}				
-		} else {
-			while (BIO_ctrl_pending(c->output_bio)) {
-				TRACE("output BIO_ctrl_pending");
-
-				int read = BIO_read(c->output_bio, outbuf, outbuf_len);
-				if (SSL_ERROR_NONE != SSL_get_error(c->ssl, read)) {
-					log_client_error_and_throw("BIO_read", c);
-				}
-
-				ssize_t sent = c->send(outbuf, read);
-				if (sent < 0) {
-					log_client_error_and_throw("usrsctp_sendv", c);
-				}
-			}
-
+		if ((evt->type == Event::CLIENT_DATA) and (evt->client_data->size > 0) and (cfg_->event_cback_f)) {
+			evt->client = client;
 			try {
-				client_state(c, IClient::SSL_CONNECTED);
-			} catch (const std::runtime_error& exc) {
-				log_client_error_and_throw((std::string("set_state") + 
-					std::string(exc.what())).c_str(), c);
-			}
-			break;
-		}
-	}
-	break;
-
-	case IClient::SSL_CONNECTED:
-	{
-		TRACE(std::string("encrypted message length n: ") + std::to_string(n));
-
-		size_t total_decrypted_message_size = 0;
-
-		int written = BIO_write(c->input_bio, buffer, n);
-		if (SSL_ERROR_NONE != SSL_get_error(c->ssl, written)) {
-			log_client_error_and_throw("BIO_write", c);
-		}
-
-		int read = -1;
-		while (BIO_ctrl_pending(c->input_bio)) {
-			read = SSL_read(c->ssl, static_cast<char*>(outbuf) + total_decrypted_message_size, MAX_TLS_RECORD_SIZE);
-			TRACE(std::string("SSL read: ") + std::to_string(read));
-
-			if (read == 0 and SSL_ERROR_ZERO_RETURN == SSL_get_error(c->ssl, read)) {
-				DEBUG("SSL_ERROR_ZERO_RETURN");
-				client_state(c, IClient::SSL_SHUTDOWN);
-				break;
-			}
-
-			if (read < 0 and SSL_ERROR_WANT_READ == SSL_get_error(c->ssl, read)) {
-				TRACE("SSL_ERROR_WANT_READ");
-				break;
-			}
-
-			if (SSL_ERROR_NONE != SSL_get_error(c->ssl, read)) {
-				log_client_error_and_throw("SSL_read", c);
-			}
-
-			total_decrypted_message_size += read;
-		} 
-
-
-		if (read > 0) TRACE(([&]
-		{
-			char message[BUFFER_SIZE] = {'\0'};
-
-			char name[INET_ADDRSTRLEN] = {'\0'};
-
-			if (infotype == SCTP_RECVV_RCVINFO) {
-				snprintf(message, sizeof message,
-							"Msg %s of length %llu received from %s:%u on stream %u with SSN %u and TSN %u, PPID %u, context %u.",
-							(char*) outbuf,
-							(unsigned long long) total_decrypted_message_size,
-							inet_ntop(AF_INET, &addr.sin_addr, name, INET_ADDRSTRLEN),
-							ntohs(addr.sin_port),
-							rcv_info.recvv_rcvinfo.rcv_sid,	rcv_info.recvv_rcvinfo.rcv_ssn,
-							rcv_info.recvv_rcvinfo.rcv_tsn,
-							ntohl(rcv_info.recvv_rcvinfo.rcv_ppid), rcv_info.recvv_rcvinfo.rcv_context);
-			} else {
-				if (n < 30) 
-					snprintf(message, sizeof message, "Msg %s of length %llu received from %s:%u.",
-						(char*) outbuf,
-						(unsigned long long) total_decrypted_message_size,
-						inet_ntop(AF_INET, &addr.sin_addr, name, INET_ADDRSTRLEN),
-						ntohs(addr.sin_port));
-				else 
-					snprintf(message, sizeof message, "Msg of length %llu received from %s:%u",
-						(unsigned long long) total_decrypted_message_size,
-						inet_ntop(AF_INET, &addr.sin_addr, name, INET_ADDRSTRLEN),
-						ntohs(addr.sin_port));						
-			}
-
-			return std::string(message);
-		})());
-		
-		/* pass data to user */
-		if (cfg_->event_cback_f and (read >0)) {
-			try {
-				cfg_->event_cback_f(
-					std::make_unique<Event>(Event::Type::CLIENT_DATA, c,
-					 std::make_unique<Data>(outbuf, total_decrypted_message_size)));
+				cfg_->event_cback_f(std::move(evt));
 			} catch (const std::runtime_error& exc) {
 				ERROR(exc.what());				
 			} catch (...) {
@@ -945,16 +721,10 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 			}
 		}
 	}
-	break;
 
-	case IClient::SSL_SHUTDOWN:
-		break;
-
-	default:
-		log_client_error_and_throw("Unknown client state !", c);
-	break;
-	} //end of switch
+	TRACE_func_left();
 }
+
 
 
 /*
@@ -1075,15 +845,8 @@ void SCTPServer::handle_association_change_event(std::shared_ptr<IClient>& c, st
 	return;
 }
 
-static void handle_peer_address_change_event(std::shared_ptr<IClient>& c, struct sctp_paddr_change* spc)
+void SCTPServer::handle_peer_address_change_event(std::shared_ptr<IClient>&, struct sctp_paddr_change* spc)
 {
-	/* 
-		log macros depend on local object named cfg_.
-		Getting it here explicitly.
-	*/
-	auto cfg_ = c->server().cfg();
-	/* from here on we can use log macros */
-
 	char addr_buf[INET6_ADDRSTRLEN];
 	const char* addr;
 	char buf[BUFFER_SIZE] = { '\0' };
@@ -1143,15 +906,8 @@ static void handle_peer_address_change_event(std::shared_ptr<IClient>& c, struct
 	return;
 }
 
-static void handle_send_failed_event(std::shared_ptr<IClient>& c, struct sctp_send_failed_event* ssfe)
+void SCTPServer::handle_send_failed_event(std::shared_ptr<IClient>&, struct sctp_send_failed_event* ssfe)
 {
-	/* 
-		log macros depend on local object named cfg_.
-		Getting it here explicitly.
-	*/
-	auto cfg_ = c->server().cfg();
-	/* from here on we can use log macros */
-
 	size_t i, n;
 
 	char buf[BUFFER_SIZE] = { '\0' };
@@ -1186,30 +942,16 @@ static void handle_send_failed_event(std::shared_ptr<IClient>& c, struct sctp_se
 	return;
 }
 
-static void handle_adaptation_indication(std::shared_ptr<IClient>& c, struct sctp_adaptation_event* sai)
+void SCTPServer::handle_adaptation_indication(std::shared_ptr<IClient>&, struct sctp_adaptation_event* sai)
 {
-	/* 
-		log macros depend on local object named cfg_.
-		Getting it here explicitly.
-	*/
-	auto cfg_ = c->server().cfg();
-	/* from here on we can use log macros */
-
 	char buf[BUFFER_SIZE] = { '\0' };
 	snprintf(buf, sizeof buf, "Adaptation indication: %x.\n", sai-> sai_adaptation_ind);
 	DEBUG(buf);
 	return;
 }
 
-static void handle_shutdown_event(std::shared_ptr<IClient>& c, struct sctp_shutdown_event*)
+void SCTPServer::handle_shutdown_event(std::shared_ptr<IClient>&, struct sctp_shutdown_event*)
 {
-	/* 
-		log macros depend on local object named cfg_.
-		Getting it here explicitly.
-	*/
-	auto cfg_ = c->server().cfg();
-	/* from here on we can use log macros */
-
 	char buf[BUFFER_SIZE] = { '\0' };
 	snprintf(buf, sizeof buf, "Shutdown event.");
 	DEBUG(buf);
@@ -1217,15 +959,8 @@ static void handle_shutdown_event(std::shared_ptr<IClient>& c, struct sctp_shutd
 	return;
 }
 
-static void handle_stream_reset_event(std::shared_ptr<IClient>& c, struct sctp_stream_reset_event* strrst)
+void SCTPServer::handle_stream_reset_event(std::shared_ptr<IClient>&, struct sctp_stream_reset_event* strrst)
 {
-	/* 
-		log macros depend on local object named cfg_.
-		Getting it here explicitly.
-	*/
-	auto cfg_ = c->server().cfg();
-	/* from here on we can use log macros */
-
 	uint32_t n, i;
 
 	n = (strrst->strreset_length - sizeof(struct sctp_stream_reset_event)) / sizeof(uint16_t);
@@ -1258,15 +993,8 @@ static void handle_stream_reset_event(std::shared_ptr<IClient>& c, struct sctp_s
 	return;
 }
 
-static void handle_stream_change_event(std::shared_ptr<IClient>& c, struct sctp_stream_change_event* strchg)
+void SCTPServer::handle_stream_change_event(std::shared_ptr<IClient>&, struct sctp_stream_change_event* strchg)
 {
-	/* 
-		log macros depend on local object named cfg_.
-		Getting it here explicitly.
-	*/
-	auto cfg_ = c->server().cfg();
-	/* from here on we can use log macros */
-
 	char buf[BUFFER_SIZE] = { '\0' };
 	snprintf(buf, sizeof buf, "Stream change event: streams (in/out) = (%u/%u), flags = %x.\n",
 	       strchg->strchange_instrms, strchg->strchange_outstrms, strchg->strchange_flags);
@@ -1275,15 +1003,8 @@ static void handle_stream_change_event(std::shared_ptr<IClient>& c, struct sctp_
 	return;
 }
 
-static void handle_remote_error_event(std::shared_ptr<IClient>& c, struct sctp_remote_error* sre)
+void SCTPServer::handle_remote_error_event(std::shared_ptr<IClient>&, struct sctp_remote_error* sre)
 {
-	/* 
-		log macros depend on local object named cfg_.
-		Getting it here explicitly.
-	*/
-	auto cfg_ = c->server().cfg();
-	/* from here on we can use log macros */
-
 	size_t i, n;
 
 	n = sre->sre_length - sizeof(struct sctp_remote_error);
@@ -1300,10 +1021,8 @@ static void handle_remote_error_event(std::shared_ptr<IClient>& c, struct sctp_r
 	return;
 }
 
-static void handle_sender_dry_event(std::shared_ptr<IClient>& c, struct sctp_sender_dry_event*)
+void SCTPServer::handle_sender_dry_event(std::shared_ptr<IClient>& c, struct sctp_sender_dry_event*)
 {
-	auto cfg_ = c->server().cfg();
-
 	if (cfg_->event_cback_f && c->state() == IClient::SSL_CONNECTED) {
 		try {
 			cfg_->event_cback_f(
