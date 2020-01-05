@@ -634,13 +634,13 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 					client->sctp_msg_buff().insert(client->sctp_msg_buff().end(), recv_buf, recv_buf + n);
 				}
 			}
-			assert(flags & MSG_EOR);
 
 			/*
 			 Now we got full sctp message. Processing it.
 			 At this point we can have message buffered in vector or in char array on a stack.
 			 Unifying.
 			*/
+			assert(flags & MSG_EOR);
 			nbytes = (client->sctp_msg_buff().empty()) ? n : client->sctp_msg_buff().size();
 			void* data_buf = (client->sctp_msg_buff().empty()) ? recv_buf : client->sctp_msg_buff().data();
 
@@ -648,14 +648,16 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 				We process notification in this thread 
 				and just enqueue copies of client messages to be processed in another thread
 			*/
+			TRACE(((flags & MSG_NOTIFICATION) ? "Notification of length " : "SCTP msg of length ")
+				+ std::to_string(nbytes) + std::string(" received."));
+
 			try {
 				if (flags & MSG_NOTIFICATION) {
-					TRACE(std::string("Notification of length ") + std::to_string(nbytes) + std::string(" received."));
-					sctp_msgs_.enqueue(std::make_unique<SCTPMessage>(SCTPMessage::NOTIFICATION, client, data_buf, nbytes));
+					sctp_msgs_.enqueue(std::make_unique<SCTPMessage>(SCTPMessage::NOTIFICATION,
+					 	client, data_buf, nbytes));
 				} else {
-					TRACE(std::string("SCTP msg of length ") + std::to_string(nbytes) + std::string(" received."));
-					sctp_msgs_.enqueue(std::make_unique<SCTPMessage>(
-						SCTPMessage::MESSAGE, client, data_buf, nbytes, addr, rn, infotype));
+					sctp_msgs_.enqueue(std::make_unique<SCTPMessage>(SCTPMessage::MESSAGE,
+					 	client, data_buf, nbytes, addr, rn, infotype));
 				}
 			} catch (const std::runtime_error& exc) {
 				log_client_error("handle_client_data", client);
@@ -715,7 +717,6 @@ void SCTPServer::sctp_msg_handler_loop()
 		} catch (const std::runtime_error& exc) {
 			log_client_error("handle_client_data", msg->client);
 		}
-
 	}
 
 	TRACE_func_left();
@@ -1303,7 +1304,7 @@ static void handle_sender_dry_event(std::shared_ptr<IClient>& c, struct sctp_sen
 {
 	auto cfg_ = c->server().cfg();
 
-	if (cfg_->event_cback_f) {
+	if (cfg_->event_cback_f && c->state() == IClient::SSL_CONNECTED) {
 		try {
 			cfg_->event_cback_f(
 				std::make_unique<Event>(Event::Type::CLIENT_SEND_POSSIBLE, c));
@@ -1340,11 +1341,9 @@ void SCTPServer::handle_notification(std::shared_ptr<IClient>& c, union sctp_not
 	case SCTP_ADAPTATION_INDICATION:
 		handle_adaptation_indication(c, &(notif->sn_adaptation_event));
 		break;
-
 	case SCTP_SENDER_DRY_EVENT:
 		handle_sender_dry_event(c, &(notif->sn_sender_dry_event));
 		break;
-
 	case SCTP_SEND_FAILED_EVENT:
 		handle_send_failed_event(c, &(notif->sn_send_failed_event));
 		break;
