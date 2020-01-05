@@ -3,9 +3,9 @@
 
 #include "client_sctp_message.h"
 
-SCTPMessage::SCTPMessage(std::shared_ptr<IClient> c, void* b, size_t s, 
+SCTPMessage::SCTPMessage(Type tp, std::shared_ptr<IClient> c, void* b, size_t s, 
 					struct sockaddr_in& a, struct sctp_recvv_rn r, unsigned int t)
-	: client(c), msg(b), size(s), addr(a), rn(r), infotype(t)
+	: type(tp), client(c), size(s), addr(a), rn(r), infotype(t)
 {
 	msg = calloc(s, sizeof(char));
 	if (not msg) throw std::runtime_error("Calloc failed.");
@@ -14,6 +14,15 @@ SCTPMessage::SCTPMessage(std::shared_ptr<IClient> c, void* b, size_t s,
 	size = s;
 };
 
+SCTPMessage::SCTPMessage(Type t, std::shared_ptr<IClient> c, void* b, size_t s)
+	: type(t), client(c), size(s)
+{
+	msg = calloc(s, sizeof(char));
+	if (not msg) throw std::runtime_error("Calloc failed.");
+
+	memcpy(msg, b, s);
+	size = s;
+}
 
 SCTPMessage::~SCTPMessage()
 {
