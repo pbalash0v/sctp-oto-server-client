@@ -5,6 +5,7 @@
 #include <cassert>
 #include <algorithm>
 #include <thread>
+#include <map>
 
 #include <sys/socket.h>
 #include <netdb.h>
@@ -26,6 +27,23 @@ std::atomic_bool SCTPServer::instance_exists_ { false };
 
 namespace
 {
+	std::map<uint16_t, std::string> notification_names {
+		{ SCTP_ASSOC_CHANGE, "SCTP_ASSOC_CHANGE" },
+		{ SCTP_PEER_ADDR_CHANGE, "SCTP_PEER_ADDR_CHANGE" },
+		{ SCTP_REMOTE_ERROR, "SCTP_REMOTE_ERROR"},
+		{ SCTP_SEND_FAILED, "SCTP_SEND_FAILED"},
+		{ SCTP_SHUTDOWN_EVENT, "SCTP_SHUTDOWN_EVENT"},
+		{ SCTP_ADAPTATION_INDICATION, "SCTP_ADAPTATION_INDICATION"},
+		{ SCTP_PARTIAL_DELIVERY_EVENT, "SCTP_PARTIAL_DELIVERY_EVENT"},
+		{ SCTP_AUTHENTICATION_EVENT, "SCTP_AUTHENTICATION_EVENT"},
+		{ SCTP_SENDER_DRY_EVENT, "SCTP_SENDER_DRY_EVENT"},
+		{ SCTP_STREAM_RESET_EVENT, "SCTP_STREAM_RESET_EVENT"},
+		{ SCTP_NOTIFICATIONS_STOPPED_EVENT, "SCTP_NOTIFICATIONS_STOPPED_EVENT"},
+		{ SCTP_ASSOC_RESET_EVENT, "SCTP_ASSOC_RESET_EVENT"},
+		{ SCTP_STREAM_CHANGE_EVENT, "SCTP_STREAM_CHANGE_EVENT"},
+		{ SCTP_SEND_FAILED_EVENT, "SCTP_SEND_FAILED_EVENT"}
+	};
+
 	SyncQueue<std::unique_ptr<SCTPMessage>> sctp_msgs_;
 
 	void set_thread_name(std::thread& thread, const char* name)
@@ -105,7 +123,7 @@ SCTPServer::~SCTPServer()
 	if (needs_force_close) {
 		TRACE("before force close of clients");
 		for (auto& c : clients_) {
-			client_state(c, Client::PURGE);
+			client_state(c, IClient::PURGE);
 		}
 		TRACE("force close of clients done");
 
@@ -158,7 +176,7 @@ void SCTPServer::cleanup()
 		/* shutdown and cleanup clients */
 		TRACE("before clients shutdown");
 		for (auto& c : clients_) {
-			client_state(c, Client::SCTP_SRV_INITIATED_SHUTDOWN);
+			client_state(c, IClient::SCTP_SRV_INITIATED_SHUTDOWN);
 		}
 		TRACE("clients shutdown done");
 	}
@@ -383,7 +401,7 @@ void SCTPServer::broadcast(const void* data, size_t len)
 
 void SCTPServer::send(std::shared_ptr<IClient>& c, const void* data, size_t len)
 {
-	assert(c->state() == Client::SSL_CONNECTED);
+	assert(c->state() == IClient::SSL_CONNECTED);
 	send_raw(c, data, len);
 }
 
@@ -394,7 +412,7 @@ ssize_t SCTPServer::send_raw(std::shared_ptr<IClient>& c, const void* buf, size_
 {
 	ssize_t sent = -1;
 
-	if (c->state() != Client::SSL_CONNECTED) {
+	if (c->state() != IClient::SSL_CONNECTED) {
 		sent = c->send(buf, len);
 	} else {
 		int written = SSL_write(c->ssl, buf, len);
@@ -633,10 +651,11 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 			try {
 				if (flags & MSG_NOTIFICATION) {
 					TRACE(std::string("Notification of length ") + std::to_string(nbytes) + std::string(" received."));
-					s->handle_notification(client, static_cast<union sctp_notification*>(data_buf), nbytes);
+					sctp_msgs_.enqueue(std::make_unique<SCTPMessage>(SCTPMessage::NOTIFICATION, client, data_buf, nbytes));
 				} else {
 					TRACE(std::string("SCTP msg of length ") + std::to_string(nbytes) + std::string(" received."));
-					sctp_msgs_.enqueue(std::make_unique<SCTPMessage>(client, data_buf, nbytes, addr, rn, infotype));
+					sctp_msgs_.enqueue(std::make_unique<SCTPMessage>(
+						SCTPMessage::MESSAGE, client, data_buf, nbytes, addr, rn, infotype));
 				}
 			} catch (const std::runtime_error& exc) {
 				log_client_error("handle_client_data", client);
@@ -684,13 +703,19 @@ void SCTPServer::sctp_msg_handler_loop()
 
 	while (true) {
 		auto msg = sctp_msgs_.dequeue();
+
 		if (msg->size == 0) break;
+
 		try {
-			handle_client_data(msg->client, msg->msg, msg->size, 
-				msg->addr, msg->rn, msg->infotype);
+			if (msg->type == SCTPMessage::NOTIFICATION) {
+				handle_notification(msg->client, static_cast<union sctp_notification*>(msg->msg), msg->size);
+			} else {
+				handle_client_data(msg->client, msg->msg, msg->size, msg->addr, msg->rn, msg->infotype);
+			}
 		} catch (const std::runtime_error& exc) {
 			log_client_error("handle_client_data", msg->client);
 		}
+
 	}
 
 	TRACE_func_left();
@@ -710,7 +735,7 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 	})());
 
 	#define MAX_TLS_RECORD_SIZE (1 << 14)
-	size_t outbuf_len = (c->state() != Client::SSL_CONNECTED) ?
+	size_t outbuf_len = (c->state() != IClient::SSL_CONNECTED) ?
 			MAX_TLS_RECORD_SIZE : n;
 
 	c->decrypted_msg_buff().clear();
@@ -719,9 +744,9 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 	void* outbuf = c->decrypted_msg_buff().data();
 
 	switch (c->state()) {
-	case Client::SCTP_CONNECTED:
+	case IClient::SCTP_CONNECTED:
 	{
-		TRACE("Client::SCTP_CONNECTED");
+		TRACE("IClient::SCTP_CONNECTED");
 
 		// got client hello etc
 		int written = BIO_write(c->input_bio, buffer, n);
@@ -750,7 +775,7 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 		}
 
 		try {
-			client_state(c, Client::SSL_HANDSHAKING);
+			client_state(c, IClient::SSL_HANDSHAKING);
 		} catch (const std::runtime_error& exc) {
 			log_client_error_and_throw((std::string("set_state") + 
 				std::string(exc.what())).c_str(), c);
@@ -758,9 +783,9 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 	}
 	break;
 
-	case Client::SSL_HANDSHAKING:
+	case IClient::SSL_HANDSHAKING:
 	{
-		TRACE("Client::SSL_HANDSHAKING");
+		TRACE("IClient::SSL_HANDSHAKING");
 
 		int written = BIO_write(c->input_bio, buffer, n);
 		if (SSL_ERROR_NONE != SSL_get_error(c->ssl, written)) {
@@ -795,7 +820,7 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 				}
 
 				try {
-					client_state(c, Client::SSL_CONNECTED);
+					client_state(c, IClient::SSL_CONNECTED);
 				} catch (const std::runtime_error& exc) {
 					log_client_error_and_throw((std::string("set_state") + 
 						std::string(exc.what())).c_str(), c);
@@ -805,7 +830,7 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 
 			if (SSL_ERROR_NONE == SSL_get_error(c->ssl, r) and not BIO_ctrl_pending(c->output_bio)) {
 				try {
-					client_state(c, Client::SSL_CONNECTED);
+					client_state(c, IClient::SSL_CONNECTED);
 				} catch (const std::runtime_error& exc) {
 					log_client_error_and_throw((std::string("set_state") + 
 						std::string(exc.what())).c_str(), c);
@@ -828,7 +853,7 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 			}
 
 			try {
-				client_state(c, Client::SSL_CONNECTED);
+				client_state(c, IClient::SSL_CONNECTED);
 			} catch (const std::runtime_error& exc) {
 				log_client_error_and_throw((std::string("set_state") + 
 					std::string(exc.what())).c_str(), c);
@@ -838,7 +863,7 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 	}
 	break;
 
-	case Client::SSL_CONNECTED:
+	case IClient::SSL_CONNECTED:
 	{
 		TRACE(std::string("encrypted message length n: ") + std::to_string(n));
 
@@ -856,7 +881,7 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 
 			if (read == 0 and SSL_ERROR_ZERO_RETURN == SSL_get_error(c->ssl, read)) {
 				DEBUG("SSL_ERROR_ZERO_RETURN");
-				client_state(c, Client::SSL_SHUTDOWN);
+				client_state(c, IClient::SSL_SHUTDOWN);
 				break;
 			}
 
@@ -921,7 +946,7 @@ void SCTPServer::handle_client_data(std::shared_ptr<IClient>& c, const void* buf
 	}
 	break;
 
-	case Client::SSL_SHUTDOWN:
+	case IClient::SSL_SHUTDOWN:
 		break;
 
 	default:
@@ -1019,10 +1044,10 @@ void SCTPServer::handle_association_change_event(std::shared_ptr<IClient>& c, st
 	switch (sac->sac_state) {
 		case SCTP_COMM_UP:
 			try {
-				client_state(c, Client::SCTP_CONNECTED);
+				client_state(c, IClient::SCTP_CONNECTED);
 			} catch (const std::runtime_error& exc) {
 				ERROR(std::string("Dropping client: ") + exc.what());
-				client_state(c, Client::PURGE);
+				client_state(c, IClient::PURGE);
 				return;
 			}
 			DEBUG("Connected: " + c->to_string());
@@ -1033,10 +1058,10 @@ void SCTPServer::handle_association_change_event(std::shared_ptr<IClient>& c, st
 			break;
 		case SCTP_SHUTDOWN_COMP:
 			try {
-				client_state(c, Client::SCTP_SHUTDOWN_CMPLT);
+				client_state(c, IClient::SCTP_SHUTDOWN_CMPLT);
 			} catch (const std::runtime_error& exc) {
 				ERROR(std::string("Dropping client: ") + exc.what());
-				client_state(c, Client::PURGE);
+				client_state(c, IClient::PURGE);
 				return;
 			}		
 			break;
@@ -1297,73 +1322,45 @@ void SCTPServer::handle_notification(std::shared_ptr<IClient>& c, union sctp_not
 		return;
 	}
 
-	std::string message { "handle_notification: " };
+	TRACE("handle_notification: " + notification_names[notif->sn_header.sn_type]);
 
 	switch (notif->sn_header.sn_type) {
 	case SCTP_ASSOC_CHANGE:
-		message += "SCTP_ASSOC_CHANGE";
-		TRACE(message);
 		handle_association_change_event(c, &(notif->sn_assoc_change));
 		break;
 	case SCTP_PEER_ADDR_CHANGE:
-		message += "SCTP_PEER_ADDR_CHANGE";
-		TRACE(message);
 		handle_peer_address_change_event(c, &(notif->sn_paddr_change));
 		break;
 	case SCTP_REMOTE_ERROR:
-		message += "SCTP_REMOTE_ERROR";
-		TRACE(message);
 		handle_remote_error_event(c, &(notif->sn_remote_error));
 		break;
 	case SCTP_SHUTDOWN_EVENT:
-		message += "SCTP_SHUTDOWN_EVENT";
-		TRACE(message);
 		handle_shutdown_event(c, &(notif->sn_shutdown_event));
 		break;
 	case SCTP_ADAPTATION_INDICATION:
-		message += "SCTP_ADAPTATION_INDICATION";
-		TRACE(message);
 		handle_adaptation_indication(c, &(notif->sn_adaptation_event));
 		break;
-	case SCTP_PARTIAL_DELIVERY_EVENT:
-		message += "SCTP_PARTIAL_DELIVERY_EVENT";
-		TRACE(message);
-		break;
-	case SCTP_AUTHENTICATION_EVENT:
-		message += "SCTP_AUTHENTICATION_EVENT";
-		TRACE(message);		
-		break;
+
 	case SCTP_SENDER_DRY_EVENT:
-		message += "SCTP_SENDER_DRY_EVENT";
 		handle_sender_dry_event(c, &(notif->sn_sender_dry_event));
-		TRACE(message);		
 		break;
-	case SCTP_NOTIFICATIONS_STOPPED_EVENT:
-		message += "SCTP_NOTIFICATIONS_STOPPED_EVENT";
-		TRACE(message);		
-		break;
+
 	case SCTP_SEND_FAILED_EVENT:
-		message += "SCTP_SEND_FAILED_EVENT";
-		TRACE(message);		
 		handle_send_failed_event(c, &(notif->sn_send_failed_event));
 		break;
 	case SCTP_STREAM_RESET_EVENT:
-		message += "SCTP_STREAM_RESET_EVENT";
-		TRACE(message);
 		handle_stream_reset_event(c, &(notif->sn_strreset_event));
 		break;
-	case SCTP_ASSOC_RESET_EVENT:
-		message += "SCTP_ASSOC_RESET_EVENT";
-		TRACE(message);
-		break;
 	case SCTP_STREAM_CHANGE_EVENT:
-		message += "SCTP_STREAM_CHANGE_EVENT";
-		TRACE(message);
 		handle_stream_change_event(c, &(notif->sn_strchange_event));
 		break;
+	case SCTP_NOTIFICATIONS_STOPPED_EVENT:
+	case SCTP_ASSOC_RESET_EVENT:
+	case SCTP_PARTIAL_DELIVERY_EVENT:
+	case SCTP_AUTHENTICATION_EVENT:
+		break;		
 	default:
-		message += "UNKNOWN";
-		ERROR(message);
+		ERROR("Unknown notification type !");
 		break;
 	}
 
