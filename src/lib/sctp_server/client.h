@@ -31,18 +31,21 @@ public:
 
 	virtual std::string to_string() const override;
 
+	friend bool operator== (const Client &c1, const Client &c2);
+	friend bool operator!= (const Client &c1, const Client &c2);
+	
 	friend std::ostream& operator<<(std::ostream &out, const Client &c);
 
 	friend class SCTPServer;
 
 private:
-	struct socket* sock = nullptr;
+	struct socket* sock { nullptr };
 
 	SCTPServer& server_;
 
-	State state_ = NONE;
+	State state_ { NONE };
 
-	size_t msg_size_ = { 0 };
+	size_t msg_size_ { 0 };
 
 	std::vector<char> sctp_msg_buff_;
 	std::vector<char> decrypted_msg_buff_;

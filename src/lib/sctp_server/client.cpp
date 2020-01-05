@@ -28,6 +28,7 @@ namespace {
 		{ IClient::SSL_HANDSHAKING, "SSL_HANDSHAKING"},
 		{ IClient::SSL_CONNECTED, "SSL_CONNECTED"},
 		{ IClient::SSL_SHUTDOWN, "SSL_SHUTDOWN"},
+		{ IClient::SCTP_SHUTDOWN_CMPLT, "SCTP_SHUTDOWN_CMPLT"},
 		{ IClient::SCTP_SRV_INITIATED_SHUTDOWN, "SCTP_SRV_INITIATED_SHUTDOWN"},
 		{ IClient::PURGE, "PURGE"}
 	};
@@ -200,6 +201,15 @@ std::string Client::to_string() const
 	return oss.str();
 }
 
+bool operator== (const Client& c1, const Client& c2)
+{
+	return c1.sock == c2.sock;
+}
+
+bool operator!= (const Client& c1, const Client& c2)
+{
+	return not (c1 == c2);
+}
 
 std::ostream& operator<<(std::ostream &out, const Client& c)
 {
@@ -212,38 +222,6 @@ std::ostream& operator<<(std::ostream &out, const Client& c)
 
 std::ostream& operator<<(std::ostream &out, const Client::State s)
 {
-	std::string state_name;
-
-	switch (s) {
-		case Client::NONE:
-			state_name = "NONE";
-			break;
-		case Client::SCTP_ACCEPTED:
-			state_name = "SCTP_ACCEPTED";
-			break;
-		case Client::SCTP_CONNECTED:
-			state_name = "SCTP_CONNECTED";
-			break;
-		case Client::SSL_HANDSHAKING:
-			state_name = "SSL_HANDSHAKING";
-			break;
-		case Client::SSL_CONNECTED:
-			state_name = "SSL_CONNECTED";
-			break;
-		case Client::SSL_SHUTDOWN:
-			state_name = "SSL_SHUTDOWN";
-			break;
-		case Client::SCTP_SRV_INITIATED_SHUTDOWN:
-			state_name = "SCTP_SRV_INITIATED_SHUTDOWN";
-			break;
-		case Client::PURGE:
-			state_name = "PURGE";
-			break;
-		default:
-			state_name = "UNKNOWN";
-			break;
-	}
-
-	return out << state_name;
+	return out << state_names[s];
 };
 

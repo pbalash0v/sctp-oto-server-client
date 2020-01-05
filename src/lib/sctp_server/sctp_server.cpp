@@ -481,7 +481,7 @@ void SCTPServer::handle_server_upcall(struct socket* serv_sock, void* arg, int)
 			s->drop_client(new_client);
 		}
 		
-		INFO("Accepted: " + new_client->to_string());
+		DEBUG("Accepted: " + new_client->to_string());
 	}
 
 	if (events & SCTP_EVENT_ERROR) {
@@ -1025,13 +1025,20 @@ void SCTPServer::handle_association_change_event(std::shared_ptr<IClient>& c, st
 				client_state(c, Client::PURGE);
 				return;
 			}
-			INFO("Connected: " + c->to_string());		
+			DEBUG("Connected: " + c->to_string());
 			break;
 		case SCTP_COMM_LOST:
 			break;
 		case SCTP_RESTART:
 			break;
 		case SCTP_SHUTDOWN_COMP:
+			try {
+				client_state(c, Client::SCTP_SHUTDOWN_CMPLT);
+			} catch (const std::runtime_error& exc) {
+				ERROR(std::string("Dropping client: ") + exc.what());
+				client_state(c, Client::PURGE);
+				return;
+			}		
 			break;
 		case SCTP_CANT_STR_ASSOC:
 			break;
