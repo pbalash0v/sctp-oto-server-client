@@ -20,7 +20,7 @@ public:
 
 	virtual struct socket* socket() const override { return sock; };
 
-	virtual std::unique_ptr<Event> handle_data(const std::unique_ptr<SCTPMessage>&) override;
+	std::unique_ptr<Event> handle_message(const std::unique_ptr<SCTPMessage>&) override;
 
 	virtual size_t send(const void* buf, size_t len) override;
 	virtual ssize_t send_raw(const void* buf, size_t len) override;
@@ -54,6 +54,20 @@ private:
 	SSL* ssl = nullptr;
 	BIO* output_bio = nullptr;
 	BIO* input_bio = nullptr;
+
+	std::unique_ptr<Event> handle_notification(const std::unique_ptr<SCTPMessage>& m);
+	std::unique_ptr<Event> handle_data(const std::unique_ptr<SCTPMessage>& m);
+
+	void handle_association_change_event(const struct sctp_assoc_change*, std::unique_ptr<Event>&) const;
+	void handle_sender_dry_event(const struct sctp_sender_dry_event*, std::unique_ptr<Event>& e) const;
+	void handle_peer_address_change_event(const struct sctp_paddr_change*) const;
+	void handle_remote_error_event(const struct sctp_remote_error*) const;
+	void handle_shutdown_event(const struct sctp_shutdown_event*) const;
+	void handle_stream_reset_event(const struct sctp_stream_reset_event*) const;
+	void handle_adaptation_indication(const struct sctp_adaptation_event*) const;
+	void handle_send_failed_event(const struct sctp_send_failed_event*) const;
+	void handle_stream_change_event(const struct sctp_stream_change_event*) const;
+
 };
 
 

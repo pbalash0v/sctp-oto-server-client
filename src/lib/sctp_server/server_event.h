@@ -7,6 +7,7 @@
 #include "client_data.h"
 
 class IClient;
+struct SCTPMessage;
 
 struct Event
 {
@@ -23,6 +24,8 @@ struct Event
 	explicit Event(Event::Type, std::shared_ptr<IClient>);	
 	explicit Event(Event::Type, std::shared_ptr<IClient>, IClient::State);
 	explicit Event(Event::Type, std::shared_ptr<IClient>, std::unique_ptr<Data>);
+	explicit Event(const SCTPMessage&);
+
 	Event(const Event&) = delete;
 	Event& operator=(const Event&) = delete;
 	virtual ~Event() = default;

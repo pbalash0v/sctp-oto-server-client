@@ -11,7 +11,7 @@ struct SCTPMessage
 {
 	enum Type
 	{
-		MESSAGE,
+		DATA,
 		NOTIFICATION
 	};
 

@@ -21,10 +21,10 @@
 	Getting it here explicitly.
 	After this we can use log macros.
 */
-#define ENABLE_DEBUG() std::shared_ptr<SCTPServer::Config> cfg_ = server_.cfg_
+#define ENABLE_LOGGING() std::shared_ptr<SCTPServer::Config> cfg_ = server_.cfg_
 
 namespace {
-	//constexpr auto BUFFER_SIZE = 1 << 16;
+	constexpr auto BUFFER_SIZE = 1 << 16;
 
 	std::map<IClient::State, std::string> state_names {
 		{ IClient::NONE, "NONE" },
@@ -38,6 +38,22 @@ namespace {
 		{ IClient::PURGE, "PURGE"}
 	};
 
+	std::map<uint16_t, std::string> notification_names {
+		{ SCTP_ASSOC_CHANGE, "SCTP_ASSOC_CHANGE" },
+		{ SCTP_PEER_ADDR_CHANGE, "SCTP_PEER_ADDR_CHANGE" },
+		{ SCTP_REMOTE_ERROR, "SCTP_REMOTE_ERROR"},
+		{ SCTP_SEND_FAILED, "SCTP_SEND_FAILED"},
+		{ SCTP_SHUTDOWN_EVENT, "SCTP_SHUTDOWN_EVENT"},
+		{ SCTP_ADAPTATION_INDICATION, "SCTP_ADAPTATION_INDICATION"},
+		{ SCTP_PARTIAL_DELIVERY_EVENT, "SCTP_PARTIAL_DELIVERY_EVENT"},
+		{ SCTP_AUTHENTICATION_EVENT, "SCTP_AUTHENTICATION_EVENT"},
+		{ SCTP_SENDER_DRY_EVENT, "SCTP_SENDER_DRY_EVENT"},
+		{ SCTP_STREAM_RESET_EVENT, "SCTP_STREAM_RESET_EVENT"},
+		{ SCTP_NOTIFICATIONS_STOPPED_EVENT, "SCTP_NOTIFICATIONS_STOPPED_EVENT"},
+		{ SCTP_ASSOC_RESET_EVENT, "SCTP_ASSOC_RESET_EVENT"},
+		{ SCTP_STREAM_CHANGE_EVENT, "SCTP_STREAM_CHANGE_EVENT"},
+		{ SCTP_SEND_FAILED_EVENT, "SCTP_SEND_FAILED_EVENT"}
+	};
 	void inline _log_client_error_and_throw(const char* func, bool should_throw)
 	{
 		//ENABLE_DEBUG();
@@ -76,6 +92,11 @@ Client::Client(struct socket* sctp_sock, SCTPServer& s, size_t message_size)
 	encrypted_msg_buff_.reserve(2*message_size);
 };
 
+Client::~Client()
+{
+	if (nullptr != ssl) SSL_free(ssl);
+};
+
 void Client::init()
 {
 	ssl = SSL_new(server_.ssl_obj_.ctx_);
@@ -95,7 +116,7 @@ void Client::init()
 
 void Client::state(Client::State new_state)
 {
-	ENABLE_DEBUG();
+	ENABLE_LOGGING();
 
 	TRACE_func_entry();
 
@@ -225,9 +246,7 @@ ssize_t Client::send_raw(const void* buf, size_t len)
 
 size_t Client::send(const void* buf, size_t len)
 {
-	ENABLE_DEBUG();
-
-
+	ENABLE_LOGGING();
 
 	// addrs - NULL for connected socket
 	// addrcnt: Number of addresses.
@@ -250,10 +269,15 @@ void Client::close()
 	usrsctp_close(sock);
 }
 
+std::unique_ptr<Event> Client::handle_message(const std::unique_ptr<SCTPMessage>& m)
+{
+	return (m->type == SCTPMessage::DATA) ? handle_data(m) : handle_notification(m);
+}
+
 
 std::unique_ptr<Event> Client::handle_data(const std::unique_ptr<SCTPMessage>& m)
 {
-	ENABLE_DEBUG();
+	ENABLE_LOGGING();
 
 	TRACE(([&]()
 	{
@@ -272,14 +296,12 @@ std::unique_ptr<Event> Client::handle_data(const std::unique_ptr<SCTPMessage>& m
 
 	void* outbuf = decrypted_msg_buff_.data();
 
-	auto evt = std::make_unique<Event>();
-	evt->type = Event::CLIENT_STATE;
+	auto evt = std::make_unique<Event>(*m);
 
-	switch (state()) {
+	TRACE(state_names[state_]);
+	switch (state_) {
 	case IClient::SCTP_CONNECTED:
 	{
-		TRACE("IClient::SCTP_CONNECTED");
-
 		// got client hello etc
 		int written = BIO_write(input_bio, m->msg, m->size);
 		if (SSL_ERROR_NONE != SSL_get_error(ssl, written)) {
@@ -293,7 +315,7 @@ std::unique_ptr<Event> Client::handle_data(const std::unique_ptr<SCTPMessage>& m
 		}
 
 		while (BIO_ctrl_pending(output_bio)) {
-			TRACE("output BIO_ctrl_pending");
+			//TRACE("output BIO_ctrl_pending");
 
 			int read = BIO_read(output_bio, outbuf, outbuf_len);
 			if (SSL_ERROR_NONE != SSL_get_error(ssl, read)) {
@@ -306,14 +328,13 @@ std::unique_ptr<Event> Client::handle_data(const std::unique_ptr<SCTPMessage>& m
 			}
 		}
 
+		evt->type = Event::CLIENT_STATE;
 		evt->client_state = IClient::SSL_HANDSHAKING;
 	}
 	break;
 
 	case IClient::SSL_HANDSHAKING:
 	{
-		TRACE("IClient::SSL_HANDSHAKING");
-
 		int written = BIO_write(input_bio, m->msg, m->size);
 		if (SSL_ERROR_NONE != SSL_get_error(ssl, written)) {
 			log_client_error_and_throw("BIO_write");
@@ -346,26 +367,14 @@ std::unique_ptr<Event> Client::handle_data(const std::unique_ptr<SCTPMessage>& m
 					log_client_error_and_throw("usrsctp_sendv");
 				}
 
+				evt->type = Event::CLIENT_STATE;
 				evt->client_state = IClient::SSL_CONNECTED;
-
-				// try {
-				// 	server_.client_state(IClient::SSL_CONNECTED);
-				// } catch (const std::runtime_error& exc) {
-				// 	log_client_error_and_throw((std::string("set_state") + 
-				// 		std::string(exc.what())).c_str());
-				// }						
 				break;
 			}
 
 			if (SSL_ERROR_NONE == SSL_get_error(ssl, r) and not BIO_ctrl_pending(output_bio)) {
+				evt->type = Event::CLIENT_STATE;
 				evt->client_state = IClient::SSL_CONNECTED;
-
-				// try {
-				// 	server_.client_state(c, IClient::SSL_CONNECTED);
-				// } catch (const std::runtime_error& exc) {
-				// 	log_client_error_and_throw((std::string("client_state") + 
-				// 		std::string(exc.what())).c_str());
-				// }						
 				break;
 			}				
 		} else {
@@ -383,6 +392,7 @@ std::unique_ptr<Event> Client::handle_data(const std::unique_ptr<SCTPMessage>& m
 				}
 			}
 
+			evt->type = Event::CLIENT_STATE;
 			evt->client_state = IClient::SSL_CONNECTED;
 			break;
 		}
@@ -423,7 +433,6 @@ std::unique_ptr<Event> Client::handle_data(const std::unique_ptr<SCTPMessage>& m
 			total_decrypted_message_size += read;
 		} 
 
-
 		// if (read > 0) TRACE(([&]
 		// {
 		// 	char message[BUFFER_SIZE] = {'\0'};
@@ -458,7 +467,6 @@ std::unique_ptr<Event> Client::handle_data(const std::unique_ptr<SCTPMessage>& m
 		// })());
 
 		evt->type = Event::CLIENT_DATA;
-		evt->client_state = IClient::SSL_CONNECTED;
 		evt->client_data = std::make_unique<Data>(outbuf, total_decrypted_message_size);
 	}
 	break;
@@ -475,10 +483,372 @@ std::unique_ptr<Event> Client::handle_data(const std::unique_ptr<SCTPMessage>& m
 }
 
 
-Client::~Client()
+
+/*
+	Functions to handle assoc notifications
+*/
+void Client::handle_association_change_event(const struct sctp_assoc_change* sac,
+	std::unique_ptr<Event>& e) const
 {
-	if (nullptr != ssl) SSL_free(ssl);
-};
+	ENABLE_LOGGING();
+	unsigned int i, n;
+
+	TRACE(([&]
+		{
+			std::string message { "Association change " };
+
+			switch (sac->sac_state) {
+				case SCTP_COMM_UP:
+					message += "SCTP_COMM_UP";
+					break;
+				case SCTP_COMM_LOST:
+					message += "SCTP_COMM_LOST";
+					break;
+				case SCTP_RESTART:
+					message += "SCTP_RESTART";
+					break;
+				case SCTP_SHUTDOWN_COMP:
+					message += "SCTP_SHUTDOWN_COMP";
+					break;
+				case SCTP_CANT_STR_ASSOC:
+					message += "SCTP_CANT_STR_ASSOC";
+					break;
+				default:
+					message += "UNKNOWN";
+					break;
+			}
+
+			message += ", streams (in/out) = (";
+			message += std::to_string(sac->sac_inbound_streams);
+			message += "/";
+			message += std::to_string(sac->sac_outbound_streams);
+			message += ")";
+
+			n = sac->sac_length - sizeof(struct sctp_assoc_change);
+
+			if (((sac->sac_state == SCTP_COMM_UP) or
+			     (sac->sac_state == SCTP_RESTART)) and (n > 0)) {
+				message += ", supports";
+				for (i = 0; i < n; i++) {
+					switch (sac->sac_info[i]) {
+					case SCTP_ASSOC_SUPPORTS_PR:
+						message += " PR";
+						break;
+					case SCTP_ASSOC_SUPPORTS_AUTH:
+						message += " AUTH";
+						break;
+					case SCTP_ASSOC_SUPPORTS_ASCONF:
+						message += " ASCONF";
+						break;
+					case SCTP_ASSOC_SUPPORTS_MULTIBUF:
+						message += " MULTIBUF";
+						break;
+					case SCTP_ASSOC_SUPPORTS_RE_CONFIG:
+						message += " RE-CONFIG";
+						break;
+					default:
+						message += " UNKNOWN(0x";
+						message += std::to_string(sac->sac_info[i]);
+						message += ")";
+						break;
+					}
+				}
+			} else if (((sac->sac_state == SCTP_COMM_LOST) or
+			            (sac->sac_state == SCTP_CANT_STR_ASSOC)) and (n > 0)) {
+				message += ", ABORT =";
+				for (i = 0; i < n; i++) {
+					message += " 0x";
+					message += std::to_string(sac->sac_info[i]);
+				}
+			}
+
+			message += ".";
+
+			return message;
+		})()
+	);
+
+	/*
+		Association change handling
+	*/
+
+	switch (sac->sac_state) {
+		case SCTP_COMM_UP:
+			e->type = Event::CLIENT_STATE;
+			e->client_state = IClient::SCTP_CONNECTED;
+			DEBUG("SCTP_COMM_UP: " + to_string());
+			break;
+		case SCTP_COMM_LOST:
+			break;
+		case SCTP_RESTART:
+			break;
+		case SCTP_SHUTDOWN_COMP:
+			e->type = Event::CLIENT_STATE;
+			e->client_state = IClient::SCTP_SHUTDOWN_CMPLT;
+			DEBUG("SCTP_SHUTDOWN_COMP: " + to_string());
+			break;
+		case SCTP_CANT_STR_ASSOC:
+			break;
+		default:
+			break;
+	}
+
+	return;
+}
+
+void Client::handle_peer_address_change_event(const struct sctp_paddr_change* spc) const
+{
+	ENABLE_LOGGING();
+
+	char addr_buf[INET6_ADDRSTRLEN];
+	const char* addr;
+	char buf[BUFFER_SIZE] = { '\0' };
+	struct sockaddr_in *sin;
+	struct sockaddr_in6* sin6;
+	struct sockaddr_conn* sconn;
+
+	switch (spc->spc_aaddr.ss_family) {
+		case AF_INET:
+			sin = (struct sockaddr_in *)&spc->spc_aaddr;
+			addr = inet_ntop(AF_INET, &sin->sin_addr, addr_buf, INET_ADDRSTRLEN);
+			break;
+		case AF_INET6:
+			sin6 = (struct sockaddr_in6 *)&spc->spc_aaddr;
+			addr = inet_ntop(AF_INET6, &sin6->sin6_addr, addr_buf, INET6_ADDRSTRLEN);
+			break;
+		case AF_CONN:
+			sconn = (struct sockaddr_conn *)&spc->spc_aaddr;
+			snprintf(addr_buf, INET6_ADDRSTRLEN, "%p", sconn->sconn_addr);
+			addr = addr_buf;
+			break;
+		default:
+			snprintf(addr_buf, INET6_ADDRSTRLEN, "Unknown family %d", spc->spc_aaddr.ss_family);
+			addr = addr_buf;
+			break;
+	}
+
+	int written = snprintf(buf, sizeof buf, "Peer address %s is now ", addr);
+
+	switch (spc->spc_state) {
+		case SCTP_ADDR_AVAILABLE:
+			written += snprintf(buf + written , sizeof(buf) - written, "SCTP_ADDR_AVAILABLE");
+			break;
+		case SCTP_ADDR_UNREACHABLE:
+			written += snprintf(buf + written,  sizeof(buf) - written, "SCTP_ADDR_UNREACHABLE");
+			break;
+		case SCTP_ADDR_REMOVED:
+			written += snprintf(buf + written,  sizeof(buf) - written, "SCTP_ADDR_REMOVED");
+			break;
+		case SCTP_ADDR_ADDED:
+			written += snprintf(buf + written,  sizeof(buf) - written, "SCTP_ADDR_ADDED");
+			break;
+		case SCTP_ADDR_MADE_PRIM:
+			written += snprintf(buf + written,  sizeof(buf) - written, "SCTP_ADDR_MADE_PRIM");
+			break;
+		case SCTP_ADDR_CONFIRMED:
+			written += snprintf(buf + written,  sizeof(buf) - written, "SCTP_ADDR_CONFIRMED");
+			break;
+		default:
+			written += snprintf(buf + written,  sizeof(buf) - written, "UNKNOWN");
+			break;
+	}
+
+	snprintf(buf + written, sizeof(buf) - written, " (error = 0x%08x).", spc->spc_error);
+
+	DEBUG(buf);
+	return;
+}
+
+void Client::handle_send_failed_event(const struct sctp_send_failed_event* ssfe) const
+{
+	ENABLE_LOGGING();
+	size_t i, n;
+
+	char buf[BUFFER_SIZE] = { '\0' };
+
+	int written	= 0;
+	if (ssfe->ssfe_flags & SCTP_DATA_UNSENT) {
+		written += snprintf(buf + written, sizeof(buf)-written, "Unsent ");
+	}
+
+	if (ssfe->ssfe_flags & SCTP_DATA_SENT) {
+		written += snprintf(buf + written, sizeof(buf)-written, "Sent ");
+	}
+
+	if (ssfe->ssfe_flags & ~(SCTP_DATA_SENT | SCTP_DATA_UNSENT)) {
+		written += snprintf(buf + written, sizeof(buf)-written, "(flags = %x) ", ssfe->ssfe_flags);
+	}
+
+	written += snprintf(buf + written, sizeof(buf)-written,
+			 "message with PPID = %u, SID = %u, flags: 0x%04x due to error = 0x%08x",
+	       ntohl(ssfe->ssfe_info.snd_ppid), ssfe->ssfe_info.snd_sid,
+	       ssfe->ssfe_info.snd_flags, ssfe->ssfe_error);
+
+	n = ssfe->ssfe_length - sizeof(struct sctp_send_failed_event);
+	for (i = 0; i < n; i++) {
+		written += snprintf(buf + written, sizeof(buf)-written, " 0x%02x", ssfe->ssfe_data[i]);
+	}
+
+	written += snprintf(buf + written, sizeof(buf)-written, ".\n");
+	
+	DEBUG(buf);
+	return;
+}
+
+void Client::handle_adaptation_indication(const struct sctp_adaptation_event* sai) const
+{
+	ENABLE_LOGGING();
+
+	char buf[BUFFER_SIZE] = { '\0' };
+	snprintf(buf, sizeof buf, "Adaptation indication: %x.\n", sai-> sai_adaptation_ind);
+	DEBUG(buf);
+	return;
+}
+
+void Client::handle_shutdown_event(const struct sctp_shutdown_event*) const
+{
+	ENABLE_LOGGING();
+
+	char buf[BUFFER_SIZE] = { '\0' };
+	snprintf(buf, sizeof buf, "Shutdown event.");
+	DEBUG(buf);
+	/* XXX: notify all channels. */
+	return;
+}
+
+void Client::handle_stream_reset_event(const struct sctp_stream_reset_event* strrst) const
+{
+	ENABLE_LOGGING();
+
+	uint32_t n, i;
+
+	n = (strrst->strreset_length - sizeof(struct sctp_stream_reset_event)) / sizeof(uint16_t);
+
+	char buf[BUFFER_SIZE] = { '\0' };
+	int written = snprintf(buf, sizeof buf, "Stream reset event: flags = %x, ", strrst->strreset_flags);
+
+	if (strrst->strreset_flags & SCTP_STREAM_RESET_INCOMING_SSN) {
+		if (strrst->strreset_flags & SCTP_STREAM_RESET_OUTGOING_SSN) {
+			written += snprintf(buf + written, sizeof(buf)-written, "incoming/");
+		}
+		written += snprintf(buf + written, sizeof(buf)-written, "incoming ");
+	}
+	if (strrst->strreset_flags & SCTP_STREAM_RESET_OUTGOING_SSN) {
+		written += snprintf(buf + written, sizeof(buf)-written, "outgoing ");
+	}
+
+	written += snprintf(buf + written, sizeof(buf)-written, "stream ids = ");
+	for (i = 0; i < n; i++) {
+		if (i > 0) {
+			written += snprintf(buf + written, sizeof(buf)-written, ", ");
+		}
+		written += snprintf(buf + written, sizeof(buf)-written, "%d", strrst->strreset_stream_list[i]);
+	}
+
+	written += snprintf(buf + written, sizeof(buf)-written, ".\n");
+
+	DEBUG(buf);
+	return;
+}
+
+void Client::handle_stream_change_event(const struct sctp_stream_change_event* strchg) const
+{
+	ENABLE_LOGGING();
+
+	char buf[BUFFER_SIZE] = { '\0' };
+	snprintf(buf, sizeof buf, "Stream change event: streams (in/out) = (%u/%u), flags = %x.\n",
+	       strchg->strchange_instrms, strchg->strchange_outstrms, strchg->strchange_flags);
+
+	DEBUG(buf);
+	return;
+}
+
+void Client::handle_remote_error_event(const struct sctp_remote_error* sre) const
+{
+	ENABLE_LOGGING();
+
+	size_t i, n;
+
+	n = sre->sre_length - sizeof(struct sctp_remote_error);
+
+	int written = 0;
+	char buf[BUFFER_SIZE] = { '\0' };
+	written = snprintf(buf, sizeof buf, "Remote Error (error = 0x%04x): ", sre->sre_error);
+	for (i = 0; i < n; i++) {
+		written += snprintf(buf + written, sizeof buf - written, " 0x%02x", sre-> sre_data[i]);
+	}
+
+	WARNING(std::string(buf) + ".\n");
+	return;
+}
+
+void Client::handle_sender_dry_event(const struct sctp_sender_dry_event*,
+	std::unique_ptr<Event>& e) const
+{
+	e->type = Event::CLIENT_SEND_POSSIBLE;
+}
+
+std::unique_ptr<Event> Client::handle_notification(const std::unique_ptr<SCTPMessage>& m)
+{
+	ENABLE_LOGGING();
+	TRACE_func_entry();
+
+	union sctp_notification* notif = static_cast<union sctp_notification*>(m->msg);
+	size_t n = m->size;
+
+	if (notif->sn_header.sn_length != (uint32_t) n) {
+		WARNING("notif->sn_header.sn_length != n");
+		throw std::runtime_error("notif->sn_header.sn_length != n");
+	}
+
+	TRACE("handle_notification: " + notification_names[notif->sn_header.sn_type]);
+
+	auto evt = std::make_unique<Event>(*m);
+	evt->client_state = state_;
+
+	switch (notif->sn_header.sn_type) {
+	case SCTP_ASSOC_CHANGE:
+		handle_association_change_event(&(notif->sn_assoc_change), evt);
+		break;
+	case SCTP_PEER_ADDR_CHANGE:
+		handle_peer_address_change_event(&(notif->sn_paddr_change));
+		break;
+	case SCTP_REMOTE_ERROR:
+		handle_remote_error_event(&(notif->sn_remote_error));
+		break;
+	case SCTP_SHUTDOWN_EVENT:
+		handle_shutdown_event(&(notif->sn_shutdown_event));
+		break;
+	case SCTP_ADAPTATION_INDICATION:
+		handle_adaptation_indication(&(notif->sn_adaptation_event));
+		break;
+	case SCTP_SENDER_DRY_EVENT:
+		handle_sender_dry_event(&(notif->sn_sender_dry_event), evt);
+		break;
+	case SCTP_SEND_FAILED_EVENT:
+		handle_send_failed_event(&(notif->sn_send_failed_event));
+		break;
+	case SCTP_STREAM_RESET_EVENT:
+		handle_stream_reset_event(&(notif->sn_strreset_event));
+		break;
+	case SCTP_STREAM_CHANGE_EVENT:
+		handle_stream_change_event(&(notif->sn_strchange_event));
+		break;
+	case SCTP_NOTIFICATIONS_STOPPED_EVENT:
+	case SCTP_ASSOC_RESET_EVENT:
+	case SCTP_PARTIAL_DELIVERY_EVENT:
+	case SCTP_AUTHENTICATION_EVENT:
+		break;		
+	default:
+		ERROR("Unknown notification type !");
+		break;
+	}
+
+	TRACE_func_left();
+
+	return evt;
+}
+
 
 
 std::string Client::to_string() const

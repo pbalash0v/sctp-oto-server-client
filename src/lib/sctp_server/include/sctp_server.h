@@ -46,7 +46,7 @@
 
 #define TRACE_func_entry() TRACE("Entered " + std::string(__func__))
 #define TRACE_func_left() TRACE("Left " + std::string(__func__))
-						
+
 constexpr uint16_t DEFAULT_UDP_ENCAPS_PORT = 9899;
 constexpr uint16_t DEFAULT_SCTP_PORT = 5001;
 
@@ -166,36 +166,20 @@ private:
 	struct socket* serv_sock_ { nullptr };
 
 	std::thread sctp_msg_handler_;
-	void sctp_msg_handler_loop();
 
 	std::mutex clients_mutex_;
 	std::vector<std::shared_ptr<IClient>> clients_;
+
+	void sctp_msg_handler_loop();
 
 	void try_init_local_UDP();
 
 	static void handle_server_upcall(struct socket* sock, void* arg, int flgs);
 	static void handle_client_upcall(struct socket* sock, void* arg, int flgs);
 
-	void client_state(std::shared_ptr<IClient>&, IClient::State);
 	std::shared_ptr<IClient> get_client(const struct socket* sock);
 
-	void handle_notification(std::shared_ptr<IClient>&, union sctp_notification*, size_t);
-	void handle_client_data(std::shared_ptr<IClient>& c, const void* buffer, size_t n,
-		 const struct sockaddr_in& addr, const struct sctp_recvv_rn& rcv_info, unsigned int infotype);
-
-	void handle_sender_dry_event(std::shared_ptr<IClient>&, struct sctp_sender_dry_event*);
-	void handle_association_change_event(std::shared_ptr<IClient>&, struct sctp_assoc_change*);
-	void handle_peer_address_change_event(std::shared_ptr<IClient>&, struct sctp_paddr_change* spc);
-	void handle_adaptation_indication(std::shared_ptr<IClient>&, struct sctp_adaptation_event* sai);
-	void handle_shutdown_event(std::shared_ptr<IClient>&, struct sctp_shutdown_event*);
-	void handle_stream_reset_event(std::shared_ptr<IClient>&, struct sctp_stream_reset_event* strrst);
-	void handle_send_failed_event(std::shared_ptr<IClient>&, struct sctp_send_failed_event* ssfe);
-	void handle_stream_change_event(std::shared_ptr<IClient>&, struct sctp_stream_change_event* strchg);
-	void handle_remote_error_event(std::shared_ptr<IClient>&, struct sctp_remote_error* sre);
-
 	void cleanup();
-
-	ssize_t send_raw(std::shared_ptr<IClient>&, const void*, size_t);
 
 	void drop_client(std::shared_ptr<IClient>&);
 };
