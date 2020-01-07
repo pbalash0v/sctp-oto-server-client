@@ -169,8 +169,8 @@ void SCTPServer::try_init_local_UDP()
 	/* will point to the result */
 	struct addrinfo* serv_info = NULL;
 	/* RAII for serv_info */
-	std::shared_ptr<struct addrinfo> serv_info_ptr (nullptr,
-					 [&](struct addrinfo* s) { freeaddrinfo(s); });
+	std::unique_ptr<struct addrinfo, std::function<void(struct addrinfo*)>> serv_info_ptr
+		 (NULL, [&](auto s) { freeaddrinfo(s); });
 
 	struct addrinfo hints;
 

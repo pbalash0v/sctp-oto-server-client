@@ -9,7 +9,6 @@ class SCTPServer;
 struct SCTPMessage;
 struct Event;
 
-
 class IClient
 {
 public:
