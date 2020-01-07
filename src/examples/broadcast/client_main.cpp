@@ -229,8 +229,8 @@ int main(int /* argc */, char* argv[])
 	client.cfg()->data_cback_f = [&](const auto& s)
 	{
 		std::string server_message = ((s->size < 30) ? 
-				std::string(static_cast<char*>(s->buf))
-		 		: std::string(static_cast<char*>(s->buf)).substr(0, 30));
+				std::string(static_cast<char*>(s->buf), s->size)
+		 		: std::string(static_cast<char*>(s->buf), s->size).substr(0, 30));
 		tui->put_message("Server sent: "
 				+ std::to_string(s->size)
 				+ std::string(" ")
@@ -309,6 +309,7 @@ int main(int /* argc */, char* argv[])
 	{
 		if (client.connected()) {
 			try {
+				tui->put_log(ITUI::LogLevel::DEBUG, "s.size(): " + std::to_string(s.size()));
 				client.send(s.c_str(), s.size());
 			} catch (std::runtime_error& exc) {
 				tui->put_log(ITUI::LogLevel::WARNING,
