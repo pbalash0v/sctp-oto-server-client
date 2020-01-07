@@ -152,11 +152,13 @@ int main(int /* argc */, char* argv[]) {
 
 	SCTPServer srv { get_cfg_or_die(argv, options) };
 
-	srv.cfg()->event_cback_f = [&](const auto& evt) {
+	srv.cfg()->event_cback_f = [&](auto evt)
+	{
 		switch (evt->type) {
 		case Event::CLIENT_DATA:
 			{	
-				std::string message { static_cast<const char*> (evt->client_data->data) };
+				std::string message { static_cast<const char*>(evt->client_data->data),
+					 evt->client_data->size };
 				spdlog::info("{}", ((message.size() < 30) ? message : message.substr(0, 30)));
 				srv.broadcast(message.c_str(), message.size());
 			}
@@ -165,35 +167,37 @@ int main(int /* argc */, char* argv[]) {
 			spdlog::info("{}", evt->client->to_string());
 			break;
 		case Event::CLIENT_SEND_POSSIBLE:
+			spdlog::debug("{} send possible.", evt->client->to_string());
 			break;
 		default:
 			break;
 		}
 	};
 
-	srv.cfg()->debug_f = [&](auto level, const auto& s) {
+	srv.cfg()->debug_f = [&](auto level, const auto& s)
+	{
 		switch (level) {
-			case SCTPServer::TRACE:
-				spdlog::trace("{}", s);
-				break;
-			case SCTPServer::DEBUG:
-	    		spdlog::debug("{}", s);
-	    		break;
-			case SCTPServer::INFO:
-	    		spdlog::info("{}", s);
-	    		break;
-			case SCTPServer::WARNING:
-	    		spdlog::warn("{}", s);
-				break;
-			case SCTPServer::ERROR:
-	    		spdlog::error("{}", s);
-				break;
-			case SCTPServer::CRITICAL:
-	    		spdlog::critical("{}", s);
-				break;
-			default:
-	    		spdlog::error("Unknown SCTPServer log level message. {}", s);
-	    		break;
+		case SCTPServer::TRACE:
+			spdlog::trace("{}", s);
+			break;
+		case SCTPServer::DEBUG:
+    		spdlog::debug("{}", s);
+    		break;
+		case SCTPServer::INFO:
+    		spdlog::info("{}", s);
+    		break;
+		case SCTPServer::WARNING:
+    		spdlog::warn("{}", s);
+			break;
+		case SCTPServer::ERROR:
+    		spdlog::error("{}", s);
+			break;
+		case SCTPServer::CRITICAL:
+    		spdlog::critical("{}", s);
+			break;
+		default:
+    		spdlog::error("Unknown SCTPServer log level message. {}", s);
+    		break;
 		}
 	};
 
