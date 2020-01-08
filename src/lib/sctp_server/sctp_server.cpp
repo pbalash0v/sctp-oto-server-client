@@ -358,22 +358,9 @@ void SCTPServer::stop()
 }
 
 
-void SCTPServer::broadcast(const void* data, size_t len)
-{
-	TRACE_func_entry();
-
-	std::lock_guard<std::mutex> _ { clients_mutex_ };
-	for (auto& c : clients_) {
-		send(c, data, len);
-	}
-
-	TRACE_func_left();
-}
-
 void SCTPServer::send(std::shared_ptr<IClient>& c, const void* data, size_t len)
 {
-	assert(c->state() == IClient::SSL_CONNECTED);
-	c->send_raw(data, len);
+	c->send(data, len);
 }
 
 void SCTPServer::drop_client(std::shared_ptr<IClient>& c)

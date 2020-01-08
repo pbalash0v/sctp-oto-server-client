@@ -120,11 +120,6 @@ public:
 	*/
 	void send(std::shared_ptr<IClient>&, const void*, size_t);
 
-	/*
-		Sends message to all clients.
-	*/
-	void broadcast(const void*, size_t);
-
 	/* 
 		might not be called explicitly
 		as dtor also handles correct cleanup
