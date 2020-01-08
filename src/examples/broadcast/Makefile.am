@@ -4,7 +4,7 @@ AUTOMAKE_OPTIONS = subdir-objects
 
 bin_PROGRAMS = server client
 
-server_SOURCES = server_main.cpp
+server_SOURCES = server_main.cpp broadcaster.cpp
 				
 server_CXXFLAGS = $(AM_CXXFLAGS)
 

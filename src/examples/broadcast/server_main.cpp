@@ -2,6 +2,7 @@
 #include <string>
 #include <thread>
 #include <atomic>
+#include <condition_variable>
 #include <cstring>
 #include <limits>
 
@@ -9,7 +10,9 @@
 #include "spdlog/fmt/ostr.h"
 
 #include "sctp_server.h"
+#include "sync_queue.hpp"
 #include "gopt.h"
+#include "broadcaster.h"
 
 
 constexpr uint16_t MAX_IP_PORT = std::numeric_limits<uint16_t>::max();
@@ -67,6 +70,15 @@ static void parse_args(char* argv[], struct option options[])
 
 	gopt(argv, options);
 	gopt_errors(argv[0], options);
+
+	/* verbosity */
+	if (options[CLIOptions::VERBOSITY].count) {
+		if (options[CLIOptions::VERBOSITY].count == 1) {
+			spdlog::set_level(spdlog::level::debug);
+		} else {
+			spdlog::set_level(spdlog::level::trace);
+		}
+	}	
 }
 
 static std::shared_ptr<SCTPServer::Config> get_cfg_or_die(char* argv[], struct option options[])
@@ -135,39 +147,58 @@ static std::shared_ptr<SCTPServer::Config> get_cfg_or_die(char* argv[], struct o
 
 
 
+std::unordered_map<std::shared_ptr<IClient>, std::unique_ptr<SyncQueue<std::shared_ptr<Data>>>> send_qs;
+std::mutex signals_mutex;
+std::condition_variable cv;
+bool signal_send_possible = false;
+bool signal_new_data = false;
+bool signal_sender_thr_running = true;
+std::unordered_map<std::shared_ptr<IClient>, bool> send_flags;
+
+std::shared_ptr<IClient> client_send_possible;
+
+
 int main(int /* argc */, char* argv[]) {
 	std::set_terminate(&onTerminate);
 
 	struct option options[CLIOptions::OPTIONS_COUNT];
 	parse_args(argv, options);
 
-	/* verbosity */
-	if (options[CLIOptions::VERBOSITY].count) {
-		if (options[CLIOptions::VERBOSITY].count == 1) {
-			spdlog::set_level(spdlog::level::debug);
-		} else {
-			spdlog::set_level(spdlog::level::trace);
-		}
-	}
-
+	Broadcaster bcaster;
 	SCTPServer srv { get_cfg_or_die(argv, options) };
+
 
 	srv.cfg()->event_cback_f = [&](auto evt)
 	{
+		auto& c = evt->client;
+
 		switch (evt->type) {
 		case Event::CLIENT_DATA:
 			{	
 				std::string message { static_cast<const char*>(evt->client_data->data),
 					 evt->client_data->size };
-				spdlog::info("{}", ((message.size() < 30) ? message : message.substr(0, 30)));
-				srv.broadcast(message.c_str(), message.size());
+
+				spdlog::info("{}: {}", c->to_string(),
+					 ((message.size() < 30) ? message : message.substr(0, 30)));
+
+				bcaster.enqueue(std::move(evt->client_data));
 			}
 			break;
 		case Event::CLIENT_STATE:
-			spdlog::info("{}", evt->client->to_string());
+			spdlog::info("{}", c->to_string());
+
+			if (evt->client_state == Client::SSL_CONNECTED) {
+				bcaster.add_new_client(c);
+			}
+
+			if (evt->client_state == Client::SCTP_SHUTDOWN_CMPLT) {
+ 				spdlog::info("{} disconnected.", c->to_string());
+ 				bcaster.drop_client(c);
+			}			
 			break;
 		case Event::CLIENT_SEND_POSSIBLE:
-			spdlog::debug("{} send possible.", evt->client->to_string());
+			spdlog::debug("{} send possible.", c->to_string());
+			bcaster.notify_send_possible(c);
 			break;
 		default:
 			break;
@@ -201,7 +232,7 @@ int main(int /* argc */, char* argv[]) {
 		}
 	};
 
-
+	bcaster(srv);
 	try {
 		srv.init();
 		srv();
@@ -215,11 +246,9 @@ int main(int /* argc */, char* argv[]) {
 
 	while (true) {
 		std::string _s;
-		if (not getline(std::cin, _s)) {
-			spdlog::info("Shutting down...");
-			break;
-		}
+		if (not getline(std::cin, _s)) break;
 	}
 
+	spdlog::info("Shutting down...");
 	return EXIT_SUCCESS;
 }
