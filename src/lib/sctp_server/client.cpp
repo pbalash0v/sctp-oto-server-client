@@ -213,12 +213,15 @@ IClient::State Client::state() const noexcept
 	return state_;
 }
 
-ssize_t Client::send_raw(const void* buf, size_t len)
+/*
+	Public send
+*/
+void Client::send(const void* buf, size_t len)
 {
 	ssize_t sent = -1;
 
 	if (state() != IClient::SSL_CONNECTED) {
-		sent = send(buf, len);
+		sent = send_raw(buf, len);
 	} else {
 		int written = SSL_write(ssl, buf, len);
 		if (SSL_ERROR_NONE != SSL_get_error(ssl, written)) {
@@ -228,23 +231,21 @@ ssize_t Client::send_raw(const void* buf, size_t len)
 		encrypted_msg_buff_.clear();
 		encrypted_msg_buff_.resize(BIO_ctrl_pending(output_bio));
 
-		int read = BIO_read(output_bio,
-					 encrypted_msg_buff_.data(), encrypted_msg_buff_.size());
+		int read = BIO_read(output_bio, encrypted_msg_buff_.data(),
+				encrypted_msg_buff_.size());
 		if (SSL_ERROR_NONE != SSL_get_error(ssl, read)) {
 			log_client_error_and_throw("BIO_read");
 		}
 
-		sent = send(encrypted_msg_buff_.data(), read);
-	}
+		sent = send_raw(encrypted_msg_buff_.data(), read);
+	} 
 
 	if (sent < 0) {
-		log_client_error_and_throw((std::string("usrsctp_sendv: ") + strerror(errno)).c_str());
+		log_client_error_and_throw((std::string("send: ") + strerror(errno)).c_str());
 	}
-
-	return sent;
 }
 
-size_t Client::send(const void* buf, size_t len)
+ssize_t Client::send_raw(const void* buf, size_t len)
 {
 	ENABLE_LOGGING();
 
@@ -322,10 +323,7 @@ std::unique_ptr<Event> Client::handle_data(const std::unique_ptr<SCTPMessage>& m
 				log_client_error_and_throw("BIO_read");
 			}
 
-			ssize_t sent = send(outbuf, read);
-			if (sent < 0) {
-				log_client_error_and_throw("usrsctp_sendv");
-			}
+			send(outbuf, read);
 		}
 
 		evt->type = Event::CLIENT_STATE;
@@ -349,10 +347,7 @@ std::unique_ptr<Event> Client::handle_data(const std::unique_ptr<SCTPMessage>& m
 					log_client_error_and_throw("BIO_read");
 				}
 
-				ssize_t sent = send(outbuf, read);
-				if (sent < 0) {
-					log_client_error_and_throw("usrsctp_sendv");
-				}
+				send(outbuf, read);
 				break;
 			}
 
@@ -362,10 +357,7 @@ std::unique_ptr<Event> Client::handle_data(const std::unique_ptr<SCTPMessage>& m
 					log_client_error_and_throw("BIO_read");
 				}
 
-				ssize_t sent = send(outbuf, read);
-				if (sent < 0) {
-					log_client_error_and_throw("usrsctp_sendv");
-				}
+				send(outbuf, read);
 
 				evt->type = Event::CLIENT_STATE;
 				evt->client_state = IClient::SSL_CONNECTED;
@@ -386,10 +378,7 @@ std::unique_ptr<Event> Client::handle_data(const std::unique_ptr<SCTPMessage>& m
 					log_client_error_and_throw("BIO_read");
 				}
 
-				ssize_t sent = send(outbuf, read);
-				if (sent < 0) {
-					log_client_error_and_throw("usrsctp_sendv");
-				}
+				send(outbuf, read);
 			}
 
 			evt->type = Event::CLIENT_STATE;
@@ -481,7 +470,6 @@ std::unique_ptr<Event> Client::handle_data(const std::unique_ptr<SCTPMessage>& m
 
 	return evt;
 }
-
 
 
 /*

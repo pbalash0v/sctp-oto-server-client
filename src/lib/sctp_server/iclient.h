@@ -35,8 +35,7 @@ public:
 
 	virtual struct socket* socket() const = 0;
 
-	virtual size_t send(const void* buf, size_t len) = 0;
-	virtual ssize_t send_raw(const void* buf, size_t len) = 0;
+	virtual void send(const void* buf, size_t len) = 0;
 
 	virtual std::unique_ptr<Event> handle_message(const std::unique_ptr<SCTPMessage>&) = 0;
 

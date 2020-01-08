@@ -22,8 +22,7 @@ public:
 
 	std::unique_ptr<Event> handle_message(const std::unique_ptr<SCTPMessage>&) override;
 
-	virtual size_t send(const void* buf, size_t len) override;
-	virtual ssize_t send_raw(const void* buf, size_t len) override;
+	virtual void send(const void* buf, size_t len) override;
 
 	virtual void close() override;
 
@@ -54,6 +53,8 @@ private:
 	SSL* ssl = nullptr;
 	BIO* output_bio = nullptr;
 	BIO* input_bio = nullptr;
+
+	virtual ssize_t send_raw(const void* buf, size_t len);
 
 	std::unique_ptr<Event> handle_notification(const std::unique_ptr<SCTPMessage>& m);
 	std::unique_ptr<Event> handle_data(const std::unique_ptr<SCTPMessage>& m);
