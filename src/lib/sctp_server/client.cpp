@@ -457,7 +457,7 @@ std::unique_ptr<Event> Client::handle_data(const std::unique_ptr<SCTPMessage>& m
 		// })());
 
 		evt->type = Event::CLIENT_DATA;
-		evt->client_data = std::make_unique<Data>(outbuf, total_decrypted_message_size);
+		evt->client_data = std::make_unique<sctp::Data>(outbuf, total_decrypted_message_size);
 	}
 	break;
 

@@ -4,7 +4,8 @@
 
 #include "iclient.h"
 #include "client.h"
-#include "client_data.h"
+#include "sctp_data.h"
+
 
 class IClient;
 struct SCTPMessage;
@@ -23,7 +24,7 @@ struct Event
 	explicit Event() = default;
 	explicit Event(Event::Type, std::shared_ptr<IClient>);	
 	explicit Event(Event::Type, std::shared_ptr<IClient>, IClient::State);
-	explicit Event(Event::Type, std::shared_ptr<IClient>, std::unique_ptr<Data>);
+	explicit Event(Event::Type, std::shared_ptr<IClient>, std::unique_ptr<sctp::Data>);
 	explicit Event(const SCTPMessage&);
 
 	Event(const Event&) = delete;
@@ -33,5 +34,5 @@ struct Event
 	Event::Type type { NONE };
 	std::shared_ptr<IClient> client { nullptr };
 	IClient::State client_state { IClient::State::NONE };
-	std::unique_ptr<Data> client_data { nullptr };
+	std::unique_ptr<sctp::Data> client_data { nullptr };
 };

@@ -6,7 +6,6 @@ noinst_LTLIBRARIES = libserver.la
 
 libserver_la_SOURCES = sctp_server.cpp \
 					client.cpp \
-					client_data.cpp \
 					client_sctp_message.cpp \
 					server_event.cpp
 

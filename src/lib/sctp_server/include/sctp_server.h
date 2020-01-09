@@ -13,7 +13,8 @@
 #include "sync_queue.hpp"
 #include "ssl_h.h"
 #include "client.h"
-#include "client_data.h"
+#include "sctp_data.h"
+//#include "client_data.h"
 #include "server_event.h"
 #include "log_level.h"
 
