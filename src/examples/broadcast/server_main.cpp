@@ -147,7 +147,7 @@ static std::shared_ptr<SCTPServer::Config> get_cfg_or_die(char* argv[], struct o
 
 
 
-std::unordered_map<std::shared_ptr<IClient>, std::unique_ptr<SyncQueue<std::shared_ptr<Data>>>> send_qs;
+std::unordered_map<std::shared_ptr<IClient>, std::unique_ptr<SyncQueue<std::shared_ptr<sctp::Data>>>> send_qs;
 std::mutex signals_mutex;
 std::condition_variable cv;
 bool signal_send_possible = false;
@@ -175,7 +175,7 @@ int main(int /* argc */, char* argv[]) {
 		switch (evt->type) {
 		case Event::CLIENT_DATA:
 			{	
-				std::string message { static_cast<const char*>(evt->client_data->data),
+				std::string message { static_cast<const char*>(evt->client_data->buf),
 					 evt->client_data->size };
 
 				spdlog::info("{}: {}", c->to_string(),

@@ -9,7 +9,7 @@ Broadcaster::~Broadcaster()
 		signal_sender_thr_running_ = false;
 	}
 	cv_.notify_one();
-	sender_thr_.join();
+	if (sender_thr_.joinable()) sender_thr_.join();
 }
 
 void Broadcaster::operator()(SCTPServer& s)
@@ -36,7 +36,7 @@ void Broadcaster::operator()(SCTPServer& s)
 				} else {
 					auto data = send_qs_[client_send_possible_]->dequeue();
 					spdlog::trace("sending {} bytes of data for {}.", data->size, client_send_possible_->to_string());
-					s.send(client_send_possible_, data->data, data->size);
+					s.send(client_send_possible_, data->buf, data->size);
 					send_flags_[client_send_possible_] = false;
 				}
 				signal_send_possible_ = false;
@@ -52,7 +52,7 @@ void Broadcaster::operator()(SCTPServer& s)
 					auto data = send_qs_[q.first]->dequeue();
 					spdlog::trace("sending {} bytes of data for {}.", data->size, q.first->to_string());
 					auto c = q.first;
-					s.send(c, data->data, data->size);
+					s.send(c, data->buf, data->size);
 					send_flags_[q.first] = false;
 		 		}
 		 		signal_new_data_ = false;
@@ -63,9 +63,9 @@ void Broadcaster::operator()(SCTPServer& s)
 	} };
 }
 
-void Broadcaster::enqueue(std::unique_ptr<Data> d)
+void Broadcaster::enqueue(std::unique_ptr<sctp::Data> d)
 {
-	std::shared_ptr<Data> cli_data { std::move(d) };
+	std::shared_ptr<sctp::Data> cli_data { std::move(d) };
 	{
 		std::lock_guard<std::mutex> _ { signals_mutex_ };
 		for (const auto& q : send_qs_)
@@ -79,7 +79,7 @@ void Broadcaster::enqueue(std::unique_ptr<Data> d)
 void Broadcaster::add_new_client(std::shared_ptr<IClient>& c)
 {
 	std::lock_guard<std::mutex> _ { signals_mutex_ };
-	send_qs_[c] = std::make_unique<SyncQueue<std::shared_ptr<Data>>>();
+	send_qs_[c] = std::make_unique<SyncQueue<std::shared_ptr<sctp::Data>>>();
 }
 
 void Broadcaster::drop_client(std::shared_ptr<IClient>& c)
@@ -91,7 +91,7 @@ void Broadcaster::drop_client(std::shared_ptr<IClient>& c)
 		spdlog::warn("Dropping {} unsent mesages for {}", cli_q.size(), c->to_string());
 	 	while (cli_q.size()) {
 	 		auto msg = cli_q.dequeue();
-			std::string message { static_cast<const char*>(msg->data), msg->size };
+			std::string message { static_cast<const char*>(msg->buf), msg->size };
 				spdlog::debug("{}", ((message.size() < 30) ? message : message.substr(0, 30)));
 		}
 	}

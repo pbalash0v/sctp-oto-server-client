@@ -185,7 +185,7 @@ SyncQueue<std::shared_ptr<cv::Mat>> local_frames_to_display;
 SyncQueue<std::shared_ptr<cv::Mat>> frames_to_encode;
 SyncQueue<std::shared_ptr<std::vector<uchar>>> frames_to_send {/* max queued */ 5};
 // queues for remote data
-SyncQueue<std::unique_ptr<SCTPClient::Data>> recvd_data;
+SyncQueue<std::unique_ptr<sctp::Data>> recvd_data;
 SyncQueue<std::unique_ptr<cv::Mat>> recvd_frames_to_display;
 
 static void capture_loop(const std::atomic_bool& running, cv::VideoCapture& camera)
@@ -260,7 +260,7 @@ static void send_loop(SyncQueue<std::shared_ptr<std::vector<uchar>>>& q, SCTPCli
 	spdlog::debug("{} finished.", __func__);
 }
 
-static void decode_loop(SyncQueue<std::unique_ptr<SCTPClient::Data>>& q)
+static void decode_loop(SyncQueue<std::unique_ptr<sctp::Data>>& q)
 {
 	do {
 		auto data = q.dequeue();
@@ -404,7 +404,7 @@ int main(int /* argc */, char* argv[])
 		case SCTPClient::PURGE:
 			message += "Terminating...";
 			running = false;
-			recvd_data.enqueue(std::make_unique<SCTPClient::Data>());
+			recvd_data.enqueue(std::make_unique<sctp::Data>());
 		default:
 			break;
 		}
@@ -429,7 +429,7 @@ int main(int /* argc */, char* argv[])
 	} while (running);
 
 	running = false;
-	recvd_data.enqueue(std::make_unique<SCTPClient::Data>());
+	recvd_data.enqueue(std::make_unique<sctp::Data>());
 
 	capture_thread.join();
 	local_display_thread.join();

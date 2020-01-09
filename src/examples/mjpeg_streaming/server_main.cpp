@@ -159,7 +159,7 @@ int main(int /* argc */, char* argv[]) {
 		case Event::CLIENT_DATA:
 			{	
 				spdlog::debug("Received {} bytes message.", evt->client_data->size);
-				srv.send(evt->client, evt->client_data->data, evt->client_data->size);
+				srv.send(evt->client, evt->client_data->buf, evt->client_data->size);
 			}
 			break;
 		case Event::CLIENT_STATE:
