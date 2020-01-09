@@ -95,7 +95,7 @@ int main(int, char const**)
 				running = false;
 			}
 		};
-		server.cfg()->debug_f = [&](auto, const auto& s) {
+		server.cfg()->debug_cback_f = [&](auto, const auto& s) {
 			std::string s_ { s };
 			s_.erase(std::remove(s_.begin(), s_.end(), '\n'), s_.end());
 			std::cout << "S:" << s_ << std::endl;
