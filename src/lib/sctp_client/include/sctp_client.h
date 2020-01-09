@@ -12,6 +12,7 @@
 
 #include "sync_queue.hpp"
 #include "ssl_h.h"
+#include "log_level.h"
 
 
 constexpr uint16_t DEFAULT_LOCAL_UDP_ENCAPS_PORT = 0; //choose ephemeral
@@ -32,16 +33,6 @@ constexpr const char* DEFAULT_CLIENT_KEY_FILENAME = "../certs/client-key.pem";
 class SCTPClient
 {
 public:
-   enum LogLevel
-   {
-   	TRACE,
-      DEBUG,
-      INFO,
-      WARNING,
-      ERROR,
-		CRITICAL
-   };
-
    enum State
    {
    	NONE,
@@ -70,7 +61,7 @@ public:
 
 	using SCTPClient_cback_t = std::function<void(std::unique_ptr<SCTPClient::Data>)>;
 	using SCTPClient_state_cback_t = std::function<void(State)>;
-	using SCTPClient_debug_t = std::function<void(SCTPClient::LogLevel, const std::string&)>;	
+	using SCTPClient_debug_t = std::function<void(sctp::LogLevel, const std::string&)>;	
 
 	struct Config
 	{

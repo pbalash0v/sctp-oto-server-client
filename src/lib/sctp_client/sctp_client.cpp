@@ -39,23 +39,22 @@
 #define CHECK_STATE() do {} while (0)
 #endif
 
-#define TRACE(text) log(SCTPClient::TRACE, text)
-#define DEBUG(text) log(SCTPClient::DEBUG, text)
-#define INFO(text) log(SCTPClient::INFO, text)
-#define WARNING(text) log(SCTPClient::WARNING, text)
-#define ERROR(text) log(SCTPClient::ERROR, text)
-#define CRITICAL(text) log(SCTPClient::CRITICAL, text)
+#define TRACE(text) log(sctp::TRACE, text)
+#define DEBUG(text) log(sctp::DEBUG, text)
+#define INFO(text) log(sctp::INFO, text)
+#define WARNING(text) log(sctp::WARNING, text)
+#define ERROR(text) log(sctp::ERROR, text)
+#define CRITICAL(text) log(sctp::CRITICAL, text)
 
 #define TRACE_func_entry() TRACE("Entered " + std::string(__func__))
 #define TRACE_func_left() TRACE("Left " + std::string(__func__))
 
-
-constexpr auto BUFFERSIZE = 1 << 16;
-constexpr auto MAX_TLS_RECORD_SIZE  = 1 << 14;
-
 std::atomic_size_t SCTPClient::number_of_instances_ { 0 };
 
 namespace {
+	constexpr auto BUFFERSIZE = 1 << 16;
+
+	constexpr auto MAX_TLS_RECORD_SIZE  = 1 << 14;
 	/*
 		Used to check whether function is allowed to run in some particular state
 	*/
