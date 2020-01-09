@@ -1158,6 +1158,14 @@ void SCTPClient::handle_remote_error_event(struct sctp_remote_error* sre)
 void SCTPClient::handle_sender_dry_event(struct sctp_sender_dry_event*)
 {
 	sender_dry_ = true;
+	
+	if (cfg_->send_possible_cback_f) {
+		try {
+			cfg_->send_possible_cback_f();
+		} catch (...) {
+			CRITICAL("Exception in user send_possible_cback function.");
+		}
+	}	
 }
 
 void SCTPClient::handle_notification(union sctp_notification* notif, size_t n)

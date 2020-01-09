@@ -49,6 +49,7 @@ public:
 	using SCTPClient_cback_t = std::function<void(std::unique_ptr<sctp::Data>)>;
 	using SCTPClient_state_cback_t = std::function<void(State)>;
 	using SCTPClient_debug_t = std::function<void(sctp::LogLevel, const std::string&)>;	
+	using SCTPClient_send_possible_t = std::function<void()>;
 
 	struct Config
 	{
@@ -68,9 +69,10 @@ public:
 		std::string cert_filename { DEFAULT_CLIENT_CERT_FILENAME };
 		std::string key_filename { DEFAULT_CLIENT_KEY_FILENAME };
 
-		SCTPClient_cback_t data_cback_f = nullptr;
-		SCTPClient_debug_t debug_cback_f = nullptr;
-		SCTPClient_state_cback_t state_cback_f = nullptr;
+		SCTPClient_cback_t data_cback_f { nullptr };
+		SCTPClient_debug_t debug_cback_f { nullptr };
+		SCTPClient_state_cback_t state_cback_f { nullptr };
+		SCTPClient_send_possible_t send_possible_cback_f { nullptr };
 	};
 
 	SCTPClient();

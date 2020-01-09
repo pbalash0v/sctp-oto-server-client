@@ -14,7 +14,6 @@
 #include "ssl_h.h"
 #include "client.h"
 #include "sctp_data.h"
-//#include "client_data.h"
 #include "server_event.h"
 #include "log_level.h"
 
@@ -24,7 +23,6 @@
 #else
 #define MAYBE_VIRTUAL
 #endif
-
 
 
 constexpr uint16_t DEFAULT_UDP_ENCAPS_PORT = 9899;
