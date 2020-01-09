@@ -243,26 +243,26 @@ int main(int /* argc */, char* argv[])
 		ITUI::LogLevel l = ITUI::LogLevel::TRACE;
 
 		switch (level) {
-			case SCTPClient::TRACE:
+			case sctp::TRACE:
 				l = ITUI::LogLevel::TRACE;
 				break;
-			case SCTPClient::DEBUG:
+			case sctp::DEBUG:
 				l = ITUI::LogLevel::DEBUG;
 	    		break;
-			case SCTPClient::INFO:
+			case sctp::INFO:
 				l = ITUI::LogLevel::INFO;
 	    		break;
-			case SCTPClient::WARNING:
+			case sctp::WARNING:
 				l = ITUI::LogLevel::WARNING;
 				break;
-			case SCTPClient::ERROR:
+			case sctp::ERROR:
 				l = ITUI::LogLevel::ERROR;
 				break;
-			case SCTPClient::CRITICAL:
+			case sctp::CRITICAL:
 				l = ITUI::LogLevel::CRITICAL;
 				break;
 			default:
-	    		std::cerr << "Unknown SCTPClient log level message. " <<  s << std::endl;
+	    		std::cerr << "Unknown log level message. " <<  s << std::endl;
 				l = ITUI::LogLevel::WARNING;
 	    		break;
  		}

@@ -208,26 +208,26 @@ int main(int /* argc */, char* argv[]) {
 	srv.cfg()->debug_f = [&](auto level, const auto& s)
 	{
 		switch (level) {
-		case SCTPServer::TRACE:
+		case sctp::TRACE:
 			spdlog::trace("{}", s);
 			break;
-		case SCTPServer::DEBUG:
+		case sctp::DEBUG:
     		spdlog::debug("{}", s);
     		break;
-		case SCTPServer::INFO:
+		case sctp::INFO:
     		spdlog::info("{}", s);
     		break;
-		case SCTPServer::WARNING:
+		case sctp::WARNING:
     		spdlog::warn("{}", s);
 			break;
-		case SCTPServer::ERROR:
+		case sctp::ERROR:
     		spdlog::error("{}", s);
 			break;
-		case SCTPServer::CRITICAL:
+		case sctp::CRITICAL:
     		spdlog::critical("{}", s);
 			break;
 		default:
-    		spdlog::error("Unknown SCTPServer log level message. {}", s);
+    		spdlog::error("Unknown log level message. {}", s);
     		break;
 		}
 	};
