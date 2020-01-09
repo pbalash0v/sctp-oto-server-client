@@ -50,6 +50,23 @@ namespace {
 		{ SCTPClient::SSL_SHUTDOWN, "SSL_SHUTDOWN"},
 		{ SCTPClient::PURGE, "PURGE"}
 	};
+	
+	std::map<uint16_t, std::string> notification_names {
+		{ SCTP_ASSOC_CHANGE, "SCTP_ASSOC_CHANGE" },
+		{ SCTP_PEER_ADDR_CHANGE, "SCTP_PEER_ADDR_CHANGE" },
+		{ SCTP_REMOTE_ERROR, "SCTP_REMOTE_ERROR"},
+		{ SCTP_SEND_FAILED, "SCTP_SEND_FAILED"},
+		{ SCTP_SHUTDOWN_EVENT, "SCTP_SHUTDOWN_EVENT"},
+		{ SCTP_ADAPTATION_INDICATION, "SCTP_ADAPTATION_INDICATION"},
+		{ SCTP_PARTIAL_DELIVERY_EVENT, "SCTP_PARTIAL_DELIVERY_EVENT"},
+		{ SCTP_AUTHENTICATION_EVENT, "SCTP_AUTHENTICATION_EVENT"},
+		{ SCTP_SENDER_DRY_EVENT, "SCTP_SENDER_DRY_EVENT"},
+		{ SCTP_STREAM_RESET_EVENT, "SCTP_STREAM_RESET_EVENT"},
+		{ SCTP_NOTIFICATIONS_STOPPED_EVENT, "SCTP_NOTIFICATIONS_STOPPED_EVENT"},
+		{ SCTP_ASSOC_RESET_EVENT, "SCTP_ASSOC_RESET_EVENT"},
+		{ SCTP_STREAM_CHANGE_EVENT, "SCTP_STREAM_CHANGE_EVENT"},
+		{ SCTP_SEND_FAILED_EVENT, "SCTP_SEND_FAILED_EVENT"}
+	};	
 }
 
 static inline bool _check_state(const std::string& func_name, SCTPClient::State s)
@@ -1158,8 +1175,8 @@ void SCTPClient::handle_remote_error_event(struct sctp_remote_error* sre)
 void SCTPClient::handle_sender_dry_event(struct sctp_sender_dry_event*)
 {
 	sender_dry_ = true;
-	
-	if (cfg_->send_possible_cback_f) {
+
+	if (state_ == SSL_CONNECTED and cfg_->send_possible_cback_f) {
 		try {
 			cfg_->send_possible_cback_f();
 		} catch (...) {
@@ -1175,68 +1192,42 @@ void SCTPClient::handle_notification(union sctp_notification* notif, size_t n)
 		return;
 	}
 
-	std::string message { "handle_notification : " };
+	TRACE("handle_notification: " + notification_names[notif->sn_header.sn_type]);
 
 	switch (notif->sn_header.sn_type) {
 	case SCTP_ASSOC_CHANGE:
-		message += "SCTP_ASSOC_CHANGE\n";
-		DEBUG(message);
 		handle_association_change_event(&(notif->sn_assoc_change));
 		break;
 	case SCTP_PEER_ADDR_CHANGE:
-		message += "SCTP_PEER_ADDR_CHANGE\n";
-		DEBUG(message);
 		handle_peer_address_change_event(&(notif->sn_paddr_change));
 		break;
 	case SCTP_REMOTE_ERROR:
-		message += "SCTP_REMOTE_ERROR\n";
-		DEBUG(message);
 		handle_remote_error_event(&(notif->sn_remote_error));
 		break;
 	case SCTP_SHUTDOWN_EVENT:
-		message += "SCTP_SHUTDOWN_EVENT\n";
-		DEBUG(message);
 		handle_shutdown_event(&(notif->sn_shutdown_event));
 		break;
 	case SCTP_ADAPTATION_INDICATION:
-		message += "SCTP_ADAPTATION_INDICATION\n";
-		DEBUG(message);
 		handle_adaptation_indication(&(notif->sn_adaptation_event));
 		break;
 	case SCTP_PARTIAL_DELIVERY_EVENT:
-		message += "SCTP_PARTIAL_DELIVERY_EVENT\n";
-		DEBUG(message);
 		break;
 	case SCTP_AUTHENTICATION_EVENT:
-		message += "SCTP_AUTHENTICATION_EVENT\n";
-		DEBUG(message);		
 		break;
 	case SCTP_SENDER_DRY_EVENT:
-		message += "SCTP_SENDER_DRY_EVENT\n";
 		handle_sender_dry_event(&(notif->sn_sender_dry_event));
-		TRACE(message);
 		break;
 	case SCTP_NOTIFICATIONS_STOPPED_EVENT:
-		message += "SCTP_NOTIFICATIONS_STOPPED_EVENT\n";
-		DEBUG(message);		
 		break;
 	case SCTP_SEND_FAILED_EVENT:
-		message += "SCTP_SEND_FAILED_EVENT\n";
-		DEBUG(message);		
 		handle_send_failed_event(&(notif->sn_send_failed_event));
 		break;
 	case SCTP_STREAM_RESET_EVENT:
-		message += "SCTP_STREAM_RESET_EVENT\n";
-		DEBUG(message);
 		handle_stream_reset_event(&(notif->sn_strreset_event));
 		break;
 	case SCTP_ASSOC_RESET_EVENT:
-		message += "SCTP_ASSOC_RESET_EVENT\n";
-		DEBUG(message);
 		break;
 	case SCTP_STREAM_CHANGE_EVENT:
-		message += "SCTP_STREAM_CHANGE_EVENT\n";
-		DEBUG(message);
 		handle_stream_change_event(&(notif->sn_strchange_event));
 		break;
 	default:

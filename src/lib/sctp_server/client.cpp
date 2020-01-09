@@ -55,6 +55,7 @@ namespace {
 		{ SCTP_STREAM_CHANGE_EVENT, "SCTP_STREAM_CHANGE_EVENT"},
 		{ SCTP_SEND_FAILED_EVENT, "SCTP_SEND_FAILED_EVENT"}
 	};
+	
 	void inline _log_client_error_and_throw(const char* func, bool should_throw)
 	{
 		//ENABLE_DEBUG();
