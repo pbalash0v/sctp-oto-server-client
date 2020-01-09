@@ -152,7 +152,7 @@ void SCTPClient::state(SCTPClient::State new_state)
 		break;
 	case PURGE:
 		/* end udp data processing thread by queueing empty data*/
-		raw_udp_data_.enqueue(std::make_unique<SCTPClient::Data>());
+		raw_udp_data_.enqueue(std::make_unique<sctp::Data>());
 		break;
 
 	default:
@@ -703,7 +703,7 @@ void SCTPClient::udp_recv_loop()
 				}
 			}
 
-			raw_udp_data_.enqueue(std::make_unique<SCTPClient::Data>(buf, numbytes));
+			raw_udp_data_.enqueue(std::make_unique<sctp::Data>(buf, numbytes));
 		}
 	} catch (const std::runtime_error& exc) {
 		CRITICAL(exc.what());
@@ -857,10 +857,10 @@ void SCTPClient::handle_server_data(void* buffer, ssize_t n, const struct sockad
 		})());
 
 		if (cfg_->data_cback_f and (read > 0)) {
-			std::unique_ptr<SCTPClient::Data> data;
+			std::unique_ptr<sctp::Data> data;
 
 			try {
-				data = std::make_unique<SCTPClient::Data>(outbuf, total_decrypted_message_size);
+				data = std::make_unique<sctp::Data>(outbuf, total_decrypted_message_size);
 			} catch (std::runtime_error& exc) {
 				ERROR(exc.what());
 				break;

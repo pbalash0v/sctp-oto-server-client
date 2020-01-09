@@ -10,6 +10,7 @@
 
 #include <arpa/inet.h>
 
+#include "sctp_data.h"
 #include "sync_queue.hpp"
 #include "ssl_h.h"
 #include "log_level.h"
@@ -45,21 +46,7 @@ public:
 		PURGE
    };
 
-   struct Data {
-   	Data();
-   	explicit Data(const void*, size_t);
-		Data(const Data& oth) = delete;
-		Data& operator=(const Data& oth) = delete;
-		Data(Data&& other);
-		virtual ~Data();
-
-		Data& operator=(Data&& other);
-
-   	size_t size { 0 };
-   	void* buf { nullptr };
-	};
-
-	using SCTPClient_cback_t = std::function<void(std::unique_ptr<SCTPClient::Data>)>;
+	using SCTPClient_cback_t = std::function<void(std::unique_ptr<sctp::Data>)>;
 	using SCTPClient_state_cback_t = std::function<void(State)>;
 	using SCTPClient_debug_t = std::function<void(sctp::LogLevel, const std::string&)>;	
 
@@ -137,7 +124,7 @@ private:
 	uint16_t bound_udp_encaps_port_ { 0 };
 	struct socket* sock_ { nullptr };
 
-	SyncQueue<std::unique_ptr<SCTPClient::Data>> raw_udp_data_;
+	SyncQueue<std::unique_ptr<sctp::Data>> raw_udp_data_;
 	std::vector<char> sctp_msg_buff_;
 	std::vector<char> decrypted_msg_buff_;
 	std::vector<char> encrypted_msg_buff_;
