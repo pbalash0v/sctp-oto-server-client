@@ -1,13 +1,15 @@
 #include <memory>
 #include <cstring>
 
-#include "sctp_client.h"
+#include "sctp_data.h"
+
+using namespace sctp;
 
 
-SCTPClient::Data::Data() : size(0), buf(nullptr) {};
+Data::Data() : size(0), buf(nullptr) {};
 
 
-SCTPClient::Data::Data(const void* from, size_t len)
+Data::Data(const void* from, size_t len)
 {
 	buf = calloc(len, sizeof(char));
 	if (not buf) throw std::runtime_error("Calloc failed.");
@@ -17,7 +19,7 @@ SCTPClient::Data::Data(const void* from, size_t len)
 }
 
 
-SCTPClient::Data::Data(Data&& other): size(0), buf(nullptr)
+Data::Data(Data&& other): size(0), buf(nullptr)
 {
 	size = other.size;
 	buf = other.buf;
@@ -27,7 +29,7 @@ SCTPClient::Data::Data(Data&& other): size(0), buf(nullptr)
 }
 
 
-SCTPClient::Data& SCTPClient::Data::operator=(SCTPClient::Data&& other)
+Data& Data::operator=(Data&& other)
 {
 	if (this != &other) {
 		// release the current object's resources
@@ -47,7 +49,7 @@ SCTPClient::Data& SCTPClient::Data::operator=(SCTPClient::Data&& other)
 }
 
 
-SCTPClient::Data::~Data()
+Data::~Data()
 {
 	std::free(buf);
 }
