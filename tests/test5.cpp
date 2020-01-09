@@ -121,7 +121,7 @@ int main(int, char const**)
 		server.cfg()->event_cback_f = [&](const auto& e) {
 			if (e->type != Event::CLIENT_DATA) return;
 
-			const char* msg = static_cast<const char*>(e->client_data->data);
+			const char* msg = static_cast<const char*>(e->client_data->buf);
 			assert (not strcmp(msg, TEST_STRING));
 		 	running = false;
 		};

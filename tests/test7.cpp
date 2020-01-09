@@ -116,7 +116,7 @@ int main(int, char const**)
 		server.cfg()->event_cback_f = [&](const auto& evt) {
 			if (evt->type != Event::CLIENT_DATA) return;
 
-			const char* msg = static_cast<const char*>(evt->client_data->data);
+			const char* msg = static_cast<const char*>(evt->client_data->buf);
 			std::string msg_str { msg };
 
 			if (not strcmp(msg, TEST_STRING_CLIENT_1)) {
