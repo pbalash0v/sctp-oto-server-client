@@ -76,6 +76,7 @@ AC_CONFIG_FILES([Makefile \
 				src/examples/Makefile \
 				src/examples/third_party/Makefile \
 				src/examples/broadcast/Makefile \
+				src/examples/random_discard/Makefile \
 				src/examples/mjpeg_streaming/Makefile \
 				src/examples/certs/Makefile \
 				src/examples/third_party/gopt-10.0/Makefile \

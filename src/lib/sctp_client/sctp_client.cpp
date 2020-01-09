@@ -50,7 +50,7 @@ namespace {
 		{ SCTPClient::SSL_SHUTDOWN, "SSL_SHUTDOWN"},
 		{ SCTPClient::PURGE, "PURGE"}
 	};
-	
+
 	std::map<uint16_t, std::string> notification_names {
 		{ SCTP_ASSOC_CHANGE, "SCTP_ASSOC_CHANGE" },
 		{ SCTP_PEER_ADDR_CHANGE, "SCTP_PEER_ADDR_CHANGE" },
