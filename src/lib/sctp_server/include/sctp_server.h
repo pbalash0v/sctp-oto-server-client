@@ -15,6 +15,7 @@
 #include "client.h"
 #include "client_data.h"
 #include "server_event.h"
+#include "log_level.h"
 
 
 #ifdef TEST_BUILD
@@ -23,29 +24,7 @@
 #define MAYBE_VIRTUAL
 #endif
 
-#ifndef NDEBUG
-#define log(level, text) do { \
-						if (nullptr == cfg_->debug_f) break; \
-						std::string s = std::string(); \
-						s += std::string(basename(__FILE__)) + \
-						 + ", " + std::string(__func__) + \
-						 + ":" + std::to_string(__LINE__) + \
-						 + "\t " + std::string(text); \
-							cfg_->debug_f(level, s); \
-						} while (0)
-#else
-#define log(level, text) do {} while (0)
-#endif
 
-#define TRACE(text) log(SCTPServer::TRACE, text)
-#define DEBUG(text) log(SCTPServer::DEBUG, text)
-#define INFO(text) log(SCTPServer::INFO, text)
-#define WARNING(text) log(SCTPServer::WARNING, text)
-#define ERROR(text) log(SCTPServer::ERROR, text)
-#define CRITICAL(text) log(SCTPServer::CRITICAL, text)
-
-#define TRACE_func_entry() TRACE("Entered " + std::string(__func__))
-#define TRACE_func_left() TRACE("Left " + std::string(__func__))
 
 constexpr uint16_t DEFAULT_UDP_ENCAPS_PORT = 9899;
 constexpr uint16_t DEFAULT_SCTP_PORT = 5001;
@@ -58,19 +37,8 @@ constexpr const char* DEFAULT_SERVER_KEY_FILENAME = "../certs/server-key.pem";
 class SCTPServer
 {
 public:
-   enum LogLevel
-   {
-   	TRACE,
-      DEBUG,
-      INFO,
-      WARNING,
-      ERROR,
-		CRITICAL
-   };
-
-
 	using SCTPServer_event_cback_t = std::function<void(std::unique_ptr<Event>)>;
-	using SCTPServer_debug_t = std::function<void(SCTPServer::LogLevel, const std::string&)>;	
+	using SCTPServer_debug_t = std::function<void(sctp::LogLevel, const std::string&)>;	
 
 	struct Config
 	{

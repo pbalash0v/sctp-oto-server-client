@@ -6,7 +6,6 @@
 #include <algorithm>
 #include <thread>
 
-
 #include <sys/socket.h>
 #include <netdb.h>
 #include <arpa/inet.h>
@@ -17,9 +16,8 @@
 
 #include "sctp_server.h"
 #include "client_sctp_message.h"
+#include "logging.h"
 
-
-//constexpr auto BUFFER_SIZE = 1 << 16;
 
 /* bad signleton-like implementation */
 std::atomic_bool SCTPServer::instance_exists_ { false };

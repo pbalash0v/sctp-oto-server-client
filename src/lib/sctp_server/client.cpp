@@ -4,6 +4,7 @@
 #include <sstream>
 #include <map>
 #include <errno.h>
+#include <arpa/inet.h>
 
 #include "usrsctp.h"
 
@@ -12,9 +13,9 @@
 
 #include "sctp_server.h"
 #include "server_event.h"
+#include "logging.h"
 
 
-#include <arpa/inet.h>
 
 /* 
 	Log macros depend on local object named cfg_.
