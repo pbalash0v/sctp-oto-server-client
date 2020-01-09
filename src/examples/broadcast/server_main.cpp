@@ -205,7 +205,7 @@ int main(int /* argc */, char* argv[]) {
 		}
 	};
 
-	srv.cfg()->debug_f = [&](auto level, const auto& s)
+	srv.cfg()->debug_cback_f = [&](auto level, const auto& s)
 	{
 		switch (level) {
 		case sctp::TRACE:
