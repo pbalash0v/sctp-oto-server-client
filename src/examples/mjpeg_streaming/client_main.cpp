@@ -354,26 +354,26 @@ int main(int /* argc */, char* argv[])
 		s_.erase(std::remove(s_.begin(), s_.end(), '\n'), s_.end());
 
 		switch (level) {
-			case SCTPClient::TRACE:
+			case sctp::TRACE:
 				spdlog::trace("{}", s_);
 				break;
-			case SCTPClient::DEBUG:
+			case sctp::DEBUG:
 	    		spdlog::debug("{}", s_);
 	    		break;
-			case SCTPClient::INFO:
+			case sctp::INFO:
 	    		spdlog::info("{}", s_);
 	    		break;
-			case SCTPClient::WARNING:
+			case sctp::WARNING:
 	    		spdlog::warn("{}", s_);
 				break;
-			case SCTPClient::ERROR:
+			case sctp::ERROR:
 	    		spdlog::error("{}", s_);
 				break;
-			case SCTPClient::CRITICAL:
+			case sctp::CRITICAL:
 	    		spdlog::critical("{}", s_);
 				break;
 			default:
-	    		spdlog::error("Unknown SCTPClient log level message. {}", s_);
+	    		spdlog::error("Unknown log level message. {}", s_);
 	    		break;
 		}
 	};
