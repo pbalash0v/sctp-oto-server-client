@@ -55,7 +55,7 @@ public:
 		std::string key_filename { DEFAULT_SERVER_KEY_FILENAME };
 		
 		SCTPServer_event_cback_t event_cback_f { nullptr };
-		SCTPServer_debug_t debug_f { nullptr };
+		SCTPServer_debug_t debug_cback_f { nullptr };
 
     	friend std::ostream& operator<<(std::ostream &out, const Config &c); 
 	};

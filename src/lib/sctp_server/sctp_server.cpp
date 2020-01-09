@@ -702,7 +702,7 @@ std::ostream& operator<<(std::ostream& out, const SCTPServer::Config& c)
 	out << "UDP encaps port: " << std::to_string(c.udp_encaps_port) << ", ";
 	out << "SCTP port: " << std::to_string(c.sctp_port) << ", ";	
 	out << "Event callback: " << (c.event_cback_f == nullptr ? "not set" : "set") << ", ";
-	out << "Debug callback: " << (c.debug_f == nullptr ? "not set" : "set") << ", ";
+	out << "Debug callback: " << (c.debug_cback_f == nullptr ? "not set" : "set") << ", ";
 	out << "SSL certificate: " << c.cert_filename << ", ";
 	out << "SSL key: " << c.key_filename;	
 	return out;
