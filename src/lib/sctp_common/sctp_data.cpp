@@ -6,7 +6,7 @@
 using namespace sctp;
 
 
-Data::Data() : size(0), buf(nullptr) {};
+Data::Data() : size(0), buf(nullptr) {}
 
 
 Data::Data(const void* from, size_t len)

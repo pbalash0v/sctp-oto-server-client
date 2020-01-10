@@ -146,18 +146,6 @@ static std::shared_ptr<SCTPServer::Config> get_cfg_or_die(char* argv[], struct o
 }
 
 
-
-std::unordered_map<std::shared_ptr<IClient>, std::unique_ptr<SyncQueue<std::shared_ptr<sctp::Data>>>> send_qs;
-std::mutex signals_mutex;
-std::condition_variable cv;
-bool signal_send_possible = false;
-bool signal_new_data = false;
-bool signal_sender_thr_running = true;
-std::unordered_map<std::shared_ptr<IClient>, bool> send_flags;
-
-std::shared_ptr<IClient> client_send_possible;
-
-
 int main(int /* argc */, char* argv[]) {
 	std::set_terminate(&onTerminate);
 
@@ -166,7 +154,6 @@ int main(int /* argc */, char* argv[]) {
 
 	Broadcaster bcaster;
 	SCTPServer srv { get_cfg_or_die(argv, options) };
-
 
 	srv.cfg()->event_cback_f = [&](auto evt)
 	{

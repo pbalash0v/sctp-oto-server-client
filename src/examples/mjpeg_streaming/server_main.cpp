@@ -201,7 +201,6 @@ int main(int /* argc */, char* argv[]) {
 
 	srv.cfg()->message_size = 256*1024; //256 Kbyte
 
-
 	try {
 		srv.init();
 		srv();
@@ -215,11 +214,10 @@ int main(int /* argc */, char* argv[]) {
 
 	while (true) {
 		std::string _s;
-		if (not getline(std::cin, _s)) {
-			spdlog::info("Shutting down...");
-			break;
-		}
+		if (not getline(std::cin, _s)) break;
 	}
+	
+	spdlog::info("Shutting down...");
 
 	return EXIT_SUCCESS;
 }
