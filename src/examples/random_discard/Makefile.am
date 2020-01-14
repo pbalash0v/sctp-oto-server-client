@@ -23,7 +23,7 @@ server_LDADD = 	$(top_builddir)/src/lib/sctp_server/libserver.la \
 
 
 
-client_SOURCES = client_main.cpp rand_data_gen.cpp
+client_SOURCES = client_main.cpp rand_data_gen.cpp traffic_stats.cpp
 client_CXXFLAGS = $(AM_CXXFLAGS)
 client_CPPFLAGS = -I$(top_srcdir)/src/lib/sctp_client/include \
 		  -I$(top_srcdir)/src/lib/sctp_client \

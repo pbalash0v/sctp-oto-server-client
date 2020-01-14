@@ -160,15 +160,6 @@ int main(int /* argc */, char* argv[]) {
 
 		switch (evt->type) {
 		case Event::CLIENT_DATA:
-			{	
-				// std::string message { static_cast<const char*>(evt->client_data->buf),
-				// 	 evt->client_data->size };
-
-				// spdlog::info("{}: {}", c->to_string(),
-				// 	 ((message.size() < 30) ? message : message.substr(0, 30)));
-
-				// bcaster.enqueue(std::move(evt->client_data));
-			}
 			break;
 		case Event::CLIENT_STATE:
 			spdlog::info("{}", c->to_string());

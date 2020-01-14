@@ -10,11 +10,13 @@
 #include <chrono>
 
 #include "spdlog/spdlog.h"
+#include "spdlog/fmt/ostr.h"
 #include "spdlog/sinks/basic_file_sink.h"
 #include "gopt.h"
 
 #include "sctp_client.h"
 #include "rand_data_gen.h"
+#include "traffic_stats.h"
 
 
 constexpr uint16_t MAX_IP_PORT = std::numeric_limits<uint16_t>::max();
@@ -188,26 +190,12 @@ int main(int /* argc */, char* argv[])
 
 
 	int pipefd[2];
+	std::atomic_bool running { false };
 	/* Client config */
 	SCTPClient client { get_cfg_or_die(argv, options) };
 
 	RandGen rand_gen;
-	auto start = std::chrono::system_clock::now();
-	auto global_start = std::chrono::system_clock::now();
-	auto end = std::chrono::system_clock::now();
-	auto global_end = std::chrono::system_clock::now();
-	size_t sent = 0;
-	size_t sent_total = 0;
-
-	client.cfg()->data_cback_f = [&](const auto& s)
-	{
-		std::string server_message = ((s->size < 30) ? 
-				std::string(static_cast<char*>(s->buf), s->size)
-		 		: std::string(static_cast<char*>(s->buf), s->size).substr(0, 30));
-		spdlog::info("Server sent: {}", std::to_string(s->size)
-				+ std::string(" ")
-				+ server_message); 
-	};
+	TrafficStats ts;
 
 	client.cfg()->debug_cback_f = [&](auto level, const auto& s)
 	{
@@ -254,14 +242,12 @@ int main(int /* argc */, char* argv[])
 			message += "Handshaking SSL...";
 			break;
 		case SCTPClient::SSL_CONNECTED:
-			message += "SSL established.";
+			message += "SSL established. Press ctrl-D to terminate, enter for stats.";
 			{
 				auto v = rand_gen();
 				client.send(v.data(), v.size());
-				start = std::chrono::system_clock::now();
-				global_start = std::chrono::system_clock::now();
-				sent = v.size();
-				sent_total += sent;
+				ts.update(v.size());
+				running = true;
 			}
 			break;
 		case SCTPClient::SSL_SHUTDOWN:
@@ -279,24 +265,17 @@ int main(int /* argc */, char* argv[])
 
 	client.cfg()->send_possible_cback_f = [&]()
 	{
-		end = std::chrono::system_clock::now();				
-		std::chrono::duration<double> elapsed_seconds = end - start;
-
-		spdlog::debug("elapsed time: {}, speed: {} Kbytes/sec",
-		 	elapsed_seconds.count(), sent/(1024*elapsed_seconds.count()));
+		if (not running) return;
 
 		auto v = rand_gen();
 		client.send(v.data(), v.size());
-		spdlog::debug("Sent {} bytes.", v.size());
-		start = std::chrono::system_clock::now();
-		sent = v.size();
-		sent_total += sent;
+		ts.update(v.size());
 	};
 
 
 	try {
 		client.init();
-		spdlog::info("{}", client.to_string());
+		spdlog::info("{}", client);
 		client(); /* this is async, starts separate thread */
 	} catch (const std::runtime_error& exc) {
 		spdlog::error("{}", std::string(exc.what()));
@@ -308,7 +287,6 @@ int main(int /* argc */, char* argv[])
 	if (pipe(pipefd) == -1) {
 		throw std::runtime_error(strerror(errno));
 	}
-
 	fd_set set;
 	int res;
 	while (true) {
@@ -330,17 +308,16 @@ int main(int /* argc */, char* argv[])
 			char* line = NULL;
 			size_t size;
 			if (getline(&line, &size, stdin) == -1) {
+				running = false;
 				break;
+			} else {
+				spdlog::info("{}", ts);
 			}
       }
 	}
    close(pipefd[0]);
 
-	global_end = std::chrono::system_clock::now();				
-	std::chrono::duration<double> elapsed_seconds = global_end - global_start;
-
-	spdlog::info("Total running time: {}, avg speed: {} Kbytes/sec",
-		 	elapsed_seconds.count(), sent_total/(1024*elapsed_seconds.count()));
+	spdlog::info("{}", ts);
 
 	client.stop();
 

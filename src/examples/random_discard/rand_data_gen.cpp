@@ -32,6 +32,7 @@ std::vector<char> RandGen::operator()()
 
 	uint16_t val = 0;
 
+	// get random data size -> 1..65535
 	while (true) {
 		char buf[2] = { 0 };
 
@@ -47,6 +48,7 @@ std::vector<char> RandGen::operator()()
 		if (val != 0) break;
 	}
 
+	//actually read as much random data
 	v.resize(val);
 
 	int num_read = read(urandom_fd_, v.data(), val);

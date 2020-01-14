@@ -977,7 +977,7 @@ void SCTPClient::handle_association_change_event(struct sctp_assoc_change* sac)
 			}
 		}
 
-		message += ".\n";
+		message += ".";//\n";
 
 		return message;
 	})();
