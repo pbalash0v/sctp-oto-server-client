@@ -18,5 +18,6 @@ public:
 private:
 	std::chrono::time_point<std::chrono::system_clock> start { std::chrono::system_clock::now() };
 	std::chrono::time_point<std::chrono::system_clock> end { std::chrono::system_clock::now() };
+	std::chrono::duration<double> elapsed_seconds { 0 };
 	size_t sent_total = 0;
 };
