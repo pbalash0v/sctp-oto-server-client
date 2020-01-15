@@ -2,7 +2,7 @@
 #include <atomic>
 #include <memory>
 #include <algorithm>
-
+#include <iostream>
 #include <cassert>
 
 #include <sys/prctl.h>

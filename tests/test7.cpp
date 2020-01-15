@@ -1,11 +1,12 @@
 #include <string>
-#include <string.h>
 #include <atomic>
 #include <thread>
 #include <memory>
 #include <cassert>
 #include <algorithm>
+#include <iostream>
 
+#include <string.h>
 #include <sys/prctl.h>
 #include <signal.h>
 
