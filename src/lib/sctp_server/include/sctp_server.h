@@ -30,8 +30,8 @@ constexpr uint16_t DEFAULT_SCTP_PORT = 5001;
 
 constexpr auto DEFAULT_SCTP_MESSAGE_SIZE_BYTES = (1 << 16);
 
-constexpr const char* DEFAULT_SERVER_CERT_FILENAME = "../certs/server-cert.pem";
-constexpr const char* DEFAULT_SERVER_KEY_FILENAME = "../certs/server-key.pem";
+constexpr const char* DEFAULT_SERVER_CERT_FILENAME = "server-cert.pem";
+constexpr const char* DEFAULT_SERVER_KEY_FILENAME = "server-key.pem";
 
 class SCTPServer
 {

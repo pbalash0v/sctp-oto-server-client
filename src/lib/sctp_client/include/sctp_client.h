@@ -27,8 +27,8 @@ namespace sctp {
 	constexpr auto DEFAULT_SCTP_MESSAGE_SIZE_BYTES = 1 << 16;
 }
 
-constexpr const char* DEFAULT_CLIENT_CERT_FILENAME = "../certs/client-cert.pem";
-constexpr const char* DEFAULT_CLIENT_KEY_FILENAME = "../certs/client-key.pem";
+constexpr const char* DEFAULT_CLIENT_CERT_FILENAME = "client-cert.pem";
+constexpr const char* DEFAULT_CLIENT_KEY_FILENAME = "client-key.pem";
 
 
 class SCTPClient
