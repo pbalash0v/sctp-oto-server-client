@@ -177,6 +177,9 @@ static std::shared_ptr<SCTPClient::Config> get_cfg_or_die(char* argv[], struct o
 		return serv_addr;
 	})();
 
+	cfg->cert_filename = "../certs/" + cfg->cert_filename;
+	cfg->key_filename = "../certs/" + cfg->key_filename;
+	
 	return cfg;
 }
 

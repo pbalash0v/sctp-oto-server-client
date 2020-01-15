@@ -138,6 +138,9 @@ static std::shared_ptr<SCTPServer::Config> get_cfg_or_die(char* argv[], struct o
 			spdlog::set_level(spdlog::level::trace);
 		}
 	}
+
+	cfg->cert_filename = "../certs/" + cfg->cert_filename;
+	cfg->key_filename = "../certs/" + cfg->key_filename;
 	
 	return cfg;
 }
