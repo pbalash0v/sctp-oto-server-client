@@ -1,6 +1,5 @@
 #pragma once
 
-
 #include "iclient.h"
 #include "ssl_h.h"
 
@@ -27,16 +26,13 @@ public:
 	virtual void close() override;
 
 	virtual std::vector<char>& sctp_msg_buff() override { return sctp_msg_buff_; };
-
+	
 	virtual std::string to_string() const override;
 
-	friend bool operator== (const Client &c1, const Client &c2);
-	friend bool operator!= (const Client &c1, const Client &c2);
-	
-	friend std::ostream& operator<<(std::ostream &out, const Client &c);
+	friend bool operator== (const Client&, const Client&);
+	friend bool operator!= (const Client&, const Client&);
 
 	friend class SCTPServer;
-
 private:
 	struct socket* sock { nullptr };
 

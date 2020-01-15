@@ -55,7 +55,7 @@ namespace {
 		{ SCTP_STREAM_CHANGE_EVENT, "SCTP_STREAM_CHANGE_EVENT"},
 		{ SCTP_SEND_FAILED_EVENT, "SCTP_SEND_FAILED_EVENT"}
 	};
-	
+
 	void inline _log_client_error_and_throw(const char* func, bool should_throw)
 	{
 		//ENABLE_DEBUG();
@@ -840,13 +840,18 @@ std::unique_ptr<Event> Client::handle_notification(const std::unique_ptr<SCTPMes
 }
 
 
-
 std::string Client::to_string() const
 {
 	std::ostringstream oss;
-	oss << *this;
+
+	oss << std::string("Client [socket: ");
+	oss << (static_cast<void*>(socket())) << ", ";
+	oss << state_names[state_];
+	oss << std::string("]");
+
 	return oss.str();
 }
+
 
 bool operator== (const Client& c1, const Client& c2)
 {
@@ -856,14 +861,6 @@ bool operator== (const Client& c1, const Client& c2)
 bool operator!= (const Client& c1, const Client& c2)
 {
 	return not (c1 == c2);
-}
-
-std::ostream& operator<<(std::ostream &out, const Client& c)
-{
-	out << std::string("Client [socket: ") << (static_cast<void*>(c.socket())) << ", ";
-	out << c.state();
-	out << std::string("]");
-	return out;
 }
 
 

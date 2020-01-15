@@ -1,6 +1,5 @@
 #pragma once
 
-#include <iostream>
 #include <vector>
 #include <memory>
 
@@ -44,6 +43,11 @@ public:
 	virtual std::vector<char>& sctp_msg_buff() = 0;
 
 	virtual std::string to_string() const = 0;
+
+	friend std::ostream& operator<<(std::ostream& out, const IClient& c)
+	{
+		return out << c.to_string();
+	};
 
 	friend std::ostream& operator<<(std::ostream &out, const IClient::State s);
 };

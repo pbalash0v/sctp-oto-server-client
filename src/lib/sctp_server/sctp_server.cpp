@@ -5,6 +5,8 @@
 #include <cassert>
 #include <algorithm>
 #include <thread>
+#include <sstream>
+
 
 #include <sys/socket.h>
 #include <netdb.h>
@@ -35,13 +37,14 @@ namespace
 
 	std::string inline client_errno(const char* func, std::shared_ptr<IClient>& c)
 	{
-		std::string error { func };
-		error += ": ";
-		error += c->to_string();
-		error += " ";
-		error += strerror(errno);
+		std::ostringstream oss;
+		oss << func ;
+		oss <<": ";
+		oss << c;
+		oss << " ";
+		oss << strerror(errno);
 
-		return error;
+		return oss.str();
 	}
 }
 
