@@ -162,7 +162,7 @@ int main(int /* argc */, char* argv[]) {
 		case Event::CLIENT_DATA:
 			break;
 		case Event::CLIENT_STATE:
-			spdlog::info("{}", c->to_string());
+			spdlog::info("{}", *c);
 			break;
 		case Event::CLIENT_SEND_POSSIBLE:
 			break;

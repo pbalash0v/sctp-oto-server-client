@@ -165,26 +165,26 @@ int main(int /* argc */, char* argv[]) {
 				std::string message { static_cast<const char*>(evt->client_data->buf),
 					 evt->client_data->size };
 
-				spdlog::info("{}: {}", c->to_string(),
+				spdlog::info("{}: {}", *c,
 					 ((message.size() < 30) ? message : message.substr(0, 30)));
 
 				bcaster.enqueue(std::move(evt->client_data));
 			}
 			break;
 		case Event::CLIENT_STATE:
-			spdlog::info("{}", c->to_string());
+			spdlog::info("{}", *c);
 
 			if (evt->client_state == Client::SSL_CONNECTED) {
 				bcaster.add_new_client(c);
 			}
 
 			if (evt->client_state == Client::SCTP_SHUTDOWN_CMPLT) {
- 				spdlog::info("{} disconnected.", c->to_string());
+ 				spdlog::info("{} disconnected.", *c);
  				bcaster.drop_client(c);
 			}			
 			break;
 		case Event::CLIENT_SEND_POSSIBLE:
-			spdlog::debug("{} send possible.", c->to_string());
+			spdlog::debug("{} send possible.", *c);
 			bcaster.notify_send_possible(c);
 			break;
 		default:

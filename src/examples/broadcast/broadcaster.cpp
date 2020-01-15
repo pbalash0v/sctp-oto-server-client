@@ -1,5 +1,7 @@
-#include "broadcaster.h"
 #include "spdlog/spdlog.h"
+#include "spdlog/fmt/ostr.h"
+
+#include "broadcaster.h"
 #include "sctp_server.h"
 
 Broadcaster::~Broadcaster()
@@ -31,11 +33,11 @@ void Broadcaster::operator()(SCTPServer& s)
 
 			if (signal_send_possible_) {
 				if (send_qs_[client_send_possible_]->isEmpty()) {
-					spdlog::trace("queue for {} is empty.", client_send_possible_->to_string());
+					spdlog::trace("queue for {} is empty.", *client_send_possible_);
 					send_flags_[client_send_possible_] = true;
 				} else {
 					auto data = send_qs_[client_send_possible_]->dequeue();
-					spdlog::trace("sending {} bytes of data for {}.", data->size, client_send_possible_->to_string());
+					spdlog::trace("sending {} bytes of data for {}.", data->size, *client_send_possible_);
 					s.send(client_send_possible_, data->buf, data->size);
 					send_flags_[client_send_possible_] = false;
 				}
@@ -46,11 +48,11 @@ void Broadcaster::operator()(SCTPServer& s)
 				spdlog::trace("signal_new_data");
 			 	for (const auto& q : send_qs_) {
 			 		if (not send_flags_[q.first]) {
-						spdlog::trace("Send flag for {} is false. Can not send data.", q.first->to_string());
+						spdlog::trace("Send flag for {} is false. Can not send data.", *(q.first));
 			 			continue;
 		 			}
 					auto data = send_qs_[q.first]->dequeue();
-					spdlog::trace("sending {} bytes of data for {}.", data->size, q.first->to_string());
+					spdlog::trace("sending {} bytes of data for {}.", data->size, *(q.first));
 					auto c = q.first;
 					s.send(c, data->buf, data->size);
 					send_flags_[q.first] = false;
@@ -88,7 +90,7 @@ void Broadcaster::drop_client(std::shared_ptr<IClient>& c)
  	auto& cli_q = *send_qs_[c];
 
  	if (not cli_q.isEmpty()) {
-		spdlog::warn("Dropping {} unsent mesages for {}", cli_q.size(), c->to_string());
+		spdlog::warn("Dropping {} unsent mesages for {}", cli_q.size(), *c);
 	 	while (cli_q.size()) {
 	 		auto msg = cli_q.dequeue();
 			std::string message { static_cast<const char*>(msg->buf), msg->size };
