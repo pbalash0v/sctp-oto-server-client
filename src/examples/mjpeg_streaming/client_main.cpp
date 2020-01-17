@@ -318,10 +318,10 @@ int main(int /* argc */, char* argv[])
 	struct option options[CLIOptions::OPTIONS_COUNT];
 	parse_args(argv, options);
 
-	std::atomic_bool running { true };
+	int pipefd[2];
 
-	/* Client */
 	SCTPClient client { get_cfg_or_die(argv, options) };
+	
 	VideoEngine ve;
 
 	/* init client */
@@ -387,6 +387,7 @@ int main(int /* argc */, char* argv[])
 			break;				
 		case SCTPClient::PURGE:
 			message += "Terminating...";
+			close(pipefd[1]);
 		default:
 			break;
 		}
@@ -405,11 +406,40 @@ int main(int /* argc */, char* argv[])
 		return EXIT_FAILURE;
 	}
 
+
+	//
+	if (pipe(pipefd) == -1) {
+		throw std::runtime_error(strerror(errno));
+	}
+
 	spdlog::info("Press ctrl-D to terminate.");
-	do {
-		std::string _s;
-		if (not getline(std::cin, _s)) break;
-	} while (running);
+
+	fd_set set;
+	int res;
+	while (true) {
+		FD_ZERO(&set);
+		FD_SET(STDIN_FILENO, &set);
+		FD_SET(pipefd[0], &set);
+
+		res = select(pipefd[0] + 1, &set, NULL, NULL, NULL);
+
+		if (res < 0) {
+			break;
+		}
+
+      if (FD_ISSET(pipefd[0], &set)) {
+			break;
+      }
+
+      if (FD_ISSET(STDIN_FILENO, &set)) {
+			char* line = NULL;
+			size_t size;
+			if (getline(&line, &size, stdin) == -1) {
+				break;
+			}
+      }
+	}
+   close(pipefd[0]);
 
 	client.stop();
 	return EXIT_SUCCESS;
