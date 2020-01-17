@@ -15,6 +15,8 @@
 #include "sync_queue.hpp"
 
 #include "sctp_client.h"
+#include "video_engine.h"
+
 
 
 constexpr uint16_t MAX_IP_PORT = std::numeric_limits<uint16_t>::max();
@@ -34,6 +36,7 @@ enum CLIOptions
 	OPTIONS_COUNT
 };
 
+
 [[noreturn]] void onTerminate() noexcept
 {
 	std::cerr << "onTerminate" << std::endl;
@@ -47,6 +50,7 @@ enum CLIOptions
 	}
 	std::_Exit(EXIT_FAILURE);
 }
+
 
 static void parse_args(char* argv[], struct option options[])
 {
@@ -183,129 +187,128 @@ static std::shared_ptr<SCTPClient::Config> get_cfg_or_die(char* argv[], struct o
 	return cfg;
 }
 
-// queues for local data
-SyncQueue<std::shared_ptr<cv::Mat>> local_frames_to_display;
-SyncQueue<std::shared_ptr<cv::Mat>> frames_to_encode;
-SyncQueue<std::shared_ptr<std::vector<uchar>>> frames_to_send {/* max queued */ 5};
-// queues for remote data
-SyncQueue<std::unique_ptr<sctp::Data>> recvd_data;
-SyncQueue<std::unique_ptr<cv::Mat>> recvd_frames_to_display;
+// // queues for local data
+// SyncQueue<std::shared_ptr<cv::Mat>> local_frames_to_display;
+// SyncQueue<std::shared_ptr<cv::Mat>> frames_to_encode;
+// SyncQueue<std::shared_ptr<std::vector<uchar>>> frames_to_send {/* max queued */ 5};
+// // queues for remote data
+// SyncQueue<std::unique_ptr<sctp::Data>> recvd_data;
+// SyncQueue<std::unique_ptr<cv::Mat>> recvd_frames_to_display;
 
-static void capture_loop(const std::atomic_bool& running, cv::VideoCapture& camera)
-{
-	while (running) {
-		auto frame_ptr = std::make_shared<cv::Mat>();
+// static void capture_loop(const std::atomic_bool& running, cv::VideoCapture& camera)
+// {
+// 	while (running) {
+// 		auto frame_ptr = std::make_shared<cv::Mat>();
 
-		// capture the next frame from the webcam
-		camera.read(*frame_ptr);
+// 		// capture the next frame from the webcam
+// 		camera.read(*frame_ptr);
 
-		local_frames_to_display.enqueue(frame_ptr);
-		frames_to_encode.enqueue(frame_ptr);
-	}
+// 		local_frames_to_display.enqueue(frame_ptr);
+// 		frames_to_encode.enqueue(frame_ptr);
+// 	}
 
-	auto null_frame_ptr = std::make_shared<cv::Mat>();
-	local_frames_to_display.enqueue(null_frame_ptr);
-	frames_to_encode.enqueue(null_frame_ptr);
+// 	auto null_frame_ptr = std::make_shared<cv::Mat>();
+// 	local_frames_to_display.enqueue(null_frame_ptr);
+// 	frames_to_encode.enqueue(null_frame_ptr);
 
-	spdlog::debug("{} finished.", __func__);
-}
+// 	spdlog::debug("{} finished.", __func__);
+// }
 
-static void local_display_loop(SyncQueue<std::shared_ptr<cv::Mat>>& q)
-{
-	do {
-		auto frame = *(q.dequeue());
+// static void local_display_loop(SyncQueue<std::shared_ptr<cv::Mat>>& q)
+// {
+// 	do {
+// 		auto frame = *(q.dequeue());
 
-		if (frame.empty()) break;
+// 		if (frame.empty()) break;
 
-		// show the image on the window
-		cv::imshow("Webcam", frame);
+// 		// show the image on the window
+// 		cv::imshow("Webcam", frame);
 		
-		// wait (10ms) for a key to be pressed
-		cv::waitKey(10);
-	} while (true);
+// 		// wait (10ms) for a key to be pressed
+// 		cv::waitKey(10);
+// 	} while (true);
 
-	spdlog::debug("{} finished.", __func__);
-}
+// 	spdlog::debug("{} finished.", __func__);
+// }
 
-static void encode_loop(SyncQueue<std::shared_ptr<cv::Mat>>& q)
-{
-	do {
-		auto frame = *(q.dequeue());
+// static void encode_loop(SyncQueue<std::shared_ptr<cv::Mat>>& q)
+// {
+// 	do {
+// 		auto frame = *(q.dequeue());
 
-		if (frame.empty()) break;
+// 		if (frame.empty()) break;
 
-		auto jpeg_ptr = std::make_shared<std::vector<uchar>>();
+// 		auto jpeg_ptr = std::make_shared<std::vector<uchar>>();
 
-		cv::imencode(".jpg", frame, *jpeg_ptr);
+// 		cv::imencode(".jpg", frame, *jpeg_ptr);
 
-		frames_to_send.enqueue(jpeg_ptr);
-	} while (true);
+// 		frames_to_send.enqueue(jpeg_ptr);
+// 	} while (true);
 
-	auto empty_jpeg_ptr = std::make_shared<std::vector<uchar>>();
-	frames_to_send.enqueue(empty_jpeg_ptr);
+// 	auto empty_jpeg_ptr = std::make_shared<std::vector<uchar>>();
+// 	frames_to_send.enqueue(empty_jpeg_ptr);
 
-	spdlog::debug("{} finished.", __func__);
-}
+// 	spdlog::debug("{} finished.", __func__);
+// }
 
-static void send_loop(SyncQueue<std::shared_ptr<std::vector<uchar>>>& q, SCTPClient& client)
-{
-	do {
-		auto jpeg = *(q.dequeue());
+// static void send_loop(SyncQueue<std::shared_ptr<std::vector<uchar>>>& q, SCTPClient& client)
+// {
+// 	do {
+// 		auto jpeg = *(q.dequeue());
 
-		if (jpeg.size() == 0) break;
-		try {
-			client.send(jpeg.data(), jpeg.size());
-		} catch (std::runtime_error& exc) {
-			spdlog::warn("Send failed: {}.", exc.what());
-		}
-	} while (true);
+// 		if (jpeg.size() == 0) break;
+// 		try {
+// 			client.send(jpeg.data(), jpeg.size());
+// 		} catch (std::runtime_error& exc) {
+// 			spdlog::warn("Send failed: {}.", exc.what());
+// 		}
+// 	} while (true);
 
-	spdlog::debug("{} finished.", __func__);
-}
+// 	spdlog::debug("{} finished.", __func__);
+// }
 
-static void decode_loop(SyncQueue<std::unique_ptr<sctp::Data>>& q)
-{
-	do {
-		auto data = q.dequeue();
+// static void decode_loop(SyncQueue<std::unique_ptr<sctp::Data>>& q)
+// {
+// 	do {
+// 		auto data = q.dequeue();
 
-		if (data->size == 0) break;
+// 		if (data->size == 0) break;
 
-		auto jpeg = cv::Mat(1, data->size, CV_8UC1, data->buf);
+// 		auto jpeg = cv::Mat(1, data->size, CV_8UC1, data->buf);
 
-		auto mat_ptr = std::make_unique<cv::Mat>(cv::imdecode(jpeg, CV_LOAD_IMAGE_UNCHANGED));
+// 		auto mat_ptr = std::make_unique<cv::Mat>(cv::imdecode(jpeg, CV_LOAD_IMAGE_UNCHANGED));
 		
-		recvd_frames_to_display.enqueue(std::move(mat_ptr));
-	} while (true);
+// 		recvd_frames_to_display.enqueue(std::move(mat_ptr));
+// 	} while (true);
 
-	auto empty_frame_ptr = std::make_unique<cv::Mat>();
-	recvd_frames_to_display.enqueue(std::move(empty_frame_ptr));
+// 	auto empty_frame_ptr = std::make_unique<cv::Mat>();
+// 	recvd_frames_to_display.enqueue(std::move(empty_frame_ptr));
 
-	spdlog::debug("{} finished.", __func__);
-}
+// 	spdlog::debug("{} finished.", __func__);
+// }
 
+// void recvd_display_loop(SyncQueue<std::unique_ptr<cv::Mat>>& q)
+// {
+// 	do {
+// 		auto frame = q.dequeue();
 
-void recvd_display_loop(SyncQueue<std::unique_ptr<cv::Mat>>& q)
-{
-	do {
-		auto frame = q.dequeue();
+// 		if (frame->empty()) break;
 
-		if (frame->empty()) break;
-
-		// show the image on the window
-		cv::imshow("Echo", *frame);
+// 		// show the image on the window
+// 		cv::imshow("Echo", *frame);
 		
-		// wait (10ms) for a key to be pressed
-		cv::waitKey(10);
-	} while (true);
+// 		// wait (10ms) for a key to be pressed
+// 		cv::waitKey(10);
+// 	} while (true);
 
-	spdlog::debug("{} finished.", __func__);
-}
+// 	spdlog::debug("{} finished.", __func__);
+// }
 
-static void set_thread_name(std::thread& thread, const char* name)
-{
-   auto handle = thread.native_handle();
-   pthread_setname_np(handle, name);
-}
+// static void set_thread_name(std::thread& thread, const char* name)
+// {
+//    auto handle = thread.native_handle();
+//    pthread_setname_np(handle, name);
+// }
 
 
 int main(int /* argc */, char* argv[])
@@ -319,27 +322,7 @@ int main(int /* argc */, char* argv[])
 
 	/* Client */
 	SCTPClient client { get_cfg_or_die(argv, options) };
-
-	/* init video capturing/display/encoding/send threads */
-	cv::VideoCapture camera(0);
-	if (!camera.isOpened()) {
-		std::cerr << "ERROR: Could not open camera" << std::endl;
-		return EXIT_FAILURE;
-	}
-
-	std::thread capture_thread;
-	std::thread local_display_thread { &local_display_loop, std::ref(local_frames_to_display) };
-	std::thread local_encode_thread { &encode_loop, std::ref(frames_to_encode) };
-	std::thread send_thread { &send_loop, std::ref(frames_to_send), std::ref(client) };
-	std::thread recvd_decode_thread { &decode_loop, std::ref(recvd_data) };
-	std::thread recvd_display_thread { &recvd_display_loop, std::ref(recvd_frames_to_display) };
-
-	set_thread_name(send_thread, "sender");
-	set_thread_name(local_encode_thread, "mjpeg_encoder");
-	set_thread_name(recvd_decode_thread, "mjpeg_decoder");
-
-	cv::namedWindow("Webcam", cv::WINDOW_AUTOSIZE);
-	cv::namedWindow("Echo", cv::WINDOW_AUTOSIZE);
+	VideoEngine ve;
 
 	/* init client */
 	client.cfg()->data_cback_f = [&](auto s)
@@ -348,7 +331,7 @@ int main(int /* argc */, char* argv[])
 
 		if (s->size == 0) return; //hack !
 
-		recvd_data.enqueue(std::move(s));
+		ve.put_frame_data(std::move(s));
 	};
 
 	client.cfg()->debug_cback_f = [&](const auto& level, const auto& s)
@@ -397,23 +380,20 @@ int main(int /* argc */, char* argv[])
 			break;
 		case SCTPClient::SSL_CONNECTED:
 			message += "SSL established.";
-
-			capture_thread = std::thread(&capture_loop,std::ref(running), std::ref(camera));
-			set_thread_name(capture_thread, "cam_capturer");
+			ve(client);
 			break;
 		case SCTPClient::SSL_SHUTDOWN:
 			message += "SSL shutdown.";
 			break;				
 		case SCTPClient::PURGE:
 			message += "Terminating...";
-			running = false;
-			recvd_data.enqueue(std::make_unique<sctp::Data>());
 		default:
 			break;
 		}
 
 		spdlog::trace("{}", message); 
 	};
+
 
 
 	try {
@@ -431,17 +411,6 @@ int main(int /* argc */, char* argv[])
 		if (not getline(std::cin, _s)) break;
 	} while (running);
 
-	running = false;
-	recvd_data.enqueue(std::make_unique<sctp::Data>());
-
-	capture_thread.join();
-	local_display_thread.join();
-	local_encode_thread.join();
-	send_thread.join();
-	recvd_decode_thread.join();
-	recvd_display_thread.join();
-
 	client.stop();
-
 	return EXIT_SUCCESS;
 }
