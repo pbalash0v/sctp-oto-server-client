@@ -1,0 +1,8 @@
+[submodule "src/third_party/spdlog"]
+	path = src/examples/third_party/spdlog
+	url = https://github.com/gabime/spdlog.git
+	branch = v1.x
+[submodule "src/third_party/usrsctp"]
+	path = src/lib/third_party/usrsctp
+	url = https://github.com/sctplab/usrsctp.git
+	branch = master
