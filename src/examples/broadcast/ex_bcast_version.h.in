@@ -1,0 +1,26 @@
+#include <string>
+
+inline std::string get_SCTP_OTO_version()
+{
+	return "@sctp_oto_server_and_client_VERSION@";
+}
+
+inline unsigned get_SCTP_OTO_version_major()
+{
+	return @sctp_oto_server_and_client_VERSION_MAJOR@;
+}
+
+inline unsigned get_SCTP_OTO_version_minor()
+{
+	return @ctp_oto_server_and_client_VERSION_MINOR@ +0;
+}
+
+inline unsigned get_SCTP_OTO_version_patch()
+{
+	return @ctp_oto_server_and_client_VERSION_PATCH@ +0;
+}
+
+inline unsigned get_SCTP_OTO_version_tweak()
+{
+	return @ctp_oto_server_and_client_VERSION_TWEAK@ +0;
+}

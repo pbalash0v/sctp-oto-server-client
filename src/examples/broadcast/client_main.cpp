@@ -1,6 +1,4 @@
-#ifdef HAVE_CONFIG_H
-	#include "config.h"
-#endif
+#include "ex_bcast_version.h"
 
 #include <iostream>
 #include <memory>
@@ -121,7 +119,7 @@ static std::shared_ptr<SCTPClient::Config> get_cfg_or_die(char* argv[], struct o
 
 	/* version */
 	if (options[CLIOptions::VERSION_OPT].count) {
-		std::cout << VERSION << std::endl;  	
+		std::cout << get_SCTP_OTO_version() << std::endl;  	
 		exit(EXIT_SUCCESS);
 	}
 
