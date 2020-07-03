@@ -5,6 +5,16 @@ project(sctp_oto_server_and_client
 	LANGUAGES CXX C
 )
 
+# cmake-gui configurable options
+option(SCTP_OTO_BUILD_EXAMPLES "Build examples" ON)
+option(SCTP_OTO_BUILD_SH_LIBS "Build shared libs" ON)
+
+# handle externally set BUILD_SHARED_LIBS
+if(NOT DEFINED BUILD_SHARED_LIBS AND SCTP_OTO_BUILD_SH_LIBS)
+	set(BUILD_SHARED_LIBS ON)
+endif()
+
+
 # Be specific by assuming default build type is "debug" if no build type was explicitly set
 if(CMAKE_BUILD_TYPE STREQUAL "")
 	set(CMAKE_BUILD_TYPE "Debug")
@@ -19,41 +29,14 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # append local cmake dir to include path for cmake modules
 list(INSERT CMAKE_MODULE_PATH 0 "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
-############################################################
-# Pull and build local dependencies
-############################################################
-include(ExternalProject)
+include(pull_3rd_pty)
 
-set(LOCAL_BUILD_ARTIFACTS_DIR ${CMAKE_BINARY_DIR}/build_artifacts)
-
-ExternalProject_Add(usrsctp
-	GIT_REPOSITORY https://github.com/sctplab/usrsctp
-	GIT_TAG a05154264872ec8e5d4143ac841a306f54ace231
-#	GIT_TAG origin/master
-	GIT_PROGRESS ON	
-	INSTALL_DIR ${LOCAL_BUILD_ARTIFACTS_DIR}
-	CONFIGURE_COMMAND cd <SOURCE_DIR> && <SOURCE_DIR>/bootstrap && <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>;--with-pic
-	BUILD_COMMAND cd <SOURCE_DIR> && make
-	INSTALL_COMMAND cd <SOURCE_DIR> && make	install
-)
-
-ExternalProject_Add(spdlog
-	GIT_REPOSITORY https://github.com/gabime/spdlog
-	GIT_TAG origin/v1.x
-	INSTALL_DIR ${LOCAL_BUILD_ARTIFACTS_DIR}
-	CMAKE_ARGS -DCMAKE_PREFIX_PATH=<INSTALL_DIR>
-				-DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
-				-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
-				-DCMAKE_POSITION_INDEPENDENT_CODE=ON
-)
-
-
-# Force "protobuf_c install" before "natsc build"
-# Argument mnemonic is: "natsc configure DEPENDS ON protobuf_c-install
-#ExternalProject_Add_StepDependencies(natsc configure protobuf_c)
-include_directories(BEFORE ${LOCAL_BUILD_ARTIFACTS_DIR}/include)
-link_directories(BEFORE ${LOCAL_BUILD_ARTIFACTS_DIR}/lib)
-############################################################
+# Set build tree output directories
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+	set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/software/lib)
+	set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/software/lib)
+	set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/software/bin)
+endif()
 
 # sctp itself
 add_subdirectory(src)

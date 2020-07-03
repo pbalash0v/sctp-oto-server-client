@@ -7,7 +7,6 @@
 #include <thread>
 #include <sstream>
 
-
 #include <sys/socket.h>
 #include <netdb.h>
 #include <arpa/inet.h>
@@ -25,28 +24,28 @@
 std::atomic_bool SCTPServer::instance_exists_ { false };
 
 
-namespace
+namespace {
+SyncQueue<std::unique_ptr<SCTPMessage>> sctp_msgs_;
+
+void inline set_thread_name(std::thread& thread, const char* name)
 {
-	SyncQueue<std::unique_ptr<SCTPMessage>> sctp_msgs_;
-
-	void set_thread_name(std::thread& thread, const char* name)
-	{
-	   auto handle = thread.native_handle();
-	   pthread_setname_np(handle, name);
-	}
-
-	std::string inline client_errno(const char* func, std::shared_ptr<IClient>& c)
-	{
-		std::ostringstream oss;
-		oss << func ;
-		oss <<": ";
-		oss << c;
-		oss << " ";
-		oss << strerror(errno);
-
-		return oss.str();
-	}
+   auto handle = thread.native_handle();
+   pthread_setname_np(handle, name);
 }
+
+std::string inline client_errno(const char* func, std::shared_ptr<IClient>& c)
+{
+	std::ostringstream oss;
+	oss << func ;
+	oss <<": ";
+	oss << c;
+	oss << " ";
+	oss << strerror(errno);
+
+	return oss.str();
+}
+
+} //namespace
 
 SCTPServer::SCTPServer() : SCTPServer(std::make_shared<SCTPServer::Config>()) {}
 
