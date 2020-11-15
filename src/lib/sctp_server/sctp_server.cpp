@@ -24,18 +24,21 @@
 std::atomic_bool SCTPServer::instance_exists_ { false };
 
 
-namespace {
+namespace
+{
+
 SyncQueue<std::unique_ptr<SCTPMessage>> sctp_msgs_;
 
-void inline set_thread_name(std::thread& thread, const char* name)
+inline void set_thread_name(std::thread& thread, const char* name)
 {
    auto handle = thread.native_handle();
    pthread_setname_np(handle, name);
 }
 
-std::string inline client_errno(const char* func, std::shared_ptr<IClient>& c)
+inline std::string client_errno(const char* func, std::shared_ptr<IClient>& c)
 {
 	std::ostringstream oss;
+
 	oss << func ;
 	oss <<": ";
 	oss << c;
@@ -45,7 +48,8 @@ std::string inline client_errno(const char* func, std::shared_ptr<IClient>& c)
 	return oss.str();
 }
 
-} //namespace
+} //anon namespace
+
 
 SCTPServer::SCTPServer() : SCTPServer(std::make_shared<SCTPServer::Config>()) {}
 
@@ -271,14 +275,14 @@ void SCTPServer::init()
 	*/
 
 	/* create SCTP socket */
-	int (*receive_cb)(struct socket*, union sctp_sockstore, 
-		void*, size_t, struct sctp_rcvinfo, int, void*) = NULL;
-	int (*send_cb)(struct socket *sock, uint32_t sb_free)	= NULL;
-	uint32_t sb_threshold = 0;
-	void* recv_cback_data = NULL;
+	using recv_cb_type = int (*)(struct socket*, union sctp_sockstore, void*, size_t, struct sctp_rcvinfo, int, void*);
+	using send_cb_type = int (*)(struct socket *sock, uint32_t sb_free, void* ulp_info);
+	recv_cb_type r_cb {nullptr};
+	send_cb_type s_cb {nullptr};
+	uint32_t sb_threshold {};
+	void* recv_cback_data {nullptr};
 
-	if ((serv_sock_ = usrsctp_socket(PF_INET, SOCK_STREAM, IPPROTO_SCTP,
-		 receive_cb, send_cb, sb_threshold, recv_cback_data)) == NULL) {
+	if ((serv_sock_ = usrsctp_socket(PF_INET, SOCK_STREAM, IPPROTO_SCTP, r_cb, s_cb, sb_threshold, recv_cback_data)) == NULL) {
 		CRITICAL(strerror(errno));
 		throw std::runtime_error(std::string("usrsctp_socket: ") + strerror(errno));
 	}
@@ -334,7 +338,6 @@ void SCTPServer::operator()()
 	TRACE_func_entry();
 
 	if (not initialized_) throw std::logic_error("Server not initialized.");
-
 
 	/* set listen on server socket */
 	if (usrsctp_listen(serv_sock_, 1) < 0) {
@@ -679,10 +682,10 @@ void SCTPServer::sctp_msg_handler_loop()
 inline struct socket* SCTPServer::usrsctp_socket(int domain, int type, int protocol,
                int (*receive_cb)(struct socket *sock, union sctp_sockstore addr, void *data,
                                  size_t datalen, struct sctp_rcvinfo, int flags, void *ulp_info),
-               int (*send_cb)(struct socket *sock, uint32_t sb_free),
+               int (*send_cb)(struct socket *sock, uint32_t sb_free, void *ulp_info),
                uint32_t sb_threshold, void *ulp_info)
 {
-	return ::usrsctp_socket(domain, type, protocol,receive_cb, send_cb, sb_threshold, ulp_info);
+	return ::usrsctp_socket(domain, type, protocol, receive_cb, send_cb, sb_threshold, ulp_info);
 };
 inline int SCTPServer::usrsctp_bind(struct socket* so, struct sockaddr* name, socklen_t namelen)
 {
@@ -710,7 +713,7 @@ std::ostream& operator<<(std::ostream& out, const SCTPServer::Config& c)
 	return out;
 }
 
-std::ostream& operator<<(std::ostream &out, const SCTPServer &s)
+std::ostream& operator<<(std::ostream &out, const SCTPServer& s)
 {
 	out << *(s.cfg_);
 	return out;

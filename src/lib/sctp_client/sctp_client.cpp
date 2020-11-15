@@ -18,63 +18,65 @@
 
 std::atomic_size_t SCTPClient::number_of_instances_ { 0 };
 
-namespace {
-	constexpr auto BUFFERSIZE = 1 << 16;
+namespace
+{
 
-	constexpr auto MAX_TLS_RECORD_SIZE  = 1 << 14;
-	/*
-		Used to check whether function is allowed to run in some particular state
-	*/
-	std::map<std::string, std::vector<SCTPClient::State>> state_allowed_funcs {
-			{"init", std::vector<SCTPClient::State> { SCTPClient::NONE }},
-			{"init_usrsctp_lib", std::vector<SCTPClient::State> { SCTPClient::NONE }},
-			{"init_local_UDP", std::vector<SCTPClient::State> { SCTPClient::NONE }},
-			{"init_remote_UDP", std::vector<SCTPClient::State> { SCTPClient::NONE }},
-			{"init_SCTP", std::vector<SCTPClient::State> { SCTPClient::NONE }},
-			{"operator()", std::vector<SCTPClient::State> { SCTPClient::INITIALIZED }},
-			{"send", std::vector<SCTPClient::State> { SCTPClient::SSL_CONNECTED }},
-			{"udp_recv_loop", std::vector<SCTPClient::State> { SCTPClient::SCTP_CONNECTING }},
-			{"handle_raw_udp_data_loop", std::vector<SCTPClient::State> { SCTPClient::SCTP_CONNECTING }},
-			{"send_raw", std::vector<SCTPClient::State> 
-				{ SCTPClient::SCTP_CONNECTING, SCTPClient::SCTP_CONNECTED, 
-					SCTPClient::SSL_HANDSHAKING, SCTPClient::SSL_CONNECTED, SCTPClient::SSL_SHUTDOWN, }}
-	};
+constexpr auto BUFFERSIZE = 1 << 16;
 
-	std::map<SCTPClient::State, std::string> state_names {
-		{ SCTPClient::NONE, "NONE" },
-		{ SCTPClient::INITIALIZED, "INITIALIZED" },
-		{ SCTPClient::SCTP_CONNECTING, "SCTP_CONNECTING"},
-		{ SCTPClient::SCTP_CONNECTED, "SCTP_CONNECTED"},
-		{ SCTPClient::SSL_HANDSHAKING, "SSL_HANDSHAKING"},
-		{ SCTPClient::SSL_CONNECTED, "SSL_CONNECTED"},
-		{ SCTPClient::SSL_SHUTDOWN, "SSL_SHUTDOWN"},
-		{ SCTPClient::PURGE, "PURGE"}
-	};
+constexpr auto MAX_TLS_RECORD_SIZE  = 1 << 14;
+/*
+	Used to check whether function is allowed to run in some particular state
+*/
+std::map<std::string, std::vector<SCTPClient::State>> state_allowed_funcs {
+		{"init", std::vector<SCTPClient::State> { SCTPClient::NONE }},
+		{"init_usrsctp_lib", std::vector<SCTPClient::State> { SCTPClient::NONE }},
+		{"init_local_UDP", std::vector<SCTPClient::State> { SCTPClient::NONE }},
+		{"init_remote_UDP", std::vector<SCTPClient::State> { SCTPClient::NONE }},
+		{"init_SCTP", std::vector<SCTPClient::State> { SCTPClient::NONE }},
+		{"operator()", std::vector<SCTPClient::State> { SCTPClient::INITIALIZED }},
+		{"send", std::vector<SCTPClient::State> { SCTPClient::SSL_CONNECTED }},
+		{"udp_recv_loop", std::vector<SCTPClient::State> { SCTPClient::SCTP_CONNECTING }},
+		{"handle_raw_udp_data_loop", std::vector<SCTPClient::State> { SCTPClient::SCTP_CONNECTING }},
+		{"send_raw", std::vector<SCTPClient::State> 
+			{ SCTPClient::SCTP_CONNECTING, SCTPClient::SCTP_CONNECTED, 
+				SCTPClient::SSL_HANDSHAKING, SCTPClient::SSL_CONNECTED, SCTPClient::SSL_SHUTDOWN, }}
+};
 
-	std::map<uint16_t, std::string> notification_names {
-		{ SCTP_ASSOC_CHANGE, "SCTP_ASSOC_CHANGE" },
-		{ SCTP_PEER_ADDR_CHANGE, "SCTP_PEER_ADDR_CHANGE" },
-		{ SCTP_REMOTE_ERROR, "SCTP_REMOTE_ERROR"},
-		{ SCTP_SEND_FAILED, "SCTP_SEND_FAILED"},
-		{ SCTP_SHUTDOWN_EVENT, "SCTP_SHUTDOWN_EVENT"},
-		{ SCTP_ADAPTATION_INDICATION, "SCTP_ADAPTATION_INDICATION"},
-		{ SCTP_PARTIAL_DELIVERY_EVENT, "SCTP_PARTIAL_DELIVERY_EVENT"},
-		{ SCTP_AUTHENTICATION_EVENT, "SCTP_AUTHENTICATION_EVENT"},
-		{ SCTP_SENDER_DRY_EVENT, "SCTP_SENDER_DRY_EVENT"},
-		{ SCTP_STREAM_RESET_EVENT, "SCTP_STREAM_RESET_EVENT"},
-		{ SCTP_NOTIFICATIONS_STOPPED_EVENT, "SCTP_NOTIFICATIONS_STOPPED_EVENT"},
-		{ SCTP_ASSOC_RESET_EVENT, "SCTP_ASSOC_RESET_EVENT"},
-		{ SCTP_STREAM_CHANGE_EVENT, "SCTP_STREAM_CHANGE_EVENT"},
-		{ SCTP_SEND_FAILED_EVENT, "SCTP_SEND_FAILED_EVENT"}
-	};	
-}
+std::map<SCTPClient::State, std::string> state_names {
+	{ SCTPClient::NONE, "NONE" },
+	{ SCTPClient::INITIALIZED, "INITIALIZED" },
+	{ SCTPClient::SCTP_CONNECTING, "SCTP_CONNECTING"},
+	{ SCTPClient::SCTP_CONNECTED, "SCTP_CONNECTED"},
+	{ SCTPClient::SSL_HANDSHAKING, "SSL_HANDSHAKING"},
+	{ SCTPClient::SSL_CONNECTED, "SSL_CONNECTED"},
+	{ SCTPClient::SSL_SHUTDOWN, "SSL_SHUTDOWN"},
+	{ SCTPClient::PURGE, "PURGE"}
+};
 
-static inline bool _check_state(const std::string& func_name, SCTPClient::State s)
+std::map<uint16_t, std::string> notification_names {
+	{ SCTP_ASSOC_CHANGE, "SCTP_ASSOC_CHANGE" },
+	{ SCTP_PEER_ADDR_CHANGE, "SCTP_PEER_ADDR_CHANGE" },
+	{ SCTP_REMOTE_ERROR, "SCTP_REMOTE_ERROR"},
+	{ SCTP_SEND_FAILED, "SCTP_SEND_FAILED"},
+	{ SCTP_SHUTDOWN_EVENT, "SCTP_SHUTDOWN_EVENT"},
+	{ SCTP_ADAPTATION_INDICATION, "SCTP_ADAPTATION_INDICATION"},
+	{ SCTP_PARTIAL_DELIVERY_EVENT, "SCTP_PARTIAL_DELIVERY_EVENT"},
+	{ SCTP_AUTHENTICATION_EVENT, "SCTP_AUTHENTICATION_EVENT"},
+	{ SCTP_SENDER_DRY_EVENT, "SCTP_SENDER_DRY_EVENT"},
+	{ SCTP_STREAM_RESET_EVENT, "SCTP_STREAM_RESET_EVENT"},
+	{ SCTP_NOTIFICATIONS_STOPPED_EVENT, "SCTP_NOTIFICATIONS_STOPPED_EVENT"},
+	{ SCTP_ASSOC_RESET_EVENT, "SCTP_ASSOC_RESET_EVENT"},
+	{ SCTP_STREAM_CHANGE_EVENT, "SCTP_STREAM_CHANGE_EVENT"},
+	{ SCTP_SEND_FAILED_EVENT, "SCTP_SEND_FAILED_EVENT"}
+};	
+
+inline bool _check_state(const std::string& func_name, SCTPClient::State s)
 {
 	const auto& vec = state_allowed_funcs[func_name];
 	return (std::find(vec.cbegin(), vec.cend(), s) != vec.cend());
 }
 
+}
 
 
 SCTPClient::SCTPClient() : SCTPClient(std::make_shared<SCTPClient::Config>()) {};
@@ -483,13 +485,15 @@ void SCTPClient::init_SCTP()
 
 	usrsctp_register_address(static_cast<void *>(this)); // TODO: ?
 
-	int (*receive_cb)(struct socket*, union sctp_sockstore, void*, size_t, struct sctp_rcvinfo, int, void*) = NULL;
-	int (*send_cb)(struct socket *sock, uint32_t sb_free)	= NULL;
+	using recv_cb_type = int (*)(struct socket*, union sctp_sockstore, void*, size_t, struct sctp_rcvinfo, int, void*);
+	using send_cb_type = int (*)(struct socket *sock, uint32_t sb_free, void* ulp_info);
+	recv_cb_type r_cb {nullptr};
+	send_cb_type s_cb {nullptr};
 	uint32_t sb_threshold = 0;
-	void* recv_cback_data = NULL;
+	void* ulp_info {nullptr};
 
-	if ((sock_ = usrsctp_socket(AF_CONN, SOCK_STREAM, IPPROTO_SCTP, 
-					receive_cb, send_cb, sb_threshold, recv_cback_data)) == NULL) {
+	if ((sock_ = usrsctp_socket(AF_CONN, SOCK_STREAM, IPPROTO_SCTP, r_cb, s_cb, sb_threshold, ulp_info)) == NULL)
+	{
 		throw std::runtime_error(strerror(errno));
 	}
 
@@ -569,13 +573,16 @@ void SCTPClient::init()
 	CHECK_STATE();
 	TRACE_func_entry();
 
-	try {
+	try
+	{
 		ssl_obj_.init(cfg_->cert_filename, cfg_->key_filename);
 		init_local_UDP();
 		init_remote_UDP();
 		init_usrsctp_lib();
 		init_SCTP();
-	} catch (const std::runtime_error& exc) {
+	}
+	catch (const std::runtime_error& exc)
+	{
 		CRITICAL(exc.what());
 		state(PURGE);
 		throw;
@@ -704,7 +711,8 @@ void SCTPClient::udp_recv_loop()
 
  	char buf[BUFFERSIZE] = { 0 };
 
-	try {
+	try
+	{
 		while (true) {
 			int numbytes = recv(udp_sock_fd_, buf, BUFFERSIZE, 0);
 
@@ -722,7 +730,9 @@ void SCTPClient::udp_recv_loop()
 
 			raw_udp_data_.enqueue(std::make_unique<sctp::Data>(buf, numbytes));
 		}
-	} catch (const std::runtime_error& exc) {
+	}
+	catch (const std::runtime_error& exc)
+	{
 		CRITICAL(exc.what());
 	}
 
