@@ -1,12 +1,6 @@
 # Simple one-to-one style TLS SCTP Server and Client
 (mainly for educational purposes, WiP)
 
-Clone this repository using:
-```console
-git clone https://github.com/pbalash0v/sctp-oto-server-client.git --recurse-submodules
-```
-(please make sure to add --recurse-submodules as this is necessary for pulling dependencies)
-
 To compile and run you may need to install some prerequisite packages.
 On a debian-base distribution:
 ```console
@@ -15,11 +9,11 @@ apt install autoconf libtool build-essential libssl-dev pkg-config
 
 To build (from **cloned repository** directory):
 ```console
-autoreconf -fi
-mkdir build
-cd build
-../configure
-make 
+mkdir sctp_oto && cd sctp_oto
+git clone https://github.com/pbalash0v/sctp-oto-server-client.git sctp-oto-server-client.git
+mkdir build-Debug && cd build-Debug
+cmake ../sctp-oto-server-client.git
+cmake --build .
 ```
 
 ---  
