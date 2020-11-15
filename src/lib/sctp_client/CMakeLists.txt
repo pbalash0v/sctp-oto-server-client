@@ -21,6 +21,12 @@ add_library(SCTP_OTO::sctp_client ALIAS sctp_client)
 set_target_properties(sctp_client PROPERTIES OUTPUT_NAME sctp_client)
 set_target_properties(sctp_client PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
+# Properties
+set_target_properties(sctp_client PROPERTIES
+	CXX_STANDARD 17
+	CXX_STANDARD_REQUIRED ON
+	CXX_EXTENSIONS OFF
+)
 
 #target_compile_definitions(sctp_client PRIVATE
 #
