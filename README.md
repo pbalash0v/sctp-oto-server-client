@@ -7,7 +7,7 @@ On a debian-base distribution:
 apt install autoconf libtool build-essential libssl-dev pkg-config 
 ```
 
-To build (from **cloned repository** directory):
+To build:
 ```console
 mkdir sctp_oto && cd sctp_oto
 git clone https://github.com/pbalash0v/sctp-oto-server-client.git sctp-oto-server-client.git
