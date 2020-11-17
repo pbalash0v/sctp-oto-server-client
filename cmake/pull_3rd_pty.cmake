@@ -6,10 +6,6 @@ include(FetchContent)
 
 set(LOCAL_BUILD_ARTIFACTS_DIR ${CMAKE_BINARY_DIR}/build_artifacts)
 
-include_directories(BEFORE ${LOCAL_BUILD_ARTIFACTS_DIR}/include)
-link_directories(BEFORE ${LOCAL_BUILD_ARTIFACTS_DIR}/lib)
-
-
 #
 # pull components
 #

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.17)
 
-project(sctp_oto_server_and_client
+project(sctp_oto
 	VERSION 0.1.0
 	LANGUAGES CXX C
 )

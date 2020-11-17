@@ -12,3 +12,14 @@ ExternalProject_Add(usrsctp
 				-Dsctp_build_programs=OFF
 )
 
+#
+# Define usrstcp target
+#
+add_library(usrsctp_static STATIC IMPORTED GLOBAL)
+
+set_target_properties(usrsctp_static PROPERTIES
+	IMPORTED_LOCATION ${LOCAL_BUILD_ARTIFACTS_DIR}/lib/libusrsctp.a
+)
+target_include_directories(usrsctp_static SYSTEM INTERFACE ${LOCAL_BUILD_ARTIFACTS_DIR}/include/)
+
+add_library(USRSCTP::static ALIAS usrsctp_static)

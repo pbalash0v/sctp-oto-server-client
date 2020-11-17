@@ -14,9 +14,11 @@ find_package(OpenSSL 1.1.1 REQUIRED)
 #################################
 set(CMAKE_INSTALL_RPATH $ORIGIN $ORIGIN/../lib)
 
-add_library(sctp_client
+add_library(sctp_client)
+target_sources(sctp_client PRIVATE
 	sctp_client.cpp
 )
+
 add_library(SCTP_OTO::sctp_client ALIAS sctp_client)
 set_target_properties(sctp_client PROPERTIES OUTPUT_NAME sctp_client)
 set_target_properties(sctp_client PROPERTIES POSITION_INDEPENDENT_CODE ON)
@@ -41,7 +43,7 @@ target_include_directories(sctp_client PUBLIC
 
 target_link_libraries(sctp_client PRIVATE
 	SCTP_OTO::sctp_common
-	usrsctp.a
+	USRSCTP::static
 )
 
 target_link_libraries(sctp_client PUBLIC

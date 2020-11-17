@@ -29,6 +29,7 @@ target_include_directories(ex_broadcast_client PRIVATE "${CMAKE_CURRENT_BINARY_D
 
 target_link_libraries(ex_broadcast_client PRIVATE
 	Threads::Threads
+	libspdlog
 	SCTP_OTO::sctp_common
 	SCTP_OTO::sctp_client
 	SCTP_OTO::gopt
@@ -48,6 +49,7 @@ target_include_directories(ex_broadcast_server PRIVATE "${CMAKE_CURRENT_BINARY_D
 
 target_link_libraries(ex_broadcast_server PRIVATE
 	Threads::Threads
+	libspdlog
 	SCTP_OTO::sctp_common
 	SCTP_OTO::sctp_server
 	SCTP_OTO::gopt
