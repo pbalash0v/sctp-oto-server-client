@@ -4,11 +4,15 @@
 
 #include "iclient.h"
 #include "client.h"
-#include "sctp_data.h"
 
 
 class IClient;
 struct SCTPMessage;
+
+namespace sctp
+{
+	struct Data;
+}
 
 struct Event
 {

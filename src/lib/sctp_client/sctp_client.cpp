@@ -12,6 +12,7 @@
 
 #include "sctp_client.h"
 #include "logging.h"
+#include "log_level.h"
 
 
 

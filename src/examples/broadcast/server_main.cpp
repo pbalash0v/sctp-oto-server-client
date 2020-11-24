@@ -10,6 +10,7 @@
 #include "spdlog/fmt/ostr.h"
 
 #include "sctp_server.h"
+#include "log_level.h"
 #include "sync_queue.hpp"
 #include "gopt.h"
 #include "broadcaster.h"
@@ -198,22 +199,22 @@ int main(int /* argc */, char* argv[]) {
 	srv.cfg()->debug_cback_f = [&](auto level, const auto& s)
 	{
 		switch (level) {
-		case sctp::TRACE:
+		case sctp::LogLevel::TRACE:
 			spdlog::trace("{}", s);
 			break;
-		case sctp::DEBUG:
+		case sctp::LogLevel::DEBUG:
     		spdlog::debug("{}", s);
     		break;
-		case sctp::INFO:
+		case sctp::LogLevel::INFO:
     		spdlog::info("{}", s);
     		break;
-		case sctp::WARNING:
+		case sctp::LogLevel::WARNING:
     		spdlog::warn("{}", s);
 			break;
-		case sctp::ERROR:
+		case sctp::LogLevel::ERROR:
     		spdlog::error("{}", s);
 			break;
-		case sctp::CRITICAL:
+		case sctp::LogLevel::CRITICAL:
     		spdlog::critical("{}", s);
 			break;
 		default:

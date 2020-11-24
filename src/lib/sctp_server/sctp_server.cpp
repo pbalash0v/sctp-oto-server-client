@@ -16,8 +16,12 @@
 #include <usrsctp.h>
 
 #include "sctp_server.h"
+#include "sync_queue.hpp"
 #include "client_sctp_message.h"
+#include "log_level.h"
 #include "logging.h"
+#include "sctp_data.h"
+#include "ssl_h.h"
 
 
 /* bad signleton-like implementation */
@@ -51,9 +55,13 @@ inline std::string client_errno(const char* func, std::shared_ptr<IClient>& c)
 } //anon namespace
 
 
-SCTPServer::SCTPServer() : SCTPServer(std::make_shared<SCTPServer::Config>()) {}
+SCTPServer::SCTPServer()
+	: SCTPServer(std::make_shared<SCTPServer::Config>())
+{}
 
-SCTPServer::SCTPServer(std::shared_ptr<SCTPServer::Config> ptr) : cfg_(ptr)
+SCTPServer::SCTPServer(std::shared_ptr<SCTPServer::Config> ptr)
+	: cfg_(ptr)
+	, ssl_obj_ {std::make_unique<SSL_h>(SSL_h::Type::SERVER)}
 {
 	if (instance_exists_) throw std::logic_error("Singleton !"); // :(
 	instance_exists_ = true;
@@ -224,7 +232,7 @@ void SCTPServer::init()
 
 	if (initialized_) throw std::logic_error("Server is already initialized.");
 
-	ssl_obj_.init(cfg_->cert_filename, cfg_->key_filename);
+	ssl_obj_->init(cfg_->cert_filename, cfg_->key_filename);
 
 	sctp_msg_handler_ = std::thread { &SCTPServer::sctp_msg_handler_loop, this };
 	set_thread_name(sctp_msg_handler_, "SCTP msgs");

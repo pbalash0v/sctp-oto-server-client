@@ -7,6 +7,7 @@ project(sctp_oto
 
 # cmake-gui configurable options
 option(SCTP_OTO_BUILD_EXAMPLES "Build examples" ON)
+option(SCTP_OTO_BUILD_TESTS "Build tests" OFF)
 option(SCTP_OTO_BUILD_SH_LIBS "Build shared libs" ON)
 
 # append local cmake dir to include path for cmake modules
@@ -44,3 +45,9 @@ include(pull_3rd_pty)
 
 # sctp itself
 add_subdirectory(src)
+
+# Enabling test
+if(SCTP_OTO_BUILD_TESTS)
+	enable_testing()
+	add_subdirectory(tests)
+endif()

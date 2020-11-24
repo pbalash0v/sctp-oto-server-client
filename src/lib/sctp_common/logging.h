@@ -26,12 +26,12 @@
 #define CHECK_STATE() do {} while (0)
 #endif
 
-#define TRACE(text) log(sctp::TRACE, text)
-#define DEBUG(text) log(sctp::DEBUG, text)
-#define INFO(text) log(sctp::INFO, text)
-#define WARNING(text) log(sctp::WARNING, text)
-#define ERROR(text) log(sctp::ERROR, text)
-#define CRITICAL(text) log(sctp::CRITICAL, text)
+#define TRACE(text) log(sctp::LogLevel::TRACE, text)
+#define DEBUG(text) log(sctp::LogLevel::DEBUG, text)
+#define INFO(text) log(sctp::LogLevel::INFO, text)
+#define WARNING(text) log(sctp::LogLevel::WARNING, text)
+#define ERROR(text) log(sctp::LogLevel::ERROR, text)
+#define CRITICAL(text) log(sctp::LogLevel::CRITICAL, text)
 
 #define TRACE_func_entry() TRACE("Entered " + std::string(__func__))
 #define TRACE_func_left() TRACE("Left " + std::string(__func__))

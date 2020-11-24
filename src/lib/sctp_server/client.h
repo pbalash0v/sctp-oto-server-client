@@ -1,10 +1,12 @@
 #pragma once
 
+#include <openssl/ssl.h>
+
 #include "iclient.h"
-#include "ssl_h.h"
 
 
-class Client : public IClient {
+class Client : public IClient
+{
 public:
 	explicit Client(struct socket* sock, SCTPServer& server);
 	explicit Client(struct socket* sctp_sock, SCTPServer& s, size_t msg_size); 
@@ -34,7 +36,7 @@ public:
 
 	friend class SCTPServer;
 private:
-	struct socket* sock { nullptr };
+	struct socket* sock {nullptr};
 
 	SCTPServer& server_;
 
@@ -46,9 +48,9 @@ private:
 	std::vector<char> decrypted_msg_buff_;
 	std::vector<char> encrypted_msg_buff_;	
 
-	SSL* ssl = nullptr;
-	BIO* output_bio = nullptr;
-	BIO* input_bio = nullptr;
+	SSL* ssl {nullptr};
+	BIO* output_bio {nullptr};
+	BIO* input_bio {nullptr};
 
 	virtual ssize_t send_raw(const void* buf, size_t len);
 

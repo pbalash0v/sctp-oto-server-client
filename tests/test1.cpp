@@ -1,7 +1,6 @@
 /* 
 	minimum sanity server check test
 */
-
 #include <memory>
 #include <cassert>
 
@@ -15,10 +14,13 @@ int main(int, char const**)
 	s.cfg()->cert_filename = "../src/certs/server-cert.pem";
 	s.cfg()->key_filename = "../src/certs/server-key.pem";
 
-	try {
+	try
+	{
 		s.init();
 		s();
-	} catch (const std::runtime_error& exc) {
+	}
+	catch (const std::runtime_error& exc)
+	{
 		return EXIT_FAILURE;
 	}
 

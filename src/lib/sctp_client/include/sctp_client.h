@@ -23,7 +23,8 @@ constexpr const char* DEFAULT_SERVER_ADDRESS = "127.0.0.1";
 constexpr uint16_t DEFAULT_SERVER_UDP_ENCAPS_PORT = 9899;
 constexpr uint16_t DEFAULT_SERVER_SCTP_PORT = 5001;
 
-namespace sctp {
+namespace sctp
+{
 	constexpr auto DEFAULT_SCTP_MESSAGE_SIZE_BYTES = 1 << 16;
 }
 
@@ -34,14 +35,14 @@ constexpr const char* DEFAULT_CLIENT_KEY_FILENAME = "client-key.pem";
 class SCTPClient
 {
 public:
-   enum State
-   {
-   	NONE,
-   	INITIALIZED,
-      SCTP_CONNECTING,
-      SCTP_CONNECTED,
-      SSL_HANDSHAKING,
-      SSL_CONNECTED,
+	enum State
+	{
+		NONE,
+		INITIALIZED,
+		SCTP_CONNECTING,
+		SCTP_CONNECTED,
+		SSL_HANDSHAKING,
+		SSL_CONNECTED,
 		SSL_SHUTDOWN,
 		PURGE
    };
@@ -110,7 +111,7 @@ public:
 private:
 	std::shared_ptr<SCTPClient::Config> cfg_;
 
-	SSL_h ssl_obj_ { SSL_h::CLIENT };
+	SSL_h ssl_obj_ { SSL_h::Type::CLIENT };
 	SSL* ssl_ { nullptr };
 	BIO* output_bio_ { nullptr };
 	BIO* input_bio_ { nullptr };

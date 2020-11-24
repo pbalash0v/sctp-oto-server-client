@@ -14,6 +14,9 @@
 #include "sctp_server.h"
 #include "server_event.h"
 #include "logging.h"
+#include "log_level.h"
+#include "sctp_data.h"
+#include "ssl_h.h"
 
 
 
@@ -101,7 +104,7 @@ Client::~Client()
 
 void Client::init()
 {
-	ssl = SSL_new(server_.ssl_obj_.ctx_);
+	ssl = SSL_new(server_.ssl_obj_->ctx_);
 	assert(ssl);
 
 	output_bio = BIO_new(BIO_s_mem());

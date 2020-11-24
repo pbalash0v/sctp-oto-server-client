@@ -10,12 +10,9 @@
 
 #include <sys/socket.h> //socklen_t
 
-#include "sync_queue.hpp"
-#include "ssl_h.h"
 #include "client.h"
-#include "sctp_data.h"
 #include "server_event.h"
-#include "log_level.h"
+//#include "ssl_h.h"
 
 
 #ifdef TEST_BUILD
@@ -25,13 +22,20 @@
 #endif
 
 
-constexpr uint16_t DEFAULT_UDP_ENCAPS_PORT = 9899;
-constexpr uint16_t DEFAULT_SCTP_PORT = 5001;
+constexpr uint16_t DEFAULT_UDP_ENCAPS_PORT {9899};
+constexpr uint16_t DEFAULT_SCTP_PORT {5001};
 
-constexpr auto DEFAULT_SCTP_MESSAGE_SIZE_BYTES = (1 << 16);
+constexpr auto DEFAULT_SCTP_MESSAGE_SIZE_BYTES {(1 << 16)};
 
-constexpr const char* DEFAULT_SERVER_CERT_FILENAME = "server-cert.pem";
-constexpr const char* DEFAULT_SERVER_KEY_FILENAME = "server-key.pem";
+constexpr auto DEFAULT_SERVER_CERT_FILENAME {"server-cert.pem"};
+constexpr auto DEFAULT_SERVER_KEY_FILENAME {"server-key.pem"};
+
+namespace sctp
+{
+	enum class LogLevel;
+}
+
+class SSL_h;
 
 class SCTPServer
 {
@@ -41,11 +45,6 @@ public:
 
 	struct Config
 	{
-		Config() = default;
-		virtual ~Config() = default;
-		Config(const Config& oth) = delete;
-		Config& operator=(const Config& oth) = delete;
-
 		uint16_t udp_encaps_port { DEFAULT_UDP_ENCAPS_PORT };
 		uint16_t sctp_port { DEFAULT_SCTP_PORT };
 		size_t message_size { DEFAULT_SCTP_MESSAGE_SIZE_BYTES };
@@ -98,8 +97,8 @@ public:
 
 	friend class Client;
 	friend class IClient;
-protected:
 
+protected:
 	MAYBE_VIRTUAL std::shared_ptr<IClient> client_factory(struct socket*);
 
 	/* 
@@ -119,13 +118,13 @@ protected:
 private:
 	std::shared_ptr<SCTPServer::Config> cfg_;
 
-	std::atomic_bool initialized_ { false };
+	std::atomic_bool initialized_ {false};
 	static std::atomic_bool instance_exists_;
 
 	/* holds main SSL context etc */
-	SSL_h ssl_obj_ { SSL_h::SERVER };
+	std::unique_ptr<SSL_h> ssl_obj_;
 
-	struct socket* serv_sock_ { nullptr };
+	struct socket* serv_sock_ {nullptr};
 
 	std::thread sctp_msg_handler_;
 
@@ -136,10 +135,10 @@ private:
 
 	void try_init_local_UDP();
 
-	static void handle_server_upcall(struct socket* sock, void* arg, int flgs);
-	static void handle_client_upcall(struct socket* sock, void* arg, int flgs);
+	static void handle_server_upcall(struct socket*, void* arg, int flgs);
+	static void handle_client_upcall(struct socket*, void* arg, int flgs);
 
-	std::shared_ptr<IClient> get_client(const struct socket* sock);
+	std::shared_ptr<IClient> get_client(const struct socket*);
 
 	void cleanup();
 

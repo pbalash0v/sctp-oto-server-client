@@ -1,20 +1,21 @@
 #pragma once
 
-
 #include <functional>
 #include <string>
 
 #include <openssl/ssl.h>
 
 
-class SSL_h {
+class SSL_h
+{
 public:
-   enum SSLType {
-   	CLIENT,
-      SERVER
+   enum class Type
+   {
+		CLIENT,
+		SERVER
    };
    
-	SSL_h(SSLType);
+	SSL_h(Type);
 
 	SSL_h(const SSL_h& oth) = delete;
 
@@ -24,8 +25,8 @@ public:
 
 	virtual ~SSL_h();
 
-	SSL_CTX* ctx_ = nullptr;
+	SSL_CTX* ctx_ {nullptr};
 
 private:
-	SSLType type_;
+	Type type_;
 };

@@ -244,22 +244,22 @@ int main(int /* argc */, char* argv[])
 		ITUI::LogLevel l = ITUI::LogLevel::TRACE;
 
 		switch (level) {
-			case sctp::TRACE:
+			case sctp::LogLevel::TRACE:
 				l = ITUI::LogLevel::TRACE;
 				break;
-			case sctp::DEBUG:
+			case sctp::LogLevel::DEBUG:
 				l = ITUI::LogLevel::DEBUG;
 	    		break;
-			case sctp::INFO:
+			case sctp::LogLevel::INFO:
 				l = ITUI::LogLevel::INFO;
 	    		break;
-			case sctp::WARNING:
+			case sctp::LogLevel::WARNING:
 				l = ITUI::LogLevel::WARNING;
 				break;
-			case sctp::ERROR:
+			case sctp::LogLevel::ERROR:
 				l = ITUI::LogLevel::ERROR;
 				break;
-			case sctp::CRITICAL:
+			case sctp::LogLevel::CRITICAL:
 				l = ITUI::LogLevel::CRITICAL;
 				break;
 			default:

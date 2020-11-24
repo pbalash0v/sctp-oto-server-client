@@ -1,14 +1,17 @@
 #pragma once
 
+
 namespace sctp
 {
-	enum LogLevel
-	   {
-	   	TRACE,
-	      DEBUG,
-	      INFO,
-	      WARNING,
-	      ERROR,
-			CRITICAL
-	   };
+
+enum class LogLevel
+{
+	TRACE,
+	DEBUG,
+	INFO,
+	WARNING,
+	ERROR,
+	CRITICAL
+};
+
 } 
