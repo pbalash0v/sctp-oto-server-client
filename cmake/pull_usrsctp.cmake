@@ -15,6 +15,9 @@ ExternalProject_Add(usrsctp
 #
 # Define usrstcp target
 #
+# Hack to make it work, otherwise INTERFACE_INCLUDE_DIRECTORIES will not be propagated
+file(MAKE_DIRECTORY ${LOCAL_BUILD_ARTIFACTS_DIR}/include/)
+
 add_library(usrsctp_static STATIC IMPORTED GLOBAL)
 
 set_target_properties(usrsctp_static PROPERTIES
