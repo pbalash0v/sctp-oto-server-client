@@ -28,28 +28,25 @@ namespace
 		return {cert, key};
 	}
 
-	class cert_and_key
+	class cert_and_key final
 	{
-		public:
-			cert_and_key()
-			{
-				auto [cert, key] = generate_cert_and_key();
-				cert_ = cert;
-				key_ = key;
-			}
+	public:
+		cert_and_key()
+		{
+			std::tie(cert_, key_) = generate_cert_and_key();
+		}
 
+		~cert_and_key()
+		{
+			boost::filesystem::remove(cert_);
+			boost::filesystem::remove(key_);
+		}
 
-			~cert_and_key()
-			{
-				boost::filesystem::remove(cert_);
-				boost::filesystem::remove(key_);
-			}
+		std::string cert() const noexcept { return cert_; }
+		std::string key() const noexcept { return key_; }
 
-			std::string cert() noexcept { return cert_; }
-			std::string key() noexcept { return key_; }
-
-		private:
-			std::string cert_;
-			std::string key_;
+	private:
+		std::string cert_;
+		std::string key_;
 	};
 }
