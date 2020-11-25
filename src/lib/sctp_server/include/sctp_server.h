@@ -12,7 +12,6 @@
 
 #include "client.h"
 #include "server_event.h"
-//#include "ssl_h.h"
 
 
 #ifdef TEST_BUILD
@@ -45,23 +44,25 @@ public:
 
 	struct Config
 	{
-		uint16_t udp_encaps_port { DEFAULT_UDP_ENCAPS_PORT };
-		uint16_t sctp_port { DEFAULT_SCTP_PORT };
-		size_t message_size { DEFAULT_SCTP_MESSAGE_SIZE_BYTES };
+		uint16_t udp_encaps_port {DEFAULT_UDP_ENCAPS_PORT};
+		uint16_t sctp_port {DEFAULT_SCTP_PORT};
+		size_t message_size {DEFAULT_SCTP_MESSAGE_SIZE_BYTES};
 
-		std::string cert_filename { DEFAULT_SERVER_CERT_FILENAME };
-		std::string key_filename { DEFAULT_SERVER_KEY_FILENAME };
+		std::string cert_filename {DEFAULT_SERVER_CERT_FILENAME};
+		std::string key_filename {DEFAULT_SERVER_KEY_FILENAME};
 		
-		SCTPServer_event_cback_t event_cback_f { nullptr };
-		SCTPServer_debug_t debug_cback_f { nullptr };
+		SCTPServer_event_cback_t event_cback_f {nullptr};
+		SCTPServer_debug_t debug_cback_f {nullptr};
 
     	friend std::ostream& operator<<(std::ostream &out, const Config &c); 
 	};
 
 	SCTPServer();
-	SCTPServer(std::shared_ptr<SCTPServer::Config> p);
-	SCTPServer(const SCTPServer& oth) = delete;
-	SCTPServer& operator=(const SCTPServer& oth) = delete;
+	SCTPServer(std::shared_ptr<SCTPServer::Config>);
+	
+	SCTPServer(const SCTPServer&) = delete;
+	SCTPServer& operator=(const SCTPServer&) = delete;
+
 	virtual ~SCTPServer();
 
 	/*

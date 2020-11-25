@@ -6,6 +6,7 @@ cmake_minimum_required(VERSION 3.17)
 set(THREADS_PREFER_PTHREAD_FLAG ON) # Without this flag CMake may resort to just '-lpthread'
 find_package(Threads REQUIRED)
 
+find_package(Boost 1.65.0 REQUIRED system filesystem)
 #################################
 # Define targets
 #################################
@@ -29,6 +30,8 @@ target_compile_options(${TEST_NAME} PRIVATE
 target_link_libraries(${TEST_NAME} PRIVATE
 	Threads::Threads
 	SCTP_OTO::sctp_server
+	Boost::system
+	Boost::filesystem
 )
 
 
