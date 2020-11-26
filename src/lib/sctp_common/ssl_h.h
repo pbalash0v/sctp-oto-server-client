@@ -6,7 +6,7 @@
 #include <openssl/ssl.h>
 
 
-class SSL_h
+class SSL_h final
 {
 public:
    enum class Type

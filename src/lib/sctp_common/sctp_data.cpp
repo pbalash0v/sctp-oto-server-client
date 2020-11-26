@@ -6,9 +6,6 @@
 using namespace sctp;
 
 
-Data::Data() : size(0), buf(nullptr) {}
-
-
 Data::Data(const void* from, size_t len)
 {
 	buf = calloc(len, sizeof(char));
@@ -19,7 +16,7 @@ Data::Data(const void* from, size_t len)
 }
 
 
-Data::Data(Data&& other): size(0), buf(nullptr)
+Data::Data(Data&& other)
 {
 	size = other.size;
 	buf = other.buf;

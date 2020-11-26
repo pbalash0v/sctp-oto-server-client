@@ -93,10 +93,10 @@ static void parse_args(char* argv[], struct option options[])
 	gopt_errors(argv[0], options);
 }
 
-static std::shared_ptr<SCTPClient::Config> get_cfg_or_die(char* argv[], struct option options[])
+static std::shared_ptr<sctp::Client::Config> get_cfg_or_die(char* argv[], struct option options[])
 {
-	/* Pepare Config object for SCTPClient */
-	auto cfg = std::make_shared<SCTPClient::Config>();
+	/* Pepare Config object for sctp::Client */
+	auto cfg = std::make_shared<sctp::Client::Config>();
 
 	if (options[CLIOptions::HELP].count) {
 		std::cout <<
@@ -225,15 +225,15 @@ int main(int /* argc */, char* argv[])
 	
 
 	/* Client config */
-	SCTPClient client { get_cfg_or_die(argv, options) };
+	sctp::Client client {get_cfg_or_die(argv, options)};
 
 	client.cfg()->data_cback_f = [&](const auto& s)
 	{
-		std::string server_message = ((s->size < 30) ? 
-				std::string(static_cast<char*>(s->buf), s->size)
-		 		: std::string(static_cast<char*>(s->buf), s->size).substr(0, 30));
+		std::string server_message = ((s->size() < 30) ? 
+				std::string(static_cast<char*>(s->data()), s->size())
+		 		: std::string(static_cast<char*>(s->data()), s->size()).substr(0, 30));
 		tui->put_message("Server sent: "
-				+ std::to_string(s->size)
+				+ std::to_string(s->size())
 				+ std::string(" ")
 				+ server_message
 				+ "\n"); 
@@ -276,25 +276,25 @@ int main(int /* argc */, char* argv[])
 		std::string message;
 
 		switch (state) {
-			case SCTPClient::INITIALIZED:
+			case sctp::Client::INITIALIZED:
 				message += "Initialization done.";
 				break;			
-			case SCTPClient::SCTP_CONNECTING:
+			case sctp::Client::SCTP_CONNECTING:
 				message += "Connecting...";
 				break;
-			case SCTPClient::SCTP_CONNECTED:
+			case sctp::Client::SCTP_CONNECTED:
 				message += "Connected.";
 				break;
-			case SCTPClient::SSL_HANDSHAKING:
+			case sctp::Client::SSL_HANDSHAKING:
 				message += "Handshaking SSL...";
 				break;
-			case SCTPClient::SSL_CONNECTED:
+			case sctp::Client::SSL_CONNECTED:
 				message += "SSL established.";
 				break;
-			case SCTPClient::SSL_SHUTDOWN:
+			case sctp::Client::SSL_SHUTDOWN:
 				message += "SSL shutdown.";
 				break;				
-			case SCTPClient::PURGE:
+			case sctp::Client::PURGE:
 				message += "Terminating...";
 				tui->stop();
 			default:
@@ -308,25 +308,34 @@ int main(int /* argc */, char* argv[])
 
 	tui->init([&](const auto& s)
 	{
-		if (client.connected()) {
-			try {
+		if (client.connected())
+		{
+			try
+			{
 				tui->put_log(ITUI::LogLevel::DEBUG, "s.size(): " + std::to_string(s.size()));
 				client.send(s.c_str(), s.size());
-			} catch (std::runtime_error& exc) {
+			}
+			catch (std::runtime_error& exc)
+			{
 				tui->put_log(ITUI::LogLevel::WARNING,
 						"Send failed: " + std::string(exc.what()));
 			}
-		} else {
+		}
+		else
+		{
 			tui->put_message("\n" + s + " not sent (client not connected).\n");
 		}
 	});
 
 
-	try {
+	try
+	{
 		client.init();
 		tui->put_log(ITUI::LogLevel::INFO, client.to_string());
 		client(); /* this is async, starts separate thread */
-	} catch (const std::runtime_error& exc) {
+	}
+	catch (const std::runtime_error& exc)
+	{
 		tui->put_message(std::string(exc.what()) + std::string("\n"));
 		return EXIT_FAILURE;
 	}

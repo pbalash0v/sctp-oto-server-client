@@ -4,19 +4,20 @@
 namespace sctp
 {
 
-struct Data
+struct Data final
 {
-	Data();
+	Data() = default;
 	explicit Data(const void*, size_t);
+
 	Data(const Data& oth) = delete;
 	Data& operator=(const Data& oth) = delete;
 	Data(Data&& other);
-	virtual ~Data();
-
 	Data& operator=(Data&& other);
 
-	size_t size { 0 };
-	void* buf { nullptr };
+	~Data();
+
+	size_t size {};
+	void* buf {nullptr};
 };
 
 }

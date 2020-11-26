@@ -1,32 +1,40 @@
 /* 
 	minimum sanity client check
 */
+#include <boost/assert.hpp>
 
 #include <memory>
-#include <cassert>
+#include <iostream>
 #include <exception>
 
 #include "sctp_client.h"
+#include "helper.hpp"
 
 
-int main(int, char const**)
+int main(int, const char**)
 {
-	auto cli_cfg = ([]
+	cert_and_key c_and_k;
+
+	auto cli_cfg = ([&]
 	{
-		auto cfg = std::make_shared<SCTPClient::Config>();
-		cfg->cert_filename = "../src/certs/client-cert.pem";
-		cfg->key_filename = "../src/certs/client-key.pem";
+		auto cfg = std::make_shared<sctp::Client::Config>();
+
+		cfg->cert_filename = c_and_k.cert().c_str();
+		cfg->key_filename = c_and_k.key().c_str();
+
 		return cfg;
 	})();
 
-	SCTPClient client { cli_cfg };
-	
+	sctp::Client client {cli_cfg};
 
-	try {	
+	try
+	{
 		client.init();
 		client();
-	} catch (const std::runtime_error& exc) {
-		assert(false);
+	}
+	catch (const std::runtime_error&)
+	{
+		BOOST_ASSERT(false);
 	}
 
 	return EXIT_SUCCESS;

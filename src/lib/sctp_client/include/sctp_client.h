@@ -10,10 +10,7 @@
 
 #include <arpa/inet.h>
 
-#include "sctp_data.h"
-#include "sync_queue.hpp"
-#include "ssl_h.h"
-#include "log_level.h"
+#include <openssl/ssl.h>
 
 
 constexpr uint16_t DEFAULT_LOCAL_UDP_ENCAPS_PORT = 0; //choose ephemeral
@@ -23,16 +20,34 @@ constexpr const char* DEFAULT_SERVER_ADDRESS = "127.0.0.1";
 constexpr uint16_t DEFAULT_SERVER_UDP_ENCAPS_PORT = 9899;
 constexpr uint16_t DEFAULT_SERVER_SCTP_PORT = 5001;
 
-namespace sctp
-{
-	constexpr auto DEFAULT_SCTP_MESSAGE_SIZE_BYTES = 1 << 16;
-}
-
 constexpr const char* DEFAULT_CLIENT_CERT_FILENAME = "client-cert.pem";
 constexpr const char* DEFAULT_CLIENT_KEY_FILENAME = "client-key.pem";
 
 
-class SCTPClient
+class SSL_h;
+template <typename T>
+class SyncQueue;
+
+
+namespace sctp
+{
+
+class Data;
+constexpr auto DEFAULT_SCTP_MESSAGE_SIZE_BYTES = 1 << 16;
+
+
+enum class LogLevel
+{
+	TRACE,
+	DEBUG,
+	INFO,
+	WARNING,
+	ERROR,
+	CRITICAL
+};
+
+
+class Client
 {
 public:
 	enum State
@@ -47,10 +62,10 @@ public:
 		PURGE
    };
 
-	using SCTPClient_cback_t = std::function<void(std::unique_ptr<sctp::Data>)>;
-	using SCTPClient_state_cback_t = std::function<void(State)>;
-	using SCTPClient_debug_t = std::function<void(sctp::LogLevel, const std::string&)>;	
-	using SCTPClient_send_possible_t = std::function<void()>;
+	using Client_cback_t = std::function<void(std::unique_ptr<std::vector<char>>)>;
+	using Client_state_cback_t = std::function<void(State)>;
+	using Client_debug_t = std::function<void(sctp::LogLevel, const std::string&)>;	
+	using Client_send_possible_t = std::function<void()>;
 
 	struct Config
 	{
@@ -59,33 +74,33 @@ public:
 		Config& operator=(const Config&) = delete;
 		virtual ~Config() = default;
 
-		uint16_t udp_encaps_port { DEFAULT_LOCAL_UDP_ENCAPS_PORT };
-		uint16_t sctp_port { DEFAULT_LOCAL_SCTP_PORT };
-		uint16_t server_udp_port { DEFAULT_SERVER_UDP_ENCAPS_PORT };
-		uint16_t server_sctp_port { DEFAULT_SERVER_SCTP_PORT };
-		std::string server_address { DEFAULT_SERVER_ADDRESS };
+		uint16_t udp_encaps_port {DEFAULT_LOCAL_UDP_ENCAPS_PORT};
+		uint16_t sctp_port {DEFAULT_LOCAL_SCTP_PORT};
+		uint16_t server_udp_port {DEFAULT_SERVER_UDP_ENCAPS_PORT};
+		uint16_t server_sctp_port {DEFAULT_SERVER_SCTP_PORT};
+		std::string server_address {DEFAULT_SERVER_ADDRESS};
 
-		size_t message_size { sctp::DEFAULT_SCTP_MESSAGE_SIZE_BYTES };
+		size_t message_size {sctp::DEFAULT_SCTP_MESSAGE_SIZE_BYTES};
 
-		std::string cert_filename { DEFAULT_CLIENT_CERT_FILENAME };
-		std::string key_filename { DEFAULT_CLIENT_KEY_FILENAME };
+		std::string cert_filename {DEFAULT_CLIENT_CERT_FILENAME};
+		std::string key_filename {DEFAULT_CLIENT_KEY_FILENAME};
 
-		SCTPClient_cback_t data_cback_f { nullptr };
-		SCTPClient_debug_t debug_cback_f { nullptr };
-		SCTPClient_state_cback_t state_cback_f { nullptr };
-		SCTPClient_send_possible_t send_possible_cback_f { nullptr };
+		Client_cback_t data_cback_f {nullptr};
+		Client_debug_t debug_cback_f {nullptr};
+		Client_state_cback_t state_cback_f {nullptr};
+		Client_send_possible_t send_possible_cback_f {nullptr};
 	};
 
-	SCTPClient();
-	explicit SCTPClient(std::shared_ptr<SCTPClient::Config>);
-	SCTPClient(const SCTPClient&) = delete;
-	SCTPClient& operator=(const SCTPClient&) = delete;
-	virtual ~SCTPClient();
+	Client();
+	explicit Client(std::shared_ptr<Client::Config>);
+	Client(const Client&) = delete;
+	Client& operator=(const Client&) = delete;
+	virtual ~Client();
 
 	/*
 		Getter for cfg object
 	*/
-	std::shared_ptr<SCTPClient::Config> cfg() { return cfg_; };
+	std::shared_ptr<Client::Config> cfg() { return cfg_; };
 
 	/* 
 		Calling is mandatory. (sync)
@@ -105,29 +120,29 @@ public:
 
 	std::string to_string() const;
 
-	friend std::ostream& operator<<(std::ostream&, const SCTPClient&);
+	friend std::ostream& operator<<(std::ostream&, const sctp::Client&);
 
 
 private:
-	std::shared_ptr<SCTPClient::Config> cfg_;
+	std::shared_ptr<Client::Config> cfg_;
 
-	SSL_h ssl_obj_ { SSL_h::Type::CLIENT };
-	SSL* ssl_ { nullptr };
-	BIO* output_bio_ { nullptr };
-	BIO* input_bio_ { nullptr };
+	std::unique_ptr<SSL_h> ssl_obj_ {nullptr};
+	SSL* ssl_ {nullptr};
+	BIO* output_bio_ {nullptr};
+	BIO* input_bio_ {nullptr};
 
-	std::atomic_bool usrsctp_lib_initialized_ { false };
-	static std::atomic_size_t number_of_instances_;
+	std::atomic_bool usrsctp_lib_initialized_ {false};
+	static inline std::atomic_size_t number_of_instances_ {};
 
-	std::atomic_bool sender_dry_ { false };
+	std::atomic_bool sender_dry_ {false};
 
 	State state_ = NONE;
 
-	int udp_sock_fd_;
-	uint16_t bound_udp_encaps_port_ { 0 };
-	struct socket* sock_ { nullptr };
+	int udp_sock_fd_ {-1};
+	uint16_t bound_udp_encaps_port_ {};
+	struct socket* sock_ {nullptr};
 
-	SyncQueue<std::unique_ptr<sctp::Data>> raw_udp_data_;
+	std::unique_ptr<SyncQueue<std::unique_ptr<std::vector<char>>>> raw_udp_data_ {nullptr};
 	std::vector<char> sctp_msg_buff_;
 	std::vector<char> decrypted_msg_buff_;
 	std::vector<char> encrypted_msg_buff_;
@@ -162,8 +177,9 @@ private:
 	void handle_peer_address_change_event(struct sctp_paddr_change*);
 	void handle_sender_dry_event(struct sctp_sender_dry_event*);
 
-	void state(SCTPClient::State);
+	void state(Client::State);
 };
 
+} //namespace sctp
 
-std::ostream& operator<<(std::ostream&, const SCTPClient::Config&);		
+std::ostream& operator<<(std::ostream&, const sctp::Client::Config&);

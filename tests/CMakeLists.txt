@@ -10,35 +10,31 @@ find_package(Boost 1.65.0 REQUIRED system filesystem)
 #################################
 # Define targets
 #################################
-set(TEST_NAME simple)
+foreach(TEST_NAME test1 test2)
 
-add_executable(${TEST_NAME}
-	test1.cpp
-)
+	add_executable(${TEST_NAME}
+		${TEST_NAME}.cpp
+	)
+	set_target_properties(${TEST_NAME} PROPERTIES
+		CXX_STANDARD 17
+		CXX_STANDARD_REQUIRED ON
+		CXX_EXTENSIONS OFF
+	)
+	target_compile_options(${TEST_NAME} PRIVATE
+	  $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -pedantic -Werror>
+	)
+	target_link_libraries(${TEST_NAME} PRIVATE
+		Threads::Threads
+		SCTP_OTO::sctp_server
+		SCTP_OTO::sctp_client		
+		Boost::system
+		Boost::filesystem
+	)
+	add_test(NAME ${TEST_NAME} COMMAND $<TARGET_FILE:${TEST_NAME}>)
 
-set_target_properties(${TEST_NAME} PROPERTIES
-	CXX_STANDARD 17
-	CXX_STANDARD_REQUIRED ON
-	CXX_EXTENSIONS OFF
-)
+	##########################################
+	# Define test ordering, dependencies and properties
+	##########################################
+	set_tests_properties(test1 PROPERTIES TIMEOUT 1)
+endforeach()
 
-
-target_compile_options(${TEST_NAME} PRIVATE
-  $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -pedantic -Werror>
-)
-
-target_link_libraries(${TEST_NAME} PRIVATE
-	Threads::Threads
-	SCTP_OTO::sctp_server
-	Boost::system
-	Boost::filesystem
-)
-
-
-add_test(NAME ${TEST_NAME} COMMAND $<TARGET_FILE:${TEST_NAME}>)
-
-
-##########################################
-# Define test ordering, dependencies and properties
-##########################################
-set_tests_properties(${TEST_NAME} PROPERTIES TIMEOUT 1)
