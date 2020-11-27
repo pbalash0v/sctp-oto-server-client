@@ -4,7 +4,7 @@
 To compile and run you may need to install some prerequisite packages.
 On a debian-base distribution:
 ```console
-apt install libboost-dev libboost-filesystem-dev libboost-system-dev autoconf libtool build-essential libssl-dev pkg-config 
+apt install libboost-dev libboost-filesystem-dev libboost-system-dev build-essential libssl-dev pkg-config 
 ```
 
 To build:
@@ -49,5 +49,5 @@ If there is an OpenCV package installed then an mjpeg_streaming echo client is a
 ---
 Some rudimentary tests ( from **build** directory):
 ```console
-make check
+ctest
 ```
