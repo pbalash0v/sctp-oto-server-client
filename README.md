@@ -4,7 +4,7 @@
 To compile and run you may need to install some prerequisite packages.
 On a debian-base distribution:
 ```console
-apt install autoconf libtool build-essential libssl-dev pkg-config 
+apt install libboost-dev libboost-filesystem-dev libboost-system-dev autoconf libtool build-essential libssl-dev pkg-config 
 ```
 
 To build:
