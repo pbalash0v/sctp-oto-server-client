@@ -6,6 +6,9 @@
 #include <errno.h>
 #include <arpa/inet.h>
 
+#include <boost/scope_exit.hpp>
+#include <boost/assert.hpp>
+
 #include "usrsctp.h"
 
 #include "client.h"
@@ -127,8 +130,11 @@ void Client::init()
 void Client::state(Client::State new_state)
 {
 	ENABLE_LOGGING();
-
 	TRACE_func_entry();
+	BOOST_SCOPE_EXIT_ALL(&)
+	{
+		TRACE_func_left();
+	};
 
 	if (new_state == PURGE and state_ == PURGE)
 	{
@@ -215,8 +221,6 @@ void Client::state(Client::State new_state)
 	TRACE(state_names[state_] + " -> " + state_names[new_state]);
 
 	state_ = new_state;
-
-	TRACE_func_left();
 }
 
 
@@ -794,6 +798,10 @@ std::unique_ptr<Event> Client::handle_notification(const std::unique_ptr<SCTPMes
 {
 	ENABLE_LOGGING();
 	TRACE_func_entry();
+	BOOST_SCOPE_EXIT_ALL(&)
+	{
+		TRACE_func_left();
+	};
 
 	union sctp_notification* notif = static_cast<union sctp_notification*>(m->msg);
 	size_t n = m->size;
@@ -845,8 +853,6 @@ std::unique_ptr<Event> Client::handle_notification(const std::unique_ptr<SCTPMes
 		ERROR("Unknown notification type !");
 		break;
 	}
-
-	TRACE_func_left();
 
 	return evt;
 }

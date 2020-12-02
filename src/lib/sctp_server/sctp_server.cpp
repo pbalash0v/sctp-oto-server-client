@@ -7,6 +7,9 @@
 #include <thread>
 #include <sstream>
 
+#include <boost/scope_exit.hpp>
+#include <boost/assert.hpp>
+
 #include <sys/socket.h>
 #include <netdb.h>
 #include <arpa/inet.h>
@@ -80,7 +83,7 @@ std::shared_ptr<IClient> SCTPServer::client_factory(struct socket* s)
 */
 SCTPServer::~SCTPServer()
 {
-	TRACE_func_entry();
+	TRACE_func_entry(); BOOST_SCOPE_EXIT_ALL(&) { TRACE_func_left(); };
 
 	cleanup();
 
@@ -123,8 +126,6 @@ SCTPServer::~SCTPServer()
 	TRACE("sctp msgs handling thread joined");
 
 	instance_exists_ = false;
-
-	TRACE_func_left();
 }
 
 /*
@@ -137,7 +138,7 @@ SCTPServer::~SCTPServer()
 */
 void SCTPServer::cleanup()
 {
-	TRACE_func_entry();
+	TRACE_func_entry(); BOOST_SCOPE_EXIT_ALL(&) { TRACE_func_left(); };
 
 	{
 		std::lock_guard<std::mutex> _ { clients_mutex_ };
@@ -163,8 +164,6 @@ void SCTPServer::cleanup()
 		}
 		TRACE("clients shutdown done");
 	}
-
-	TRACE_func_left();
 }
 
 /* 
@@ -176,7 +175,7 @@ void SCTPServer::cleanup()
 */
 void SCTPServer::try_init_local_UDP()
 {
-	TRACE_func_entry();
+	TRACE_func_entry(); BOOST_SCOPE_EXIT_ALL(&) { TRACE_func_left(); };
 
 	/* will point to the result */
 	struct addrinfo* serv_info = NULL;
@@ -222,13 +221,11 @@ void SCTPServer::try_init_local_UDP()
 		CRITICAL(std::string("close: ") + strerror(errno));
 		throw std::runtime_error(strerror(errno));
 	}
-
-	TRACE_func_left();
 }
 
 void SCTPServer::init()
 {
-	TRACE_func_entry();
+	TRACE_func_entry(); BOOST_SCOPE_EXIT_ALL(&) { TRACE_func_left(); };
 
 	if (initialized_) throw std::logic_error("Server is already initialized.");
 
@@ -336,14 +333,12 @@ void SCTPServer::init()
 	}
 
 	initialized_ = true;
-
-	TRACE_func_left();
 }
 
 
 void SCTPServer::operator()()
 {
-	TRACE_func_entry();
+	TRACE_func_entry(); BOOST_SCOPE_EXIT_ALL(&) { TRACE_func_left(); };
 
 	if (not initialized_) throw std::logic_error("Server not initialized.");
 
@@ -354,18 +349,14 @@ void SCTPServer::operator()()
 	}
 
 	usrsctp_set_upcall(serv_sock_, &SCTPServer::handle_server_upcall, this);
-
-	TRACE_func_left();
 }
 
 
 void SCTPServer::stop()
 {
-	TRACE_func_entry();
+	TRACE_func_entry(); BOOST_SCOPE_EXIT_ALL(&) { TRACE_func_left(); };
 
 	cleanup();
-	
-	TRACE_func_left();
 }
 
 
@@ -376,23 +367,20 @@ void SCTPServer::send(std::shared_ptr<IClient>& c, const void* data, size_t len)
 
 void SCTPServer::drop_client(std::shared_ptr<IClient>& c)
 {
-	TRACE_func_entry();
+	TRACE_func_entry(); BOOST_SCOPE_EXIT_ALL(&) { TRACE_func_left(); };
 
 	std::lock_guard<std::mutex> _ { clients_mutex_ };
 	clients_.erase(std::remove_if(clients_.begin(), clients_.end(),
 	 [&] (auto s_ptr) { return s_ptr->socket() == c->socket(); }), clients_.end());
 
 	TRACE("Number of clients: " + std::to_string(clients_.size()));
-
-	TRACE_func_left();
 }
 
 
 void SCTPServer::handle_server_upcall(struct socket* serv_sock, void* arg, int)
 {
-	assert(arg);
+	BOOST_ASSERT(arg);
 	SCTPServer* s = (SCTPServer*) arg;
-	assert(s);
 	/* 
 		log macros depend on local object named cfg_.
 		Getting it here explicitly.
@@ -400,7 +388,7 @@ void SCTPServer::handle_server_upcall(struct socket* serv_sock, void* arg, int)
 	auto cfg_ = s->cfg();
 	/* from here on we can use log macros */
 
-	TRACE_func_entry();
+	TRACE_func_entry(); BOOST_SCOPE_EXIT_ALL(&) { TRACE_func_left(); };
 
 	int events = usrsctp_get_events(serv_sock);
 
@@ -444,9 +432,7 @@ void SCTPServer::handle_server_upcall(struct socket* serv_sock, void* arg, int)
 		ERROR("SCTP_EVENT_WRITE on server socket.");
 	}
 
-	TRACE_func_left();
 }
-
 
 std::shared_ptr<IClient> SCTPServer::get_client(const struct socket* sock)
 {
@@ -471,9 +457,8 @@ std::shared_ptr<IClient> SCTPServer::get_client(const struct socket* sock)
 */
 void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int)
 {
-	assert(arg);
+	BOOST_ASSERT(arg);
 	SCTPServer* s = (SCTPServer*) arg; 
-	assert(s);
 	/* 
 		log macros depend on local object named cfg_.
 		Getting it here explicitly.
@@ -620,7 +605,7 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 
 void SCTPServer::sctp_msg_handler_loop()
 {
-	TRACE_func_entry();
+	TRACE_func_entry(); BOOST_SCOPE_EXIT_ALL(&) { TRACE_func_left(); };
 
 	while (true) {
 		auto msg = sctp_msgs_.dequeue();
@@ -680,8 +665,6 @@ void SCTPServer::sctp_msg_handler_loop()
 			continue;
 		}
 	}
-
-	TRACE_func_left();
 }
 
 
