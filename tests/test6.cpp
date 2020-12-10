@@ -1,29 +1,30 @@
 #include <iostream>
 #include <string>
-#include <cassert>
+
+#include <boost/assert.hpp>
 
 #include "sync_queue.hpp"
 
 
 int main(int, char const**) {
-	constexpr auto Q_SIZE = 50;	
-	constexpr auto Q_LIMIT = 10;
+	constexpr auto Q_SIZE {50u};
+	constexpr auto Q_LIMIT {10u};
 
 	{
 		SyncQueue<int> q;
-		for (int i = 0; i < Q_SIZE; ++i) q.enqueue(i);
-		assert(q.size() == Q_SIZE);
+		for (auto i = 0u; i < Q_SIZE; ++i) q.enqueue(i);
+		BOOST_ASSERT(q.size() == Q_SIZE);
 		q.dequeue();
-		assert(q.size() == Q_SIZE-1);
+		BOOST_ASSERT(q.size() == Q_SIZE-1);
 	}
 
 
 	{
-		SyncQueue<int> q { Q_LIMIT };
-		for (int i = 0; i < Q_SIZE; ++i) q.enqueue(i);
-		assert(q.size() == Q_LIMIT);
+		SyncQueue<int> q {Q_LIMIT};
+		for (auto i = 0u; i < Q_SIZE; ++i) q.enqueue(i);
+		BOOST_ASSERT(q.size() == Q_LIMIT);
 		q.dequeue();
-		assert(q.size() == Q_LIMIT-1);
+		BOOST_ASSERT(q.size() == Q_LIMIT-1);
 	}
 
 

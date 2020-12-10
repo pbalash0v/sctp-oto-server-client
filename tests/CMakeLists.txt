@@ -10,7 +10,7 @@ find_package(Boost 1.65.0 REQUIRED system filesystem)
 #################################
 # Define targets
 #################################
-foreach(TEST_NAME test1 test2 test4)
+foreach(TEST_NAME test1 test2 test4 test6)
 
 	add_executable(${TEST_NAME}
 		${TEST_NAME}.cpp
@@ -26,7 +26,8 @@ foreach(TEST_NAME test1 test2 test4)
 	target_link_libraries(${TEST_NAME} PRIVATE
 		Threads::Threads
 		SCTP_OTO::sctp_server
-		SCTP_OTO::sctp_client		
+		SCTP_OTO::sctp_client
+		SCTP_OTO::sctp_common
 		Boost::system
 		Boost::filesystem
 	)
