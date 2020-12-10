@@ -1,7 +1,5 @@
 cmake_minimum_required(VERSION 3.17)
 
-#add_subdirectory(certs)
-
 add_subdirectory(lib)
 
 if(SCTP_OTO_BUILD_EXAMPLES)

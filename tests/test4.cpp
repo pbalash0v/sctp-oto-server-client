@@ -19,15 +19,6 @@
 constexpr const auto TEST_STRING = "HELLO";
 constexpr const auto START_SIGNAL = "START_SIGNAL";
 
-namespace
-{
-
-size_t constexpr length(const char* str)
-{
-    return *str ? 1 + length(str + 1) : 0;
-}
-
-}
 
 int main(int, char const**)
 {

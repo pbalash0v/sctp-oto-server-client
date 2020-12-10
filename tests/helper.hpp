@@ -7,6 +7,11 @@
 
 namespace
 {
+	size_t constexpr length(const char* str)
+	{
+	    return *str ? 1 + length(str + 1) : 0;
+	}
+
 	std::tuple<std::string, std::string> generate_paths()
 	{
 		boost::filesystem::path cert = boost::filesystem::temp_directory_path() / boost::filesystem::unique_path();

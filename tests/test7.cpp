@@ -2,18 +2,19 @@
 #include <atomic>
 #include <thread>
 #include <memory>
-#include <cassert>
 #include <algorithm>
 #include <iostream>
 
 #include <string.h>
 #include <sys/prctl.h>
 #include <signal.h>
-
 #include <unistd.h>
+
+#include <boost/assert.hpp>
 
 #include "sctp_server.h"
 #include "sctp_client.h"
+#include "helper.hpp"
 
 
 constexpr const char* TEST_STRING_CLIENT_1 = "HELLO_1";
@@ -29,34 +30,34 @@ int main(int, char const**)
 		seems to be impossible
 	*/
 	int fd[2];
-	if (pipe(fd) != 0) {
-		return EXIT_FAILURE;
-	}
+	if (pipe(fd) != 0) return EXIT_FAILURE;
+
 
 	pid_t pid = fork();
- 	if (pid < 0) {		/* fork failed */
-		return EXIT_FAILURE;
- 	}
+	if (pid < 0) return EXIT_FAILURE;		/* fork failed */
 
- 	if (pid == 0) { 	// child client process
- 		assert(prctl(PR_SET_PDEATHSIG, SIGHUP) >= 0);
+	if (pid == 0) // child client process
+	{
+		BOOST_ASSERT(prctl(PR_SET_PDEATHSIG, SIGHUP) >= 0);
+
+		cert_and_key c_and_k;
 
 		std::atomic_bool client1_done { false };
 		std::atomic_bool client2_done { false };
 
 		std::mutex cout_mutex;
 
-		auto cli1_cfg = ([]
+		auto cli1_cfg = ([&]
 		{
-			auto cfg = std::make_shared<SCTPClient::Config>();
-			cfg->cert_filename = "../src/certs/client-cert.pem";
-			cfg->key_filename = "../src/certs/client-key.pem";
+			auto cfg = std::make_shared<sctp::Client::Config>();
+			cfg->cert_filename = c_and_k.cert().c_str();
+			cfg->key_filename = c_and_k.key().c_str();
 			return cfg;
 		})();
 
-		SCTPClient client1 { cli1_cfg };
+		sctp::Client client1 { cli1_cfg };
 		client1.cfg()->state_cback_f = [&](auto state) {
-			if (state == SCTPClient::SSL_CONNECTED) {
+			if (state == sctp::Client::SSL_CONNECTED) {
 				client1.send(TEST_STRING_CLIENT_1, strlen(TEST_STRING_CLIENT_1) + 1);
 			 	client1_done = true;
 			}
@@ -68,16 +69,16 @@ int main(int, char const**)
 			std::cout << client1 << ": " + s_ << std::endl;
 		};
 
-		auto cli2_cfg = ([]
+		auto cli2_cfg = ([&]
 		{
-			auto cfg = std::make_shared<SCTPClient::Config>();
-			cfg->cert_filename = "../src/certs/client-cert.pem";
-			cfg->key_filename = "../src/certs/client-key.pem";
+			auto cfg = std::make_shared<sctp::Client::Config>();
+			cfg->cert_filename = c_and_k.cert().c_str();
+			cfg->key_filename = c_and_k.key().c_str();
 			return cfg;
 		})();
-		SCTPClient client2 { cli2_cfg };
+		sctp::Client client2 { cli2_cfg };
 		client2.cfg()->state_cback_f = [&](auto state) {
-			if (state == SCTPClient::SSL_CONNECTED) {
+			if (state == sctp::Client::SSL_CONNECTED) {
 				client2.send(TEST_STRING_CLIENT_2, strlen(TEST_STRING_CLIENT_2) + 1);
 			 	client2_done = true;
 			}
@@ -94,17 +95,22 @@ int main(int, char const**)
 
 		/* wait for server init */
 	   close(fd[1]);
-	   char buf[strlen(START_SIGNAL)];
-		assert(read(fd[0], buf, strlen(START_SIGNAL)) > 0);
+	   char buf[length(START_SIGNAL)];
+		BOOST_ASSERT(read(fd[0], buf, strlen(START_SIGNAL)) > 0);
 
 		client1();
 		client2();
 
-		while (not (client1_done and client2_done)) {
+		while (not (client1_done and client2_done))
+		{
 			std::this_thread::sleep_for(std::chrono::milliseconds(100));
 		}
 
- 	} else if (pid > 0) {      // server process
+	}
+	else if (pid > 0) // server process
+	{
+		cert_and_key c_and_k;
+
 		std::atomic_bool running { true };
 
 		SCTPServer server;
@@ -112,12 +118,13 @@ int main(int, char const**)
 		bool client1_done { false };
 		bool client2_done { false };
 
-		server.cfg()->cert_filename = "../src/certs/server-cert.pem";
-		server.cfg()->key_filename = "../src/certs/server-key.pem";
-		server.cfg()->event_cback_f = [&](const auto& evt) {
+		server.cfg()->cert_filename = c_and_k.cert().c_str();
+		server.cfg()->key_filename = c_and_k.key().c_str();
+		server.cfg()->event_cback_f = [&](const auto& evt)
+		{
 			if (evt->type != Event::CLIENT_DATA) return;
 
-			const char* msg = static_cast<const char*>(evt->client_data->buf);
+			const char* msg = static_cast<const char*>(evt->client_data.data());
 			std::string msg_str { msg };
 
 			if (not strcmp(msg, TEST_STRING_CLIENT_1)) {
@@ -131,25 +138,30 @@ int main(int, char const**)
 				
 	 		running = (client1_done and client2_done) ? false : true;
 		};
-		server.cfg()->debug_cback_f = [&](auto, const auto& s) {
+		server.cfg()->debug_cback_f = [&](auto, const auto& s)
+		{
 			std::string s_ { s };
 			s_.erase(std::remove(s_.begin(), s_.end(), '\n'), s_.end());
-			std::cout << "S:" << s_ << std::endl;
+			//std::cout << "S:" << s_ << std::endl;
 		};
 
-		try {
+		try
+		{
 			server.init();
 			server();
-		} catch (const std::runtime_error& exc) {
+		}
+		catch (const std::runtime_error& exc)
+		{
 			return EXIT_FAILURE;
 		}
 
 		/* signal server init to client */
-	   close(fd[0]);
-   	assert(write(fd[1], START_SIGNAL, strlen(START_SIGNAL)));
-   	std::cout << "signalled ready to client" << std::endl;
+		close(fd[0]);
+		BOOST_ASSERT(write(fd[1], START_SIGNAL, strlen(START_SIGNAL)));
+		//std::cout << "signalled ready to client" << std::endl;
 
-		while (running) {
+		while (running)
+		{
 			std::this_thread::sleep_for(std::chrono::milliseconds(10));
 		}
  	}

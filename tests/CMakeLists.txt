@@ -10,7 +10,7 @@ find_package(Boost 1.65.0 REQUIRED system filesystem)
 #################################
 # Define targets
 #################################
-foreach(TEST_NAME test1 test2 test4 test6)
+foreach(TEST_NAME test1 test2 test4 test6 test7)
 
 	add_executable(${TEST_NAME}
 		${TEST_NAME}.cpp
