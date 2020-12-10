@@ -6,7 +6,6 @@
 #include <unordered_map>
 
 #include "sync_queue.hpp"
-#include "sctp_data.h"
 
 class SCTPServer;
 class IClient;
@@ -17,12 +16,14 @@ public:
 	Broadcaster() = default;
 	Broadcaster(const Broadcaster&) = delete;
 	Broadcaster& operator=(const Broadcaster&) = delete;
+	Broadcaster(Broadcaster&&) = delete;
+	Broadcaster& operator=(Broadcaster&&) = delete;
 
 	virtual ~Broadcaster();
 
 	virtual void operator()(SCTPServer&);
 
-	virtual void enqueue(std::unique_ptr<sctp::Data>);
+	virtual void enqueue(std::vector<char>);
 
 	virtual void add_new_client(std::shared_ptr<IClient>&);
 	virtual void drop_client(std::shared_ptr<IClient>&);
@@ -32,7 +33,7 @@ private:
 	std::thread sender_thr_;
 
 	std::unordered_map<std::shared_ptr<IClient>,
-	std::unique_ptr<SyncQueue<std::shared_ptr<sctp::Data>>>> send_qs_;
+	std::unique_ptr<SyncQueue<std::shared_ptr<std::vector<char>>>>> send_qs_;
 	std::mutex signals_mutex_;
 	std::condition_variable cv_;
 	bool signal_send_possible_ { false };

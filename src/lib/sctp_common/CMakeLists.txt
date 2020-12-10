@@ -15,7 +15,6 @@ find_package(OpenSSL 1.1.1 REQUIRED)
 set(CMAKE_INSTALL_RPATH $ORIGIN $ORIGIN/../lib)
 
 add_library(sctp_common
-	sctp_data.cpp
 	ssl_h.cpp
 )
 add_library(SCTP_OTO::sctp_common ALIAS sctp_common)

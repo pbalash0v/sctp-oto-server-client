@@ -18,7 +18,6 @@
 #include "server_event.h"
 #include "logging.h"
 #include "log_level.h"
-#include "sctp_data.h"
 #include "ssl_h.h"
 
 
@@ -473,7 +472,7 @@ std::unique_ptr<Event> Client::handle_data(const std::unique_ptr<SCTPMessage>& m
 			// })());
 
 			evt->type = Event::CLIENT_DATA;
-			evt->client_data = std::make_unique<sctp::Data>(outbuf, total_decrypted_message_size);
+			evt->client_data = std::vector<char> {static_cast<char*>(outbuf), static_cast<char*>(outbuf) + total_decrypted_message_size};
 		}
 		break;
 

@@ -12,7 +12,6 @@
 
 #include "sync_queue.hpp"
 #include "sctp_client.h"
-#include "sctp_data.h"
 #include "logging.h"
 #include "ssl_h.h"
 

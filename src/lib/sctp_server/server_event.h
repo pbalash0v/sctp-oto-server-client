@@ -28,15 +28,15 @@ struct Event
 	explicit Event() = default;
 	explicit Event(Event::Type, std::shared_ptr<IClient>);	
 	explicit Event(Event::Type, std::shared_ptr<IClient>, IClient::State);
-	explicit Event(Event::Type, std::shared_ptr<IClient>, std::unique_ptr<sctp::Data>);
+	explicit Event(Event::Type, std::shared_ptr<IClient>, std::vector<char>);
 	explicit Event(const SCTPMessage&);
 
 	Event(const Event&) = delete;
 	Event& operator=(const Event&) = delete;
 	virtual ~Event() = default;
 
-	Event::Type type { NONE };
-	std::shared_ptr<IClient> client { nullptr };
-	IClient::State client_state { IClient::State::NONE };
-	std::unique_ptr<sctp::Data> client_data { nullptr };
+	Event::Type type {NONE};
+	std::shared_ptr<IClient> client {nullptr};
+	IClient::State client_state {IClient::State::NONE};
+	std::vector<char> client_data;
 };

@@ -1,4 +1,5 @@
-#pragma once
+#ifndef __sctp_server_h__
+#define __sctp_server_h__
 
 #include <vector>
 #include <string>
@@ -148,4 +149,4 @@ private:
 
 
 
-
+#endif // __sctp_server_h__

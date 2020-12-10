@@ -166,8 +166,8 @@ int main(int /* argc */, char* argv[]) {
 		switch (evt->type) {
 		case Event::CLIENT_DATA:
 			{	
-				std::string message { static_cast<const char*>(evt->client_data->buf),
-					 evt->client_data->size };
+				std::string message {static_cast<const char*>(evt->client_data.data()),
+					 evt->client_data.size()};
 
 				spdlog::info("{}: {}", *c,
 					 ((message.size() < 30) ? message : message.substr(0, 30)));

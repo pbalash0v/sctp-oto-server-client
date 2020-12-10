@@ -10,7 +10,7 @@ find_package(Boost 1.65.0 REQUIRED system filesystem)
 #################################
 # Define targets
 #################################
-foreach(TEST_NAME test1 test2)
+foreach(TEST_NAME test1 test2 test4)
 
 	add_executable(${TEST_NAME}
 		${TEST_NAME}.cpp
@@ -30,6 +30,8 @@ foreach(TEST_NAME test1 test2)
 		Boost::system
 		Boost::filesystem
 	)
+#	target_compile_definitions(${TEST_NAME} PRIVATE TEST_BUILD)
+
 	add_test(NAME ${TEST_NAME} COMMAND $<TARGET_FILE:${TEST_NAME}>)
 
 	##########################################

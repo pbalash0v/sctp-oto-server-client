@@ -23,7 +23,6 @@
 #include "client_sctp_message.h"
 #include "log_level.h"
 #include "logging.h"
-#include "sctp_data.h"
 #include "ssl_h.h"
 
 
@@ -607,25 +606,28 @@ void SCTPServer::sctp_msg_handler_loop()
 {
 	TRACE_func_entry(); BOOST_SCOPE_EXIT_ALL(&) { TRACE_func_left(); };
 
-	while (true) {
+	while (true)
+	{
 		auto msg = sctp_msgs_.dequeue();
 
 		/* end thread on zero length message */
 		if (msg->size == 0) break;
 
-		std::unique_ptr<Event> evt { nullptr };
-		try {
+		std::unique_ptr<Event> evt {nullptr};
+		try
+		{
 			evt = msg->client->handle_message(msg);
-		} catch (const std::runtime_error& exc) {
+		}
+		catch (const std::runtime_error& exc)
+		{
 			ERROR(client_errno("handle_message", msg->client));
 			continue;
 		}
 
-		if (evt->type == Event::NONE) {
-			continue;
-		}
+		if (evt->type == Event::NONE) continue;
 
-		if (evt->type == Event::CLIENT_STATE) {
+		if (evt->type == Event::CLIENT_STATE)
+		{
 			try {
 				msg->client->state(evt->client_state);	
 			} catch (std::runtime_error& exc) {
@@ -643,23 +645,34 @@ void SCTPServer::sctp_msg_handler_loop()
 			continue;
 		}
 
-		if (evt->type == Event::CLIENT_SEND_POSSIBLE) {
-			if (cfg_->event_cback_f && msg->client->state() == IClient::SSL_CONNECTED) {
-				try {
+		if (evt->type == Event::CLIENT_SEND_POSSIBLE)
+		{
+			if (cfg_->event_cback_f && msg->client->state() == IClient::SSL_CONNECTED)
+			{
+				try
+				{
 					cfg_->event_cback_f(std::move(evt));
-				} catch (...) {
+				}
+				catch (...)
+				{
 					CRITICAL("Exception in user's event_cback function");
 				}
 			}
 			continue;
 		}
 
-		if ((evt->type == Event::CLIENT_DATA) and (evt->client_data->size > 0) and (cfg_->event_cback_f)) {
-			try {
+		if ((evt->type == Event::CLIENT_DATA) and (evt->client_data.size() > 0) and (cfg_->event_cback_f))
+		{
+			try
+			{
 				cfg_->event_cback_f(std::move(evt));
-			} catch (const std::runtime_error& exc) {
+			} 
+			catch (const std::runtime_error& exc)
+			{
 				ERROR(exc.what());				
-			} catch (...) {
+			}
+			catch (...)
+			{
 				CRITICAL("Exception in user's event_cback function");
 			}
 			continue;

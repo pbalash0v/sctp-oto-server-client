@@ -32,7 +32,7 @@ class SyncQueue;
 namespace sctp
 {
 
-class Data;
+struct Data;
 constexpr auto DEFAULT_SCTP_MESSAGE_SIZE_BYTES = 1 << 16;
 
 
