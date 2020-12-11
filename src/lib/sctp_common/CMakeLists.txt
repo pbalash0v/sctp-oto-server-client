@@ -9,6 +9,7 @@ include(GNUInstallDirs)
 #################################
 find_package(OpenSSL 1.1.1 REQUIRED)
 
+find_package(Boost 1.65.0 REQUIRED system filesystem program_options)
 #################################
 # Define targets	
 #################################
@@ -45,6 +46,9 @@ target_include_directories(sctp_common PUBLIC
 
 target_link_libraries(sctp_common PUBLIC
 	${OPENSSL_LIBRARIES}
+	Boost::boost
+	Boost::system
+	Boost::filesystem
 )
 
 # .so versioning

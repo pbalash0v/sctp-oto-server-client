@@ -54,8 +54,5 @@ target_link_libraries(ex_broadcast_server PRIVATE
 	SCTP_OTO::sctp_common
 	SCTP_OTO::sctp_server
 	SCTP_OTO::sctp_common
-	Boost::boost
-	Boost::system
-	Boost::filesystem
 	Boost::program_options
 )

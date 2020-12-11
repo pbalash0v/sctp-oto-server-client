@@ -10,6 +10,7 @@
 #include "spdlog/sinks/basic_file_sink.h"
 
 #include "gopt.h"
+#include "helper.hpp"
 
 #ifdef HAVE_NCURSES
 #include "tui.h"
@@ -226,6 +227,10 @@ int main(int /* argc */, char* argv[])
 
 	/* Client config */
 	sctp::Client client {get_cfg_or_die(argv, options)};
+
+	cert_and_key c_and_k;
+	client.cfg()->cert_filename = c_and_k.cert();
+	client.cfg()->key_filename = c_and_k.key();
 
 	client.cfg()->data_cback_f = [&](const auto& s)
 	{
