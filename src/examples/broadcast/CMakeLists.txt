@@ -6,7 +6,7 @@ cmake_minimum_required(VERSION 3.17)
 set(THREADS_PREFER_PTHREAD_FLAG ON) # Without this flag CMake may resort to just '-lpthread'
 find_package(Threads REQUIRED)
 
-
+find_package(Boost 1.65.0 REQUIRED system filesystem program_options)
 #################################
 # Define targets	
 #################################
@@ -33,6 +33,7 @@ target_link_libraries(ex_broadcast_client PRIVATE
 	SCTP_OTO::sctp_common
 	SCTP_OTO::sctp_client
 	SCTP_OTO::gopt
+	Boost::program_options
 )
 
 # server
@@ -52,5 +53,9 @@ target_link_libraries(ex_broadcast_server PRIVATE
 	libspdlog
 	SCTP_OTO::sctp_common
 	SCTP_OTO::sctp_server
-	SCTP_OTO::gopt
+	SCTP_OTO::sctp_common
+	Boost::boost
+	Boost::system
+	Boost::filesystem
+	Boost::program_options
 )

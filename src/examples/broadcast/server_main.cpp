@@ -6,28 +6,22 @@
 #include <cstring>
 #include <limits>
 
+#include <boost/program_options.hpp>
+#include <boost/filesystem.hpp>
+
 #include "spdlog/spdlog.h"
 #include "spdlog/fmt/ostr.h"
 
 #include "sctp_server.h"
 #include "log_level.h"
 #include "sync_queue.hpp"
-#include "gopt.h"
+#include "helper.hpp"
 #include "broadcaster.h"
 
+namespace po = boost::program_options;
 
-constexpr uint16_t MAX_IP_PORT = std::numeric_limits<uint16_t>::max();
-
-enum CLIOptions
+namespace
 {
-	HELP,
-	VERSION,
-	VERBOSITY,
-	UDP_ENCAPS_PORT,
-	SCTP_PORT,
-	/* do not put any options below this comment */
-	OPTIONS_COUNT
-};
 
 [[noreturn]] void onTerminate() noexcept
 {
@@ -45,119 +39,93 @@ enum CLIOptions
 }
 
 
-static void parse_args(char* argv[], struct option options[])
+std::tuple<std::optional<std::shared_ptr<SCTPServer::Config>>, int> get_cfg(int argc, char* argv[])
 {
-	options[CLIOptions::HELP].long_name  = "help";
-	options[CLIOptions::HELP].short_name = 'h';
-	options[CLIOptions::HELP].flags      = GOPT_ARGUMENT_FORBIDDEN;
+	constexpr auto MAX_IP_PORT {std::numeric_limits<uint16_t>::max()};
 
-	options[CLIOptions::VERSION].long_name  = "version";
-	options[CLIOptions::VERSION].short_name = 'V';
-	options[CLIOptions::VERSION].flags      = GOPT_ARGUMENT_FORBIDDEN;
-
-	options[CLIOptions::VERBOSITY].long_name  = "verbose";
-	options[CLIOptions::VERBOSITY].short_name = 'v';
-	options[CLIOptions::VERBOSITY].flags      = GOPT_ARGUMENT_FORBIDDEN | GOPT_REPEATABLE;
-
-	options[CLIOptions::UDP_ENCAPS_PORT].long_name  = "udp-port";
-	options[CLIOptions::UDP_ENCAPS_PORT].short_name = 'p';
-	options[CLIOptions::UDP_ENCAPS_PORT].flags      = GOPT_ARGUMENT_REQUIRED;
-
-	options[CLIOptions::SCTP_PORT].long_name  = "sctp-port";
-	options[CLIOptions::SCTP_PORT].short_name = 's';
-	options[CLIOptions::SCTP_PORT].flags      = GOPT_ARGUMENT_REQUIRED;
-
-	options[CLIOptions::OPTIONS_COUNT].flags = GOPT_LAST;
-
-	gopt(argv, options);
-	gopt_errors(argv[0], options);
-
-	/* verbosity */
-	if (options[CLIOptions::VERBOSITY].count) {
-		if (options[CLIOptions::VERBOSITY].count == 1) {
-			spdlog::set_level(spdlog::level::debug);
-		} else {
-			spdlog::set_level(spdlog::level::trace);
-		}
-	}	
-}
-
-static std::shared_ptr<SCTPServer::Config> get_cfg_or_die(char* argv[], struct option options[])
-{
 	auto cfg = std::make_shared<SCTPServer::Config>();
 
-	/* help */
-	if (options[CLIOptions::HELP].count) {
-		std::cout << \
-		"Usage: " << basename(argv[0]) << " [OPTIONS]" << std::endl << \
-		std::endl << \
-		"\t-p, --udp-port\t\t -- local UDP encapsulation port (default is " << \
-			DEFAULT_UDP_ENCAPS_PORT << ")" << std::endl << \
-		"\t-s, --sctp-port\t\t -- local SCTP server port (default is " << \
-			DEFAULT_SCTP_PORT << ")" << std::endl << \
-		"\t-v, --verbose\t\t -- be verbose" << std::endl << \
-		"\t-h, --help\t\t -- this message" << std::endl << \
-		"\t-V, --version\t\t -- print the version and exit" << std::endl << \
+	uint16_t sctp_port {};
+	uint16_t udp_port {};
 
-		std::endl;
-		exit(EXIT_SUCCESS);
+	po::options_description desc {"Allowed options"};
+	desc.add_options()
+		("version,V", "print version and exit")
+		("verbose,v", "be verbose")
+		("sctp-port,s", po::value<std::uint16_t>(&sctp_port)->default_value(DEFAULT_SCTP_PORT), (std::string {"local SCTP server port (default is " + std::to_string(DEFAULT_SCTP_PORT) + ")"}).c_str())
+		("udp-port,u", po::value<std::uint16_t>(&udp_port)->default_value(DEFAULT_UDP_ENCAPS_PORT), (std::string {"local UDP encapsulation port (default is " + std::to_string(DEFAULT_UDP_ENCAPS_PORT) + ")"}).c_str())
+		("help,h", "produce this help screen");
+
+	po::variables_map vm;
+
+	try
+	{
+		po::store(po::parse_command_line(argc, argv, desc), vm);
+		po::notify(vm);
+	}
+	catch (const boost::program_options::error& ex)
+	{
+		std::cerr << ex.what() << '\n';
+		return {std::nullopt, EXIT_FAILURE};
 	}
 
-	/* version */
-	if (options[CLIOptions::VERSION].count) {
+	if (vm.count("help"))
+	{
+		std::cout << desc << '\n';
+		return {std::nullopt, EXIT_SUCCESS};
+	}
+	if (vm.count("version"))
+	{
 		std::cout << "Version 0.01a" << std::endl;  	
-		exit(EXIT_SUCCESS);
+		return {std::nullopt, EXIT_SUCCESS};
 	}
 
-	cfg->udp_encaps_port = ([&]
+ 	if (sctp_port > MAX_IP_PORT or 0 == sctp_port)
 	{
-		auto _port = DEFAULT_UDP_ENCAPS_PORT;
-	
-		if (options[CLIOptions::UDP_ENCAPS_PORT].count) {
-			auto _p = std::strtoul(options[CLIOptions::UDP_ENCAPS_PORT].argument, NULL, 10);
-			if (errno == ERANGE or _p > MAX_IP_PORT or _p == 0) {
-				std::cout << "Supplied UDP port " << options[CLIOptions::UDP_ENCAPS_PORT].argument
-							 << " is invalid." << std::endl;
-				exit(EXIT_FAILURE);
-			}
-			_port = _p;
-		}
+		std::cerr << "Invalid SCTP transport port provided" << '\n';
+		return {std::nullopt, EXIT_FAILURE};
+	}
+	cfg->sctp_port = sctp_port;
 
-		return static_cast<uint16_t>(_port);
-	})();
-
-	cfg->sctp_port = ([&]
+ 	if (udp_port > MAX_IP_PORT or 0 == sctp_port)
 	{
-		auto _port = DEFAULT_SCTP_PORT;
+		std::cerr << "Invalid UDP transport port provided" << '\n';
+		return {std::nullopt, EXIT_FAILURE};
+	}
+	cfg->udp_encaps_port = udp_port;
 
-		if (options[CLIOptions::SCTP_PORT].count) {
-			auto _p = std::strtoul(options[CLIOptions::SCTP_PORT].argument, NULL, 10);
-			if (errno == ERANGE or _p > MAX_IP_PORT or _p == 0) {
-				std::cout << "Supplied SCTP port " << options[CLIOptions::SCTP_PORT].argument
-							 << " is invalid." << std::endl;
-				exit(EXIT_FAILURE);
-			}
-			_port = _p;		
-		}
 
-		return static_cast<uint16_t>(_port);
-	})();
-	
-	cfg->cert_filename = "../certs/" + cfg->cert_filename;
-	cfg->key_filename = "../certs/" + cfg->key_filename;
+/*	if (!boost::filesystem::exists(cfg->cert_filename))
+	{
+		std::cerr << "Can't find certificate file: " << cfg->cert_filename << "\n";
+		return {std::nullopt, EXIT_FAILURE};
+	}
 
-	return cfg;
+	if (!boost::filesystem::exists(cfg->key_filename))
+	{
+		std::cerr << "Can't find key file: " << cfg->key_filename << "\n";
+		return {std::nullopt, EXIT_FAILURE};
+	}*/
+
+	return {cfg, EXIT_SUCCESS};
 }
 
+} // anon namespace
 
-int main(int /* argc */, char* argv[]) {
+
+int main(int argc, char* argv[])
+{
 	std::set_terminate(&onTerminate);
 
-	struct option options[CLIOptions::OPTIONS_COUNT];
-	parse_args(argv, options);
+	auto [cfg, res] = get_cfg(argc, argv);
+	if (not cfg) return res;
+	cert_and_key c_and_k;
+
+	(*cfg)->cert_filename = c_and_k.cert();
+	(*cfg)->key_filename = c_and_k.key();
 
 	Broadcaster bcaster;
-	SCTPServer srv { get_cfg_or_die(argv, options) };
+	SCTPServer srv {*cfg};
 
 	srv.cfg()->event_cback_f = [&](auto evt)
 	{
@@ -224,10 +192,13 @@ int main(int /* argc */, char* argv[]) {
 	};
 
 	bcaster(srv);
-	try {
+	try
+	{
 		srv.init();
 		srv();
-	} catch (const std::runtime_error& ex) {
+	}
+	catch (const std::runtime_error& ex)
+	{
  		spdlog::critical("{}", ex.what());
 		return EXIT_FAILURE;
 	}
@@ -235,7 +206,8 @@ int main(int /* argc */, char* argv[]) {
 	spdlog::info("{}", srv);
 	spdlog::info("Serving. Press ctrl-D to terminate.");
 
-	while (true) {
+	while (true)
+	{
 		std::string _s;
 		if (not getline(std::cin, _s)) break;
 	}
