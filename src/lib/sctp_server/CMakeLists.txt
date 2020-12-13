@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.17)
+cmake_minimum_required(VERSION 3.10)
 
 # this will just define vars like CMAKE_INSTALL_<dir>:
 # CMAKE_INSTALL_BINDIR, CMAKE_INSTALL_LIBDIR etc
