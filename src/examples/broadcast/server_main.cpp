@@ -18,7 +18,6 @@
 #include "helper.hpp"
 #include "broadcaster.h"
 
-namespace po = boost::program_options;
 
 namespace
 {
@@ -41,6 +40,8 @@ namespace
 
 std::tuple<std::optional<std::shared_ptr<SCTPServer::Config>>, int> get_cfg(int argc, char* argv[])
 {
+	namespace po = boost::program_options;
+
 	constexpr auto MAX_IP_PORT {std::numeric_limits<uint16_t>::max()};
 
 	auto cfg = std::make_shared<SCTPServer::Config>();
@@ -125,7 +126,7 @@ int main(int argc, char* argv[])
 	(*cfg)->key_filename = c_and_k.key();
 
 	Broadcaster bcaster;
-	SCTPServer srv {*cfg};
+	SCTPServer srv{*cfg};
 
 	srv.cfg()->event_cback_f = [&](auto evt)
 	{

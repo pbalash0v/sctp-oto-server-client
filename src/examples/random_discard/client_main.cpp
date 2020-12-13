@@ -17,10 +17,11 @@
 #include "sctp_client.h"
 #include "rand_data_gen.h"
 #include "traffic_stats.h"
+#include "helper.hpp"
 
 
-constexpr uint16_t MAX_IP_PORT = std::numeric_limits<uint16_t>::max();
-constexpr const char* DEFAULT_LOG_FILENAME = "client_log.txt";
+namespace
+{
 
 enum CLIOptions
 {
@@ -93,10 +94,13 @@ static void parse_args(char* argv[], struct option options[])
 	}		
 }
 
-static std::shared_ptr<SCTPClient::Config> get_cfg_or_die(char* argv[], struct option options[])
+static std::shared_ptr<sctp::Client::Config> get_cfg_or_die(char* argv[], struct option options[])
 {
+	constexpr uint16_t MAX_IP_PORT = std::numeric_limits<uint16_t>::max();
+	constexpr const char* DEFAULT_LOG_FILENAME = "client_log.txt";
+
 	/* Pepare Config object for SCTPClient */
-	auto cfg = std::make_shared<SCTPClient::Config>();
+	auto cfg = std::make_shared<sctp::Client::Config>();
 
 	if (options[CLIOptions::HELP].count) {
 		std::cout <<
@@ -116,7 +120,7 @@ static std::shared_ptr<SCTPClient::Config> get_cfg_or_die(char* argv[], struct o
 
 	/* version */
 	if (options[CLIOptions::VERSION_OPT].count) {
-		std::cout << VERSION << std::endl;  	
+		std::cout << "0.0.1a" << std::endl;
 		exit(EXIT_SUCCESS);
 	}
 
@@ -183,6 +187,8 @@ static std::shared_ptr<SCTPClient::Config> get_cfg_or_die(char* argv[], struct o
 	return cfg;
 }
 
+} //anon namespace
+
 
 int main(int /* argc */, char* argv[])
 {
@@ -191,11 +197,14 @@ int main(int /* argc */, char* argv[])
 	struct option options[CLIOptions::OPTIONS_COUNT];
 	parse_args(argv, options);
 
-
 	int pipefd[2];
 	std::atomic_bool running { false };
 	/* Client config */
-	SCTPClient client { get_cfg_or_die(argv, options) };
+	sctp::Client client{get_cfg_or_die(argv, options)};
+
+	cert_and_key c_and_k;
+	client.cfg()->cert_filename = c_and_k.cert();
+	client.cfg()->key_filename = c_and_k.key();
 
 	RandGen rand_gen;
 	TrafficStats ts;
@@ -203,22 +212,22 @@ int main(int /* argc */, char* argv[])
 	client.cfg()->debug_cback_f = [&](auto level, const auto& s)
 	{
 		switch (level) {
-		case sctp::TRACE:
+		case sctp::LogLevel::TRACE:
 			spdlog::trace("{}", s);
 			break;
-		case sctp::DEBUG:
+		case sctp::LogLevel::DEBUG:
 			spdlog::debug("{}", s);
     		break;
-		case sctp::INFO:
+		case sctp::LogLevel::INFO:
 			spdlog::info("{}", s);
     		break;
-		case sctp::WARNING:
+		case sctp::LogLevel::WARNING:
 			spdlog::warn("{}", s);
 			break;
-		case sctp::ERROR:
+		case sctp::LogLevel::ERROR:
 			spdlog::error("{}", s);
 			break;
-		case sctp::CRITICAL:
+		case sctp::LogLevel::CRITICAL:
 			spdlog::critical("{}", s);			
 			break;
 		default:
@@ -232,19 +241,19 @@ int main(int /* argc */, char* argv[])
 		std::string message;
 
 		switch (state) {
-		case SCTPClient::INITIALIZED:
+		case sctp::Client::INITIALIZED:
 			message += "Initialization done.";
 			break;			
-		case SCTPClient::SCTP_CONNECTING:
+		case sctp::Client::SCTP_CONNECTING:
 			message += "Connecting...";
 			break;
-		case SCTPClient::SCTP_CONNECTED:
+		case sctp::Client::SCTP_CONNECTED:
 			message += "Connected.";
 			break;
-		case SCTPClient::SSL_HANDSHAKING:
+		case sctp::Client::SSL_HANDSHAKING:
 			message += "Handshaking SSL...";
 			break;
-		case SCTPClient::SSL_CONNECTED:
+		case sctp::Client::SSL_CONNECTED:
 			message += "SSL established. Press ctrl-D to terminate, enter for stats.";
 			{
 				auto v = rand_gen();
@@ -253,10 +262,10 @@ int main(int /* argc */, char* argv[])
 				running = true;
 			}
 			break;
-		case SCTPClient::SSL_SHUTDOWN:
+		case sctp::Client::SSL_SHUTDOWN:
 			message += "SSL shutdown.";
 			break;				
-		case SCTPClient::PURGE:
+		case sctp::Client::PURGE:
 			message += "Terminating...";
 			close(pipefd[1]);
 		default:

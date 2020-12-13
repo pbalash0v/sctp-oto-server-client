@@ -13,21 +13,19 @@ find_package(Boost 1.65.0 REQUIRED system filesystem program_options)
 set(CMAKE_INSTALL_RPATH $ORIGIN $ORIGIN/../lib)
 
 # client
-configure_file(ex_bcast_version.h.in ex_bcast_version.h @ONLY)
-
-add_executable(ex_broadcast_client
+add_executable(ex_discard_client
 	client_main.cpp
-	tui/simple_tui.cpp
+	traffic_stats.cpp
+	rand_data_gen.cpp
 )
-set_target_properties(ex_broadcast_client PROPERTIES OUTPUT_NAME broadcast_client)
+set_target_properties(ex_discard_client PROPERTIES OUTPUT_NAME discard_client)
 
-target_include_directories(ex_broadcast_client PRIVATE
+target_include_directories(ex_discard_client PRIVATE
 	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/tui/include>	
 )
-target_include_directories(ex_broadcast_client PRIVATE "${CMAKE_CURRENT_BINARY_DIR}") # versioning
+target_include_directories(ex_discard_client PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
 
-target_link_libraries(ex_broadcast_client PRIVATE
+target_link_libraries(ex_discard_client PRIVATE
 	Threads::Threads
 	libspdlog
 	SCTP_OTO::sctp_common
@@ -37,18 +35,17 @@ target_link_libraries(ex_broadcast_client PRIVATE
 )
 
 # server
-add_executable(ex_broadcast_server
-	broadcaster.cpp
+add_executable(ex_discard_server
 	server_main.cpp
 )
-set_target_properties(ex_broadcast_server PROPERTIES OUTPUT_NAME broadcast_server)
+set_target_properties(ex_discard_server PROPERTIES OUTPUT_NAME discard_server)
 
-target_include_directories(ex_broadcast_server PRIVATE
+target_include_directories(ex_discard_server PRIVATE
 	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
 )
-target_include_directories(ex_broadcast_server PRIVATE "${CMAKE_CURRENT_BINARY_DIR}") # versioning
+target_include_directories(ex_discard_server PRIVATE "${CMAKE_CURRENT_BINARY_DIR}") # versioning
 
-target_link_libraries(ex_broadcast_server PRIVATE
+target_link_libraries(ex_discard_server PRIVATE
 	Threads::Threads
 	libspdlog
 	SCTP_OTO::sctp_common
