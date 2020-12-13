@@ -15,13 +15,6 @@
 #include "server_event.h"
 
 
-#ifdef TEST_BUILD
-#define MAYBE_VIRTUAL virtual
-#else
-#define MAYBE_VIRTUAL
-#endif
-
-
 constexpr uint16_t DEFAULT_UDP_ENCAPS_PORT {9899};
 constexpr uint16_t DEFAULT_SCTP_PORT {5001};
 
@@ -101,21 +94,8 @@ public:
 	friend class IClient;
 
 protected:
-	MAYBE_VIRTUAL std::shared_ptr<IClient> client_factory(struct socket*);
+	std::shared_ptr<IClient> client_factory(struct socket*);
 
-	/* 
-		MAYBE_VIRTUAL is a macro, which expands to virtual keyword on test builds.
-		Such function declarations used for unit testing as a "seam" point.
-		In real code scope-resolved to calls of usrsctp lib functions.
-	 */
-	MAYBE_VIRTUAL struct socket* usrsctp_socket(int domain, int type, int protocol,
-               int (*receive_cb)(struct socket* sock, union sctp_sockstore addr, void* data,
-                                 size_t datalen, struct sctp_rcvinfo, int flags, void* ulp_info),
-               int (*send_cb)(struct socket*, uint32_t, void* ulp_info),
-               uint32_t, void*);
-	MAYBE_VIRTUAL int usrsctp_bind(struct socket*, struct sockaddr*, socklen_t);
-	MAYBE_VIRTUAL int usrsctp_listen(struct socket*, int);
-	MAYBE_VIRTUAL struct socket* usrsctp_accept(struct socket*, struct sockaddr*, socklen_t*);
 
 private:
 	std::shared_ptr<SCTPServer::Config> cfg_;

@@ -391,7 +391,8 @@ void SCTPServer::handle_server_upcall(struct socket* serv_sock, void* arg, int)
 
 	int events = usrsctp_get_events(serv_sock);
 
-	if (events & SCTP_EVENT_READ) {
+	if (events & SCTP_EVENT_READ)
+	{
 		struct sockaddr_in remote_addr;
 		socklen_t addr_len = sizeof(struct sockaddr_in);
 		struct socket* conn_sock;
@@ -399,7 +400,8 @@ void SCTPServer::handle_server_upcall(struct socket* serv_sock, void* arg, int)
 		TRACE("Accepting new connection.");
 		
 		memset(&remote_addr, 0, sizeof(struct sockaddr_in));
-		if ((conn_sock = s->usrsctp_accept(serv_sock, (struct sockaddr *) &remote_addr, &addr_len)) == NULL) {
+		if ((conn_sock = ::usrsctp_accept(serv_sock, (struct sockaddr *) &remote_addr, &addr_len)) == NULL)
+		{
 			ERROR(strerror(errno));
 			throw std::runtime_error(strerror(errno));
 		}
@@ -683,26 +685,26 @@ void SCTPServer::sctp_msg_handler_loop()
 
 
 /* testing "seams". C lib function wrappers */
-inline struct socket* SCTPServer::usrsctp_socket(int domain, int type, int protocol,
-               int (*receive_cb)(struct socket *sock, union sctp_sockstore addr, void *data,
-                                 size_t datalen, struct sctp_rcvinfo, int flags, void *ulp_info),
-               int (*send_cb)(struct socket *sock, uint32_t sb_free, void *ulp_info),
-               uint32_t sb_threshold, void *ulp_info)
-{
-	return ::usrsctp_socket(domain, type, protocol, receive_cb, send_cb, sb_threshold, ulp_info);
-};
-inline int SCTPServer::usrsctp_bind(struct socket* so, struct sockaddr* name, socklen_t namelen)
-{
-	return ::usrsctp_bind(so, name, namelen);
-};
-inline int SCTPServer::usrsctp_listen(struct socket* so, int backlog)
-{
-	return ::usrsctp_listen(so, backlog);
-};
-inline struct socket* SCTPServer::usrsctp_accept(struct socket* so, struct sockaddr* aname, socklen_t* anamelen)
-{
-	return ::usrsctp_accept(so, aname, anamelen);
-};
+// inline struct socket* SCTPServer::usrsctp_socket(int domain, int type, int protocol,
+//                int (*receive_cb)(struct socket *sock, union sctp_sockstore addr, void *data,
+//                                  size_t datalen, struct sctp_rcvinfo, int flags, void *ulp_info),
+//                int (*send_cb)(struct socket *sock, uint32_t sb_free, void *ulp_info),
+//                uint32_t sb_threshold, void *ulp_info)
+// {
+// 	return ::usrsctp_socket(domain, type, protocol, receive_cb, send_cb, sb_threshold, ulp_info);
+// };
+// inline int SCTPServer::usrsctp_bind(struct socket* so, struct sockaddr* name, socklen_t namelen)
+// {
+// 	return ::usrsctp_bind(so, name, namelen);
+// };
+// inline int SCTPServer::usrsctp_listen(struct socket* so, int backlog)
+// {
+// 	return ::usrsctp_listen(so, backlog);
+// };
+// inline struct socket* SCTPServer::usrsctp_accept(struct socket* so, struct sockaddr* aname, socklen_t* anamelen)
+// {
+// 	return ::usrsctp_accept(so, aname, anamelen);
+// };
 
 
 
