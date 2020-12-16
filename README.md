@@ -20,31 +20,23 @@ cmake --build .
 Broadcast server will retranslate any message received to all connected clients, adhering to stop-and-wait flow control policy.
 To run broadcast server (from **build** directory, in separate shell or tmux, terminate server with ctrl-d):
 ```console
-cd src/examples/broadcast
-./server -v
+out/bin/broadcast_server -v
 ```
-
 To run client(s) (from **build** directory, in separate shell or tmux, terminate client with ctrl-d):
 ```console
-cd src/examples/broadcast
-./client
+out/bin/broadcast_client
 ```
 
 ---  
 Discard client will send random messages ranging from 1 to 65535 bytes, adhering to stop-and-wait flow control policy.
 To run discard server (from **build** directory, in separate shell or tmux, terminate server with ctrl-d):
 ```console
-cd src/examples/random_discard
-./server -v
+out/bin/discard_server -v
 ```
-
 To run discard client(s) (from **build** directory, in separate shell or tmux, terminate client with ctrl-d):
 ```console
-cd src/examples/random_discard
-./client
+out/bin/discard_client
 ```
----
-If there is an OpenCV package installed then an mjpeg_streaming echo client is also built.
 
 ---
 Some rudimentary tests ( from **build** directory):
