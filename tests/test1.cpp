@@ -13,14 +13,13 @@ int main(int, char const**)
 {
 	cert_and_key c_and_k;
 
-	SCTPServer s;
-
-	s.cfg()->cert_filename = c_and_k.cert().c_str();
-	s.cfg()->key_filename = c_and_k.key().c_str();
+	auto cfg = std::make_shared<SCTPServer::Config>();
+	cfg->cert_filename = c_and_k.cert().c_str();
+	cfg->key_filename = c_and_k.key().c_str();
 
 	try
 	{
-		s.init();
+		SCTPServer s{cfg};
 		s();
 	}
 	catch (const std::runtime_error&)

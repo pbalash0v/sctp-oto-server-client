@@ -30,8 +30,8 @@ class SSL_h;
 class SCTPServer
 {
 public:
-	using SCTPServer_event_cback_t = std::function<void(std::unique_ptr<Event>)>;
-	using SCTPServer_debug_t = std::function<void(sctp::LogLevel, const std::string&)>;	
+	using event_cback_t = std::function<void(std::unique_ptr<Event>)>;
+	using debug_cback_t = std::function<void(sctp::LogLevel, const std::string&)>;	
 
 	struct Config
 	{
@@ -42,17 +42,18 @@ public:
 		std::string cert_filename;
 		std::string key_filename;
 		
-		SCTPServer_event_cback_t event_cback_f {nullptr};
-		SCTPServer_debug_t debug_cback_f {nullptr};
+		event_cback_t event_cback_f {nullptr};
+		debug_cback_t debug_cback_f {nullptr};
 
     	friend std::ostream& operator<<(std::ostream &out, const Config &c); 
 	};
 
-	SCTPServer();
-	SCTPServer(std::shared_ptr<SCTPServer::Config>);
+	explicit SCTPServer(std::shared_ptr<SCTPServer::Config>);
 	
 	SCTPServer(const SCTPServer&) = delete;
 	SCTPServer& operator=(const SCTPServer&) = delete;
+	SCTPServer(SCTPServer&&) = delete;
+	SCTPServer& operator=(SCTPServer&&) = delete;
 
 	virtual ~SCTPServer();
 
@@ -61,11 +62,7 @@ public:
 	*/
 	std::shared_ptr<SCTPServer::Config> cfg() { return cfg_; };
 
-	/*
-		Usrsctp lib, SSL etc initializations. (synchronous).
-		Calling is mandatory.
-	*/
-	void init();
+
 
  	/*
  		Actually starts server.
@@ -98,7 +95,8 @@ private:
 	std::shared_ptr<SCTPServer::Config> cfg_;
 
 	std::atomic_bool initialized_ {false};
-	static std::atomic_bool instance_exists_;
+	/* bad signleton-like implementation */
+	inline static std::atomic_bool instance_exists_  {false};
 
 	/* holds main SSL context etc */
 	std::unique_ptr<SSL_h> ssl_obj_;
@@ -110,17 +108,18 @@ private:
 	std::mutex clients_mutex_;
 	std::vector<std::shared_ptr<IClient>> clients_;
 
+private:	
+	/*
+		Usrsctp lib, SSL etc initializations. (synchronous).
+		Calling is mandatory.
+	*/
+	void init();
 	void sctp_msg_handler_loop();
-
 	void try_init_local_UDP();
-
 	static void handle_server_upcall(struct socket*, void* arg, int flgs);
 	static void handle_client_upcall(struct socket*, void* arg, int flgs);
-
 	std::shared_ptr<IClient> get_client(const struct socket*);
-
 	void cleanup();
-
 	void drop_client(std::shared_ptr<IClient>&);
 };
 

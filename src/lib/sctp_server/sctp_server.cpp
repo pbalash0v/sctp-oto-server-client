@@ -26,9 +26,6 @@
 #include "ssl_h.h"
 
 
-/* bad signleton-like implementation */
-std::atomic_bool SCTPServer::instance_exists_ {false};
-
 
 namespace
 {
@@ -57,16 +54,13 @@ inline std::string client_errno(const char* func, std::shared_ptr<IClient>& c)
 } //anon namespace
 
 
-SCTPServer::SCTPServer()
-	: SCTPServer(std::make_shared<SCTPServer::Config>())
-{}
-
 SCTPServer::SCTPServer(std::shared_ptr<SCTPServer::Config> ptr)
-	: cfg_(ptr)
-	, ssl_obj_ {std::make_unique<SSL_h>(SSL_h::Type::SERVER)}
+	: cfg_{ptr}
+	, ssl_obj_{std::make_unique<SSL_h>(SSL_h::Type::SERVER)}
 {
 	if (instance_exists_) throw std::logic_error("Singleton !"); // :(
 	instance_exists_ = true;
+	init();
 }
 
 std::shared_ptr<IClient> SCTPServer::client_factory(struct socket* s)
@@ -82,7 +76,12 @@ std::shared_ptr<IClient> SCTPServer::client_factory(struct socket* s)
 */
 SCTPServer::~SCTPServer()
 {
-	TRACE_func_entry(); BOOST_SCOPE_EXIT_ALL(&) { TRACE_func_left(); };
+	TRACE_func_entry();
+	BOOST_SCOPE_EXIT_ALL(&)
+	{
+		instance_exists_ = false;
+		TRACE_func_left();
+	};
 
 	cleanup();
 
@@ -101,7 +100,8 @@ SCTPServer::~SCTPServer()
 	}
 	TRACE("after first usrsctp_finish loop");
 
-	if (needs_force_close) {
+	if (needs_force_close)
+	{
 		TRACE("before force close of clients");
 		for (auto& c : clients_) {
 			try {
@@ -118,13 +118,12 @@ SCTPServer::~SCTPServer()
 	}
 
 	TRACE("About to join sctp msgs handling thread");
-	if (sctp_msg_handler_.joinable()) {
+	if (sctp_msg_handler_.joinable())
+	{
 		sctp_msgs_.enqueue(std::make_unique<SCTPMessage>());
 		sctp_msg_handler_.join();
 	}
 	TRACE("sctp msgs handling thread joined");
-
-	instance_exists_ = false;
 }
 
 /*

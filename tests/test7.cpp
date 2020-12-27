@@ -113,14 +113,20 @@ int main(int, char const**)
 
 		std::atomic_bool running { true };
 
-		SCTPServer server;
 
 		bool client1_done { false };
 		bool client2_done { false };
 
-		server.cfg()->cert_filename = c_and_k.cert().c_str();
-		server.cfg()->key_filename = c_and_k.key().c_str();
-		server.cfg()->event_cback_f = [&](const auto& evt)
+		auto cfg = std::make_shared<SCTPServer::Config>();
+		cfg->cert_filename = c_and_k.cert().c_str();
+		cfg->key_filename = c_and_k.key().c_str();
+		cfg->debug_cback_f = [&](auto, const auto& s)
+		{
+			std::string s_{s};
+			s_.erase(std::remove(s_.begin(), s_.end(), '\n'), s_.end());
+			//std::cout << "S:" << s_ << std::endl;
+		};
+		cfg->event_cback_f = [&](const auto& evt)
 		{
 			if (evt->type != Event::CLIENT_DATA) return;
 
@@ -138,31 +144,24 @@ int main(int, char const**)
 				
 	 		running = (client1_done and client2_done) ? false : true;
 		};
-		server.cfg()->debug_cback_f = [&](auto, const auto& s)
-		{
-			std::string s_ { s };
-			s_.erase(std::remove(s_.begin(), s_.end(), '\n'), s_.end());
-			//std::cout << "S:" << s_ << std::endl;
-		};
 
 		try
 		{
-			server.init();
+			SCTPServer server{cfg};
 			server();
+			/* signal server init to client */
+			close(fd[0]);
+			BOOST_ASSERT(write(fd[1], START_SIGNAL, strlen(START_SIGNAL)));
+			//std::cout << "signalled ready to client" << std::endl;
+
+			while (running)
+			{
+				std::this_thread::sleep_for(std::chrono::milliseconds(10));
+			}
 		}
 		catch (const std::runtime_error& exc)
 		{
 			return EXIT_FAILURE;
-		}
-
-		/* signal server init to client */
-		close(fd[0]);
-		BOOST_ASSERT(write(fd[1], START_SIGNAL, strlen(START_SIGNAL)));
-		//std::cout << "signalled ready to client" << std::endl;
-
-		while (running)
-		{
-			std::this_thread::sleep_for(std::chrono::milliseconds(10));
 		}
  	}
 

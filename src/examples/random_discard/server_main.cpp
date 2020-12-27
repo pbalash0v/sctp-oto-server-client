@@ -124,10 +124,7 @@ int main(int argc, char* argv[])
 
 	(*cfg)->cert_filename = c_and_k.cert();
 	(*cfg)->key_filename = c_and_k.key();
-
-	SCTPServer srv{*cfg};
-
-	srv.cfg()->event_cback_f = [&](auto evt)
+	(*cfg)->event_cback_f = [&](auto evt)
 	{
 		auto& c = evt->client;
 
@@ -143,8 +140,7 @@ int main(int argc, char* argv[])
 			break;
 		}
 	};
-
-	srv.cfg()->debug_cback_f = [&](auto level, const auto& s)
+	(*cfg)->debug_cback_f = [&](auto level, const auto& s)
 	{
 		switch (level) {
 		case sctp::LogLevel::TRACE:
@@ -173,8 +169,18 @@ int main(int argc, char* argv[])
 
 	try
 	{
-		srv.init();
+		SCTPServer srv{*cfg};
+		spdlog::info("{}", srv);
 		srv();
+		spdlog::info("Serving. Press ctrl-D to terminate.");
+
+		while (true)
+		{
+			std::string _s;
+			if (not getline(std::cin, _s)) break;
+		}
+
+		spdlog::info("Shutting down...");
 	}
 	catch (const std::runtime_error& ex)
 	{
@@ -182,15 +188,5 @@ int main(int argc, char* argv[])
 		return EXIT_FAILURE;
 	}
 
-	spdlog::info("{}", srv);
-	spdlog::info("Serving. Press ctrl-D to terminate.");
-
-	while (true)
-	{
-		std::string _s;
-		if (not getline(std::cin, _s)) break;
-	}
-
-	spdlog::info("Shutting down...");
 	return EXIT_SUCCESS;
 }

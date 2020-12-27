@@ -46,8 +46,8 @@ std::tuple<std::optional<std::shared_ptr<SCTPServer::Config>>, int> get_cfg(int 
 
 	auto cfg = std::make_shared<SCTPServer::Config>();
 
-	uint16_t sctp_port {};
-	uint16_t udp_port {};
+	uint16_t sctp_port {DEFAULT_SCTP_PORT};
+	uint16_t udp_port {DEFAULT_UDP_ENCAPS_PORT};
 
 	po::options_description desc {"Allowed options"};
 	desc.add_options()
@@ -84,20 +84,24 @@ std::tuple<std::optional<std::shared_ptr<SCTPServer::Config>>, int> get_cfg(int 
 	{
 		spdlog::default_logger_raw()->set_level(spdlog::level::trace);
 	}
- 	if (sctp_port > MAX_IP_PORT or 0 == sctp_port)
+	if (vm.count("sctp-port"))
 	{
-		std::cerr << "Invalid SCTP transport port provided" << '\n';
-		return {std::nullopt, EXIT_FAILURE};
+	 	if (sctp_port > MAX_IP_PORT or 0 == sctp_port)
+		{
+			std::cerr << "Invalid SCTP transport port provided" << '\n';
+			return {std::nullopt, EXIT_FAILURE};
+		}
+		cfg->sctp_port = sctp_port;
 	}
-	cfg->sctp_port = sctp_port;
-
- 	if (udp_port > MAX_IP_PORT or 0 == sctp_port)
+	if (vm.count("udp-port"))
 	{
-		std::cerr << "Invalid UDP transport port provided" << '\n';
-		return {std::nullopt, EXIT_FAILURE};
+	 	if (udp_port > MAX_IP_PORT or 0 == sctp_port)
+		{
+			std::cerr << "Invalid UDP transport port provided" << '\n';
+			return {std::nullopt, EXIT_FAILURE};
+		}
+		cfg->udp_encaps_port = udp_port;
 	}
-	cfg->udp_encaps_port = udp_port;
-
 
 /*	if (!boost::filesystem::exists(cfg->cert_filename))
 	{
@@ -193,12 +197,20 @@ int main(int argc, char* argv[])
 		}
 	};
 
-	SCTPServer srv{*cfg};
-	bcaster(srv);
 	try
 	{
-		srv.init();
+		SCTPServer srv{*cfg};
+		spdlog::info("{}", srv);
+		bcaster(srv);
+		spdlog::info("Serving. Press ctrl-D to terminate.");
 		srv();
+
+		while (true)
+		{
+			std::string _s;
+			if (not getline(std::cin, _s)) break;
+		}
+		spdlog::info("Shutting down...");
 	}
 	catch (const std::runtime_error& ex)
 	{
@@ -206,15 +218,6 @@ int main(int argc, char* argv[])
 		return EXIT_FAILURE;
 	}
 
-	spdlog::info("{}", srv);
-	spdlog::info("Serving. Press ctrl-D to terminate.");
 
-	while (true)
-	{
-		std::string _s;
-		if (not getline(std::cin, _s)) break;
-	}
-
-	spdlog::info("Shutting down...");
 	return EXIT_SUCCESS;
 }
