@@ -18,12 +18,12 @@ public:
 	SSL_h(Type);
 
 	SSL_h(const SSL_h& oth) = delete;
-
 	SSL_h& operator=(const SSL_h& oth) = delete;
+	SSL_h(SSL_h&& oth) = default;
+	SSL_h& operator=(SSL_h&& oth) = default;
+	~SSL_h();
 
 	void init(const std::string& cert_file, const std::string& key_file);
-
-	virtual ~SSL_h();
 
 	SSL_CTX* ctx_ {nullptr};
 
