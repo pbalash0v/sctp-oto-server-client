@@ -120,7 +120,8 @@ SCTPServer::~SCTPServer()
 	TRACE("About to join sctp msgs handling thread");
 	if (sctp_msg_handler_.joinable())
 	{
-		sctp_msgs_.enqueue(std::make_unique<SCTPMessage>());
+		//sctp_msgs_.enqueue(std::make_unique<SCTPMessage>());
+		sctp_msgs_.enqueue(std::unique_ptr<SCTPMessage>{});
 		sctp_msg_handler_.join();
 	}
 	TRACE("sctp msgs handling thread joined");
@@ -358,12 +359,12 @@ void SCTPServer::stop()
 }
 
 
-void SCTPServer::send(std::shared_ptr<IClient>& c, const void* data, size_t len)
+void SCTPServer::send(std::shared_ptr<IClient> c, const void* data, size_t len)
 {
 	c->send(data, len);
 }
 
-void SCTPServer::drop_client(std::shared_ptr<IClient>& c)
+void SCTPServer::drop_client(std::shared_ptr<IClient> c)
 {
 	TRACE_func_entry(); BOOST_SCOPE_EXIT_ALL(&) { TRACE_func_left(); };
 
@@ -402,7 +403,7 @@ void SCTPServer::handle_server_upcall(struct socket* serv_sock, void* arg, int)
 		if ((conn_sock = ::usrsctp_accept(serv_sock, (struct sockaddr *) &remote_addr, &addr_len)) == NULL)
 		{
 			ERROR(strerror(errno));
-			throw std::runtime_error(strerror(errno));
+			return;
 		}
 
 		auto new_client = s->client_factory(conn_sock);
@@ -436,7 +437,7 @@ void SCTPServer::handle_server_upcall(struct socket* serv_sock, void* arg, int)
 
 std::shared_ptr<IClient> SCTPServer::get_client(const struct socket* sock)
 {
-	std::lock_guard<std::mutex> _ { clients_mutex_ };
+	std::lock_guard<std::mutex> _ {clients_mutex_};
 
 	auto it = std::find_if(clients_.cbegin(), clients_.cend(),
 		[&] (const auto& s_ptr) { return s_ptr->socket() == sock; });
@@ -471,9 +472,12 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 	int events = usrsctp_get_events(upcall_sock);
 
 	std::shared_ptr<IClient> client;
-	try {
+	try
+	{
 		client = s->get_client(upcall_sock);
-	} catch (const std::runtime_error& exc) {
+	}
+	catch (const std::runtime_error& exc)
+	{
 		ERROR(exc.what());
 		return;
 	}
@@ -498,17 +502,20 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 		the available event types.
 		No idea what does it mean and how to react properly.
 	*/
-	if (events & SCTP_EVENT_ERROR) {
+	if (events & SCTP_EVENT_ERROR)
+	{
 		ERROR("SCTP_EVENT_ERROR: " + std::string(strerror(errno))
 				 + " " + client->to_string());
 	}
 
-	if (events & SCTP_EVENT_WRITE) {
+	if (events & SCTP_EVENT_WRITE)
+	{
 		//TRACE(std::string("SCTP_EVENT_WRITE for: ") + client->to_string());
 	}
 
 	/* client sent data */
-	if (events & SCTP_EVENT_READ) {
+	if (events & SCTP_EVENT_READ)
+	{
 		TRACE(std::string("SCTP_EVENT_READ for: ") + client->to_string());
 
 		struct sctp_recvv_rn rn;
@@ -580,19 +587,24 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 			This is the last point we deal with client.
 			So we drop client here.
 		 */
-		if (n == 0) {
+		if (n == 0)
+		{
 			DEBUG(client->to_string() + std::string(" disconnected."));
 			client->close();
 			s->drop_client(client);
 		}
 
 		// some socket error
-		if (n < 0) {
+		if (n < 0)
+		{
 			if ((errno == EAGAIN) or 
 				(errno == EWOULDBLOCK) or 
-				(errno == EINTR)) {
+				(errno == EINTR)) 
+			{
 				//TRACE(strerror(errno));
-			} else {
+			}
+			else
+			{
 				ERROR(client_errno("usrsctp_recvv: ", client));
 			}
 		}		
@@ -611,8 +623,8 @@ void SCTPServer::sctp_msg_handler_loop()
 	{
 		auto msg = sctp_msgs_.dequeue();
 
-		/* end thread on zero length message */
-		if (msg->size == 0) break;
+		/* end thread on nullptr message */
+		if (not msg) break;
 
 		std::unique_ptr<Event> evt {nullptr};
 		try
@@ -629,20 +641,28 @@ void SCTPServer::sctp_msg_handler_loop()
 
 		if (evt->type == Event::CLIENT_STATE)
 		{
-			try {
+			try
+			{
 				msg->client->state(evt->client_state);	
-			} catch (std::runtime_error& exc) {
+			}
+			catch (std::runtime_error& exc)
+			{
 				ERROR(exc.what());
 				continue;
 			}	
 				
-			if (cfg_->event_cback_f) {
-				try {
+			if (cfg_->event_cback_f)
+			{
+				try
+				{
 					cfg_->event_cback_f(std::move(evt));
-				} catch (...) {
+				} 
+				catch (...)
+				{
 					CRITICAL("Exception in user's event_cback function");
 				}
 			}
+
 			continue;
 		}
 
@@ -659,6 +679,7 @@ void SCTPServer::sctp_msg_handler_loop()
 					CRITICAL("Exception in user's event_cback function");
 				}
 			}
+
 			continue;
 		}
 
@@ -676,35 +697,11 @@ void SCTPServer::sctp_msg_handler_loop()
 			{
 				CRITICAL("Exception in user's event_cback function");
 			}
+
 			continue;
 		}
 	}
 }
-
-
-
-/* testing "seams". C lib function wrappers */
-// inline struct socket* SCTPServer::usrsctp_socket(int domain, int type, int protocol,
-//                int (*receive_cb)(struct socket *sock, union sctp_sockstore addr, void *data,
-//                                  size_t datalen, struct sctp_rcvinfo, int flags, void *ulp_info),
-//                int (*send_cb)(struct socket *sock, uint32_t sb_free, void *ulp_info),
-//                uint32_t sb_threshold, void *ulp_info)
-// {
-// 	return ::usrsctp_socket(domain, type, protocol, receive_cb, send_cb, sb_threshold, ulp_info);
-// };
-// inline int SCTPServer::usrsctp_bind(struct socket* so, struct sockaddr* name, socklen_t namelen)
-// {
-// 	return ::usrsctp_bind(so, name, namelen);
-// };
-// inline int SCTPServer::usrsctp_listen(struct socket* so, int backlog)
-// {
-// 	return ::usrsctp_listen(so, backlog);
-// };
-// inline struct socket* SCTPServer::usrsctp_accept(struct socket* so, struct sockaddr* aname, socklen_t* anamelen)
-// {
-// 	return ::usrsctp_accept(so, aname, anamelen);
-// };
-
 
 
 std::ostream& operator<<(std::ostream& out, const SCTPServer::Config& c)

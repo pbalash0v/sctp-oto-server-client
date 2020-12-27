@@ -62,8 +62,6 @@ public:
 	*/
 	std::shared_ptr<SCTPServer::Config> cfg() { return cfg_; };
 
-
-
  	/*
  		Actually starts server.
  		Accepts on server socket in separate thread. (asynchronous).
@@ -73,7 +71,7 @@ public:
 	/*
 		Sends message to client.
 	*/
-	void send(std::shared_ptr<IClient>&, const void*, size_t);
+	void send(std::shared_ptr<IClient>, const void*, size_t);
 
 	/* 
 		might not be called explicitly
@@ -120,7 +118,7 @@ private:
 	static void handle_client_upcall(struct socket*, void* arg, int flgs);
 	std::shared_ptr<IClient> get_client(const struct socket*);
 	void cleanup();
-	void drop_client(std::shared_ptr<IClient>&);
+	void drop_client(std::shared_ptr<IClient>);
 };
 
 
