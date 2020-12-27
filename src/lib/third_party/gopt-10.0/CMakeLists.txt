@@ -9,7 +9,6 @@ add_library(gopt OBJECT
 	gopt-errors.c
 )
 add_library(SCTP_OTO::gopt ALIAS gopt)
-set_target_properties(gopt PROPERTIES OUTPUT_NAME gopt)
 set_target_properties(gopt PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 

@@ -11,7 +11,6 @@ find_package(Boost 1.65.0 REQUIRED system filesystem program_options)
 # Define targets
 #################################
 foreach(TEST_NAME test1 test2 test4 test6 test7)
-
 	add_executable(${TEST_NAME}
 		${TEST_NAME}.cpp
 	)
@@ -32,13 +31,12 @@ foreach(TEST_NAME test1 test2 test4 test6 test7)
 		Boost::filesystem
 		Boost::program_options
 	)
-#	target_compile_definitions(${TEST_NAME} PRIVATE TEST_BUILD)
 
 	add_test(NAME ${TEST_NAME} COMMAND $<TARGET_FILE:${TEST_NAME}>)
 
 	##########################################
 	# Define test ordering, dependencies and properties
 	##########################################
-	set_tests_properties(test1 PROPERTIES TIMEOUT 1)
+	set_tests_properties(${TEST_NAME} PROPERTIES TIMEOUT 2)
 endforeach()
 

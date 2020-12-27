@@ -17,14 +17,13 @@ add_library(sctp_common OBJECT
 	ssl_h.cpp
 )
 add_library(SCTP_OTO::sctp_common ALIAS sctp_common)
-set_target_properties(sctp_common PROPERTIES OUTPUT_NAME sctp_common)
-set_target_properties(sctp_common PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 # Properties
 set_target_properties(sctp_common PROPERTIES
 	CXX_STANDARD 17
 	CXX_STANDARD_REQUIRED ON
 	CXX_EXTENSIONS OFF
+	POSITION_INDEPENDENT_CODE ON
 )
 
 
