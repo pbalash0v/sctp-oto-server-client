@@ -20,9 +20,6 @@ constexpr uint16_t DEFAULT_SCTP_PORT {5001};
 
 constexpr auto DEFAULT_SCTP_MESSAGE_SIZE_BYTES {(1 << 16)};
 
-constexpr auto DEFAULT_SERVER_CERT_FILENAME {"server-cert.pem"};
-constexpr auto DEFAULT_SERVER_KEY_FILENAME {"server-key.pem"};
-
 namespace sctp
 {
 	enum class LogLevel;
@@ -42,8 +39,8 @@ public:
 		uint16_t sctp_port {DEFAULT_SCTP_PORT};
 		size_t message_size {DEFAULT_SCTP_MESSAGE_SIZE_BYTES};
 
-		std::string cert_filename {DEFAULT_SERVER_CERT_FILENAME};
-		std::string key_filename {DEFAULT_SERVER_KEY_FILENAME};
+		std::string cert_filename;
+		std::string key_filename;
 		
 		SCTPServer_event_cback_t event_cback_f {nullptr};
 		SCTPServer_debug_t debug_cback_f {nullptr};

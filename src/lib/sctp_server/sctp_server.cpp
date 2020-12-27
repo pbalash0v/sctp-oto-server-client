@@ -27,7 +27,7 @@
 
 
 /* bad signleton-like implementation */
-std::atomic_bool SCTPServer::instance_exists_ { false };
+std::atomic_bool SCTPServer::instance_exists_ {false};
 
 
 namespace
