@@ -80,7 +80,10 @@ std::tuple<std::optional<std::shared_ptr<SCTPServer::Config>>, int> get_cfg(int 
 		std::cout << "Version 0.01a" << std::endl;  	
 		return {std::nullopt, EXIT_SUCCESS};
 	}
-
+	if (vm.count("verbose"))
+	{
+		spdlog::default_logger_raw()->set_level(spdlog::level::trace);
+	}
  	if (sctp_port > MAX_IP_PORT or 0 == sctp_port)
 	{
 		std::cerr << "Invalid SCTP transport port provided" << '\n';
@@ -122,13 +125,11 @@ int main(int argc, char* argv[])
 	if (not cfg) return res;
 	cert_and_key c_and_k;
 
+	Broadcaster bcaster;
+
 	(*cfg)->cert_filename = c_and_k.cert();
 	(*cfg)->key_filename = c_and_k.key();
-
-	Broadcaster bcaster;
-	SCTPServer srv{*cfg};
-
-	srv.cfg()->event_cback_f = [&](auto evt)
+	(*cfg)->event_cback_f = [&](auto evt)
 	{
 		auto& c = evt->client;
 
@@ -164,10 +165,10 @@ int main(int argc, char* argv[])
 			break;
 		}
 	};
-
-	srv.cfg()->debug_cback_f = [&](auto level, const auto& s)
+	(*cfg)->debug_cback_f = [&](auto level, const auto& s)
 	{
-		switch (level) {
+		switch (level)
+		{
 		case sctp::LogLevel::TRACE:
 			spdlog::trace("{}", s);
 			break;
@@ -192,6 +193,7 @@ int main(int argc, char* argv[])
 		}
 	};
 
+	SCTPServer srv{*cfg};
 	bcaster(srv);
 	try
 	{

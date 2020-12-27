@@ -78,7 +78,10 @@ std::tuple<std::optional<std::shared_ptr<SCTPServer::Config>>, int> get_cfg(int 
 		std::cout << "Version 0.01a" << std::endl;  	
 		return {std::nullopt, EXIT_SUCCESS};
 	}
-
+	if (vm.count("verbose"))
+	{
+		spdlog::default_logger_raw()->set_level(spdlog::level::trace);
+	}
 	if (sctp_port > MAX_IP_PORT or 0 == sctp_port)
 	{
 		std::cerr << "Invalid SCTP transport port provided" << '\n';
