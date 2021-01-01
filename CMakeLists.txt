@@ -8,7 +8,6 @@ project(sctp_oto
 # cmake-gui configurable options
 option(SCTP_OTO_BUILD_EXAMPLES "Build examples" ON)
 option(SCTP_OTO_BUILD_TESTS "Build tests" OFF)
-option(SCTP_OTO_BUILD_SH_LIBS "Build shared libs" ON)
 
 # append local cmake dir to include path for cmake modules
 list(INSERT CMAKE_MODULE_PATH 0 "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
@@ -22,11 +21,6 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
 	# Be specific by assuming default build type is "debug" if no build type was explicitly set
 	if(CMAKE_BUILD_TYPE STREQUAL "")
 		set(CMAKE_BUILD_TYPE "Debug")
-	endif()
-
-	# handle externally set BUILD_SHARED_LIBS
-	if(NOT DEFINED BUILD_SHARED_LIBS AND SCTP_OTO_BUILD_SH_LIBS)
-		set(BUILD_SHARED_LIBS ON)
 	endif()
 
 	# Set build tree output directories for convenience
