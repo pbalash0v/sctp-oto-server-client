@@ -12,11 +12,11 @@
 #include "spdlog/spdlog.h"
 #include "spdlog/fmt/ostr.h"
 
-#include "sctp_server.h"
-#include "log_level.h"
+#include "sctp_server.hpp"
+#include "log_level.hpp"
 #include "sync_queue.hpp"
 #include "helper.hpp"
-#include "broadcaster.h"
+#include "broadcaster.hpp"
 
 
 namespace

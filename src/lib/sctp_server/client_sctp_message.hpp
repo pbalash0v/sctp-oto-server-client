@@ -3,7 +3,7 @@
 #include <arpa/inet.h>
 #include <usrsctp.h>
 
-#include "iclient.h"
+#include "iclient.hpp"
 
 
 namespace sctp

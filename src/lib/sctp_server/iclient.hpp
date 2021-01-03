@@ -1,4 +1,5 @@
-#pragma once
+#ifndef __iclient_hpp__
+#define __iclient_hpp__
 
 #include <vector>
 #include <memory>
@@ -52,4 +53,4 @@ public:
 	friend std::ostream& operator<<(std::ostream &out, const IClient::State s);
 };
 
-
+#endif // __iclient_hpp__

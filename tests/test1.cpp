@@ -5,7 +5,7 @@
 
 #include <boost/assert.hpp>
 
-#include "sctp_server.h"
+#include "sctp_server.hpp"
 #include "helper.hpp"
 
 

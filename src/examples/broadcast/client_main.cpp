@@ -17,7 +17,7 @@
 #endif
 #include "simple_tui.h"
 
-#include "sctp_client.h"
+#include "sctp_client.hpp"
 
 constexpr uint16_t MAX_IP_PORT = std::numeric_limits<uint16_t>::max();
 constexpr const char* DEFAULT_LOG_FILENAME = "client_log.txt";

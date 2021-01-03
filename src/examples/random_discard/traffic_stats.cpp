@@ -1,7 +1,7 @@
 #include <string>
 #include <iomanip>
 
-#include "traffic_stats.h"
+#include "traffic_stats.hpp"
 
 void TrafficStats::update(size_t sent) noexcept
 {

@@ -1,7 +1,7 @@
 #include <memory>
 #include <cstring>
 
-#include "client_sctp_message.h"
+#include "client_sctp_message.hpp"
 
 namespace sctp
 {

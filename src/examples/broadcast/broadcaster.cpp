@@ -1,8 +1,8 @@
 #include "spdlog/spdlog.h"
 #include "spdlog/fmt/ostr.h"
 
-#include "broadcaster.h"
-#include "sctp_server.h"
+#include "broadcaster.hpp"
+#include "sctp_server.hpp"
 
 Broadcaster::~Broadcaster()
 {

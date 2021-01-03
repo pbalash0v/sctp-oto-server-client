@@ -7,7 +7,7 @@
 #include <iostream>
 #include <exception>
 
-#include "sctp_client.h"
+#include "sctp_client.hpp"
 #include "helper.hpp"
 
 

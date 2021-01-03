@@ -13,8 +13,8 @@
 
 #include <boost/assert.hpp>
 
-#include "sctp_server.h"
-#include "sctp_client.h"
+#include "sctp_server.hpp"
+#include "sctp_client.hpp"
 #include "helper.hpp"
 
 

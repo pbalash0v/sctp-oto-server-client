@@ -14,9 +14,9 @@
 #include "spdlog/sinks/basic_file_sink.h"
 #include "gopt.h"
 
-#include "sctp_client.h"
-#include "rand_data_gen.h"
-#include "traffic_stats.h"
+#include "sctp_client.hpp"
+#include "rand_data_gen.hpp"
+#include "traffic_stats.hpp"
 #include "helper.hpp"
 
 

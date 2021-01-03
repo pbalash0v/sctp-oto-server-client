@@ -10,13 +10,13 @@
 
 #include "usrsctp.h"
 
-#include "client.h"
-#include "client_sctp_message.h"
+#include "client.hpp"
+#include "client_sctp_message.hpp"
 
-#include "sctp_server.h"
-#include "server_event.h"
-#include "logging.h"
-#include "log_level.h"
+#include "sctp_server.hpp"
+#include "server_event.hpp"
+#include "logging.hpp"
+#include "log_level.hpp"
 #include "ssl.hpp"
 
 

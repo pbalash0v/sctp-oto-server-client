@@ -1,5 +1,6 @@
-#include "server_event.h"
-#include "client_sctp_message.h"
+#include "server_event.hpp"
+#include "client_sctp_message.hpp"
+
 
 Event::Event(Event::Type t, std::shared_ptr<IClient> clnt)
 	: type(t), client(clnt) {};

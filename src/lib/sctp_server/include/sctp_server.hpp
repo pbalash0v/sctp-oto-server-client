@@ -1,5 +1,5 @@
-#ifndef __sctp_server_h__
-#define __sctp_server_h__
+#ifndef __sctp_server_hpp__
+#define __sctp_server_hpp__
 
 #include <vector>
 #include <string>
@@ -10,8 +10,9 @@
 #include <atomic>
 
 #include <sys/socket.h> //socklen_t
-#include <iclient.h> //socklen_t
-#include <server_event.h> //socklen_t
+
+#include <iclient.hpp>
+#include <server_event.hpp>
 
 
 class Client;

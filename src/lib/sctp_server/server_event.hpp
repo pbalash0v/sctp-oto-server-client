@@ -2,8 +2,8 @@
 
 #include <memory>
 
-#include "iclient.h"
-#include "client.h"
+#include "iclient.hpp"
+#include "client.hpp"
 
 
 namespace sctp

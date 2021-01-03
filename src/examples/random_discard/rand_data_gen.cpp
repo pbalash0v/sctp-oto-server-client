@@ -7,7 +7,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include "rand_data_gen.h"
+#include "rand_data_gen.hpp"
 
 RandGen::RandGen()
 {
