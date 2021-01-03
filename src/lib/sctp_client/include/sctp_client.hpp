@@ -99,10 +99,6 @@ public:
 	*/
 	std::shared_ptr<Client::Config> cfg() { return cfg_; };
 
-	/* 
-		Calling is mandatory. (sync)
-	*/
-	void init();
 
 	/* 
 		Starts client. Doesn't block.
@@ -118,7 +114,6 @@ public:
 	std::string to_string() const;
 
 	friend std::ostream& operator<<(std::ostream&, const sctp::Client&);
-
 
 private:
 	std::shared_ptr<Client::Config> cfg_;
@@ -145,16 +140,19 @@ private:
 	std::vector<char> encrypted_msg_buff_;
 
 	std::thread udp_recv_thr_;
-	void udp_recv_loop();
-
 	std::thread udp_data_thr_;
-	void handle_raw_udp_data_loop();
+
+private:
+	void init();
 
 	void init_local_UDP();
 	void init_remote_UDP();
-	void init_usrsctp_lib();		
-	void init_SCTP();	
-	
+	void init_usrsctp_lib();
+	void init_SCTP();
+
+	void udp_recv_loop();
+	void handle_raw_udp_data_loop();
+
 	ssize_t send_raw(const void*, size_t);
 
 	static int conn_output(void*, void*, size_t, uint8_t, uint8_t);

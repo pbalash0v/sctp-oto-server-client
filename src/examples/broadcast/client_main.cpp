@@ -335,7 +335,6 @@ int main(int /* argc */, char* argv[])
 
 	try
 	{
-		client.init();
 		tui->put_log(ITUI::LogLevel::INFO, client.to_string());
 		client(); /* this is async, starts separate thread */
 	}

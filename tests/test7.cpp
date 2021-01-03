@@ -92,12 +92,9 @@ int main(int, char const**)
 			std::cout << client2 << ": " + s_ << std::endl;
 		};
 
-		client1.init();
-		client2.init();
-
 		/* wait for server init */
-	   close(fd[1]);
-	   char buf[length(START_SIGNAL)];
+		close(fd[1]);
+		char buf[length(START_SIGNAL)];
 		BOOST_ASSERT(read(fd[0], buf, strlen(START_SIGNAL)) > 0);
 
 		client1();

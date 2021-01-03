@@ -285,11 +285,13 @@ int main(int /* argc */, char* argv[])
 	};
 
 
-	try {
-		client.init();
+	try
+	{
 		spdlog::info("{}", client);
 		client(); /* this is async, starts separate thread */
-	} catch (const std::runtime_error& exc) {
+	}
+	catch (const std::runtime_error& exc)
+	{
 		spdlog::error("{}", std::string(exc.what()));
 		return EXIT_FAILURE;
 	}

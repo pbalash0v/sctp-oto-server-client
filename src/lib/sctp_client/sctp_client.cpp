@@ -92,6 +92,8 @@ Client::Client(std::shared_ptr<Client::Config> p)
 	decrypted_msg_buff_.reserve(cfg_->message_size*2);
 	encrypted_msg_buff_.reserve(cfg_->message_size*2);
 	Client::number_of_instances_++;
+
+	init();
 };
 
 Client::~Client()

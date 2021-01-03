@@ -29,7 +29,6 @@ int main(int, const char**)
 
 	try
 	{
-		client.init();
 		client();
 	}
 	catch (const std::runtime_error&)

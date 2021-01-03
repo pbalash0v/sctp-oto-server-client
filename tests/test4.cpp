@@ -77,8 +77,6 @@ int main(int, char const**)
 			std::cout << s_ << std::endl;
 		};
 
-		client.init();
-
 		/* wait for server init */
 		close(fd[1]);
 		char buf[length(START_SIGNAL)];
