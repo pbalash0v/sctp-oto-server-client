@@ -1,3 +1,5 @@
+#undef NDEBUG
+
 #include <string>
 #include <atomic>
 #include <thread>
