@@ -20,9 +20,6 @@ constexpr const char* DEFAULT_SERVER_ADDRESS = "127.0.0.1";
 constexpr uint16_t DEFAULT_SERVER_UDP_ENCAPS_PORT = 9899;
 constexpr uint16_t DEFAULT_SERVER_SCTP_PORT = 5001;
 
-constexpr const char* DEFAULT_CLIENT_CERT_FILENAME = "client-cert.pem";
-constexpr const char* DEFAULT_CLIENT_KEY_FILENAME = "client-key.pem";
-
 
 template <typename T>
 class SyncQueue;
@@ -44,7 +41,7 @@ enum class LogLevel
 };
 
 
-class Client
+class Client final
 {
 public:
 	enum class State
@@ -79,8 +76,8 @@ public:
 
 		size_t message_size {DEFAULT_SCTP_MESSAGE_SIZE_BYTES};
 
-		std::string cert_filename {DEFAULT_CLIENT_CERT_FILENAME};
-		std::string key_filename {DEFAULT_CLIENT_KEY_FILENAME};
+		std::string cert_filename {};
+		std::string key_filename {};
 
 		Client_cback_t data_cback_f {nullptr};
 		Client_debug_t debug_cback_f {nullptr};
@@ -88,17 +85,15 @@ public:
 		Client_send_possible_t send_possible_cback_f {nullptr};
 	};
 
-	Client();
 	explicit Client(std::shared_ptr<Client::Config>);
 	Client(const Client&) = delete;
 	Client& operator=(const Client&) = delete;
-	virtual ~Client();
+	~Client();
 
 	/*
 		Getter for cfg object
 	*/
 	std::shared_ptr<Client::Config> cfg() { return cfg_; };
-
 
 	/* 
 		Starts client. Doesn't block.

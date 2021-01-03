@@ -181,9 +181,6 @@ static std::shared_ptr<sctp::Client::Config> get_cfg_or_die(char* argv[], struct
 		return serv_addr;
 	})();
 	
-	cfg->cert_filename = "../certs/" + cfg->cert_filename;
-	cfg->key_filename = "../certs/" + cfg->key_filename;
-
 	return cfg;
 }
 
@@ -226,11 +223,14 @@ int main(int /* argc */, char* argv[])
 	
 
 	/* Client config */
-	sctp::Client client{get_cfg_or_die(argv, options)};
+	auto cfg_ = get_cfg_or_die(argv, options);
 
+	/* SSL cer and key */
 	cert_and_key c_and_k;
-	client.cfg()->cert_filename = c_and_k.cert();
-	client.cfg()->key_filename = c_and_k.key();
+	cfg_->cert_filename = c_and_k.cert();
+	cfg_->key_filename = c_and_k.key();
+
+	sctp::Client client{cfg_};
 
 	client.cfg()->data_cback_f = [&](const auto& s)
 	{

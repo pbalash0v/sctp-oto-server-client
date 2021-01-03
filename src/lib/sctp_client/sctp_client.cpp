@@ -81,8 +81,6 @@ namespace sctp
 {
 
 
-Client::Client() : Client(std::make_shared<Client::Config>()) {};
-
 Client::Client(std::shared_ptr<Client::Config> p)
 	: cfg_ {p}
 	, ssl_obj_ {std::make_unique<SSLWrapper>(SSLWrapper::Type::CLIENT)}
