@@ -6,8 +6,6 @@
 #include "client.h"
 
 
-class IClient;
-
 namespace sctp
 {
 struct Message;

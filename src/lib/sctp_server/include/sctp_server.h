@@ -10,23 +10,22 @@
 #include <atomic>
 
 #include <sys/socket.h> //socklen_t
+#include <iclient.h> //socklen_t
+#include <server_event.h> //socklen_t
 
-#include "server_event.h"
 
-
-class SSL_h;
-class IClient;
 class Client;
-
 
 namespace sctp
 {
 enum class LogLevel;
+class SSL_h;
 
-constexpr uint16_t DEFAULT_UDP_ENCAPS_PORT {9899};
-constexpr uint16_t DEFAULT_SCTP_PORT {5001};
 
-constexpr auto DEFAULT_SCTP_MESSAGE_SIZE_BYTES {(1 << 16)};
+constexpr std::uint16_t DEFAULT_UDP_ENCAPS_PORT {9899};
+constexpr std::uint16_t DEFAULT_SCTP_PORT {5001};
+
+constexpr std::size_t DEFAULT_SCTP_MESSAGE_SIZE_BYTES {(1 << 16)};
 
 class Server
 {

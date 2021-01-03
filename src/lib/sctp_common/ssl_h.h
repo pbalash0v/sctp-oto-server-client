@@ -5,17 +5,19 @@
 
 #include <openssl/ssl.h>
 
+namespace sctp
+{
 
 class SSL_h final
 {
 public:
-   enum class Type
-   {
+	enum class Type
+	{
 		CLIENT,
 		SERVER
-   };
+	};
    
-	SSL_h(Type);
+	explicit SSL_h(Type);
 
 	SSL_h(const SSL_h& oth) = delete;
 	SSL_h& operator=(const SSL_h& oth) = delete;
@@ -31,3 +33,5 @@ public:
 private:
 	Type type_;
 };
+
+} //namespace sctp

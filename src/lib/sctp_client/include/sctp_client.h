@@ -24,7 +24,6 @@ constexpr const char* DEFAULT_CLIENT_CERT_FILENAME = "client-cert.pem";
 constexpr const char* DEFAULT_CLIENT_KEY_FILENAME = "client-key.pem";
 
 
-class SSL_h;
 template <typename T>
 class SyncQueue;
 
@@ -32,8 +31,7 @@ constexpr auto DEFAULT_SCTP_MESSAGE_SIZE_BYTES {1 << 16};
 
 namespace sctp
 {
-
-struct Data;
+class SSL_h;
 
 enum class LogLevel
 {

@@ -6,11 +6,18 @@
 
 #include "ssl_h.h"
 
+namespace
+{
 
-static int ssl_verify_peer(int ok __attribute__((unused)), X509_STORE_CTX* ctx __attribute__((unused)))
+int ssl_verify_peer(int ok __attribute__((unused)), X509_STORE_CTX* ctx __attribute__((unused)))
 {
 	return 1;
 }
+
+} //anon namespace
+
+namespace sctp
+{
 
 SSL_h::SSL_h(SSL_h::Type type) : type_(type) {}
 
@@ -92,4 +99,4 @@ void SSL_h::init(const std::string& cert_file, const std::string& key_file)
 }
 
 
-
+} //namespace sctp

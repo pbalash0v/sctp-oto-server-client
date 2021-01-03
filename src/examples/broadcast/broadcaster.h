@@ -28,15 +28,15 @@ public:
 
 	virtual void enqueue(std::vector<char>);
 
-	virtual void add_new_client(std::shared_ptr<IClient>&);
-	virtual void drop_client(std::shared_ptr<IClient>&);
-	virtual void notify_send_possible(std::shared_ptr<IClient>&);
+	virtual void add_new_client(std::shared_ptr<IClient>);
+	virtual void drop_client(std::shared_ptr<IClient>);
+	virtual void notify_send_possible(std::shared_ptr<IClient>);
 
 private:
 	std::thread sender_thr_;
+	using client_data_uptr_type = std::unique_ptr<SyncQueue<std::shared_ptr<std::vector<char>>>>;
+	std::unordered_map<std::shared_ptr<IClient>, client_data_uptr_type> send_qs_;
 
-	std::unordered_map<std::shared_ptr<IClient>,
-	std::unique_ptr<SyncQueue<std::shared_ptr<std::vector<char>>>>> send_qs_;
 	std::mutex signals_mutex_;
 	std::condition_variable cv_;
 	bool signal_send_possible_ { false };

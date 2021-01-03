@@ -137,7 +137,8 @@ int main(int argc, char* argv[])
 	{
 		auto& c = evt->client;
 
-		switch (evt->type) {
+		switch (evt->type)
+		{
 		case Event::Type::CLIENT_DATA:
 			{	
 				std::string message {static_cast<const char*>(evt->client_data.data()),
