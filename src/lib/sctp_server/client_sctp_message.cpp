@@ -3,7 +3,10 @@
 
 #include "client_sctp_message.h"
 
-SCTPMessage::SCTPMessage(Type tp, std::shared_ptr<IClient> c, void* b, size_t s, 
+namespace sctp
+{
+
+Message::Message(Type tp, std::shared_ptr<IClient> c, void* b, size_t s,
 					struct sockaddr_in& a, struct sctp_recvv_rn r, unsigned int t)
 	: type(tp), client(c), size(s), addr(a), rn(r), infotype(t)
 {
@@ -14,7 +17,7 @@ SCTPMessage::SCTPMessage(Type tp, std::shared_ptr<IClient> c, void* b, size_t s,
 	size = s;
 };
 
-SCTPMessage::SCTPMessage(Type t, std::shared_ptr<IClient> c, void* b, size_t s)
+Message::Message(Type t, std::shared_ptr<IClient> c, void* b, size_t s)
 	: type(t), client(c), size(s)
 {
 	msg = calloc(s, sizeof(char));
@@ -24,8 +27,9 @@ SCTPMessage::SCTPMessage(Type t, std::shared_ptr<IClient> c, void* b, size_t s)
 	size = s;
 }
 
-SCTPMessage::~SCTPMessage()
+Message::~Message()
 {
 	std::free(msg);
 }
 
+} // namespace sctp

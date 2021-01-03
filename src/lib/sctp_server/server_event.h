@@ -7,16 +7,15 @@
 
 
 class IClient;
-struct SCTPMessage;
 
 namespace sctp
 {
-	struct Data;
+struct Message;
 }
 
 struct Event
 {
-	enum Type
+	enum class Type
 	{
 		NONE,
 		CLIENT_DATA,
@@ -29,13 +28,13 @@ struct Event
 	explicit Event(Event::Type, std::shared_ptr<IClient>);	
 	explicit Event(Event::Type, std::shared_ptr<IClient>, IClient::State);
 	explicit Event(Event::Type, std::shared_ptr<IClient>, std::vector<char>);
-	explicit Event(const SCTPMessage&);
+	explicit Event(const sctp::Message&);
 
 	Event(const Event&) = delete;
 	Event& operator=(const Event&) = delete;
 	virtual ~Event() = default;
 
-	Event::Type type {NONE};
+	Event::Type type {IClient::State::NONE};
 	std::shared_ptr<IClient> client {nullptr};
 	IClient::State client_state {IClient::State::NONE};
 	std::vector<char> client_data;

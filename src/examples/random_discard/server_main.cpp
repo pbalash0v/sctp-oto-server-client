@@ -129,12 +129,12 @@ int main(int argc, char* argv[])
 		auto& c = evt->client;
 
 		switch (evt->type) {
-		case Event::CLIENT_DATA:
+		case Event::Type::CLIENT_DATA:
 			break;
-		case Event::CLIENT_STATE:
+		case Event::Type::CLIENT_STATE:
 			spdlog::info("{}", *c);
 			break;
-		case Event::CLIENT_SEND_POSSIBLE:
+		case Event::Type::CLIENT_SEND_POSSIBLE:
 			break;
 		default:
 			break;

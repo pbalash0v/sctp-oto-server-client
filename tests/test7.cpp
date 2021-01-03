@@ -57,7 +57,7 @@ int main(int, char const**)
 
 		sctp::Client client1 { cli1_cfg };
 		client1.cfg()->state_cback_f = [&](auto state) {
-			if (state == sctp::Client::SSL_CONNECTED) {
+			if (state == sctp::Client::State::SSL_CONNECTED) {
 				client1.send(TEST_STRING_CLIENT_1, strlen(TEST_STRING_CLIENT_1) + 1);
 			 	client1_done = true;
 			}
@@ -78,7 +78,7 @@ int main(int, char const**)
 		})();
 		sctp::Client client2 { cli2_cfg };
 		client2.cfg()->state_cback_f = [&](auto state) {
-			if (state == sctp::Client::SSL_CONNECTED) {
+			if (state == sctp::Client::State::SSL_CONNECTED) {
 				client2.send(TEST_STRING_CLIENT_2, strlen(TEST_STRING_CLIENT_2) + 1);
 			 	client2_done = true;
 			}
@@ -128,7 +128,7 @@ int main(int, char const**)
 		};
 		cfg->event_cback_f = [&](const auto& evt)
 		{
-			if (evt->type != Event::CLIENT_DATA) return;
+			if (evt->type != Event::Type::CLIENT_DATA) return;
 
 			const char* msg = static_cast<const char*>(evt->client_data.data());
 			std::string msg_str { msg };

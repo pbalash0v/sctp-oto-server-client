@@ -16,12 +16,12 @@ public:
 
 	virtual void init() override;
 
-	virtual void state(Client::State new_state) override;
+	virtual void state(IClient::State new_state) override;
 	virtual IClient::State state() const noexcept override;
 
 	virtual struct socket* socket() const override { return sock; };
 
-	std::unique_ptr<Event> handle_message(const std::unique_ptr<SCTPMessage>&) override;
+	std::unique_ptr<Event> handle_message(const std::unique_ptr<sctp::Message>&) override;
 
 	virtual void send(const void* buf, size_t len) override;
 
@@ -40,7 +40,7 @@ private:
 
 	SCTPServer& server_;
 
-	State state_ { NONE };
+	IClient::State state_ {IClient::State::NONE};
 
 	size_t msg_size_ { 0 };
 
@@ -54,8 +54,8 @@ private:
 
 	virtual ssize_t send_raw(const void* buf, size_t len);
 
-	std::unique_ptr<Event> handle_notification(const std::unique_ptr<SCTPMessage>& m);
-	std::unique_ptr<Event> handle_data(const std::unique_ptr<SCTPMessage>& m);
+	std::unique_ptr<Event> handle_notification(const std::unique_ptr<sctp::Message>& m);
+	std::unique_ptr<Event> handle_data(const std::unique_ptr<sctp::Message>& m);
 
 	void handle_association_change_event(const struct sctp_assoc_change*, std::unique_ptr<Event>&) const;
 	void handle_sender_dry_event(const struct sctp_sender_dry_event*, std::unique_ptr<Event>& e) const;

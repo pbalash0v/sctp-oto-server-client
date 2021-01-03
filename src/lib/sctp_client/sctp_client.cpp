@@ -2,11 +2,12 @@
 #include <sstream>
 #include <map>
 #include <algorithm>
-#include <cassert>
 #include <cstring>
 
 #include <netdb.h>
 #include <sys/socket.h> 
+
+#include <boost/assert.hpp>
 
 #include <usrsctp.h>
 
@@ -25,29 +26,29 @@ constexpr auto MAX_TLS_RECORD_SIZE  {1 << 14};
 	Used to check whether function is allowed to run in some particular state
 */
 std::map<std::string, std::vector<sctp::Client::State>> state_allowed_funcs {
-		{"init", std::vector<sctp::Client::State> { sctp::Client::NONE }},
-		{"init_usrsctp_lib", std::vector<sctp::Client::State> { sctp::Client::NONE }},
-		{"init_local_UDP", std::vector<sctp::Client::State> { sctp::Client::NONE }},
-		{"init_remote_UDP", std::vector<sctp::Client::State> { sctp::Client::NONE }},
-		{"init_SCTP", std::vector<sctp::Client::State> { sctp::Client::NONE }},
-		{"operator()", std::vector<sctp::Client::State> { sctp::Client::INITIALIZED }},
-		{"send", std::vector<sctp::Client::State> { sctp::Client::SSL_CONNECTED }},
-		{"udp_recv_loop", std::vector<sctp::Client::State> { sctp::Client::SCTP_CONNECTING }},
-		{"handle_raw_udp_data_loop", std::vector<sctp::Client::State> { sctp::Client::SCTP_CONNECTING }},
+		{"init", std::vector<sctp::Client::State> { sctp::Client::State::NONE }},
+		{"init_usrsctp_lib", std::vector<sctp::Client::State> { sctp::Client::State::NONE }},
+		{"init_local_UDP", std::vector<sctp::Client::State> { sctp::Client::State::NONE }},
+		{"init_remote_UDP", std::vector<sctp::Client::State> { sctp::Client::State::NONE }},
+		{"init_SCTP", std::vector<sctp::Client::State> { sctp::Client::State::NONE }},
+		{"operator()", std::vector<sctp::Client::State> { sctp::Client::State::INITIALIZED }},
+		{"send", std::vector<sctp::Client::State> { sctp::Client::State::SSL_CONNECTED }},
+		{"udp_recv_loop", std::vector<sctp::Client::State> { sctp::Client::State::SCTP_CONNECTING }},
+		{"handle_raw_udp_data_loop", std::vector<sctp::Client::State> { sctp::Client::State::SCTP_CONNECTING }},
 		{"send_raw", std::vector<sctp::Client::State> 
-			{ sctp::Client::SCTP_CONNECTING, sctp::Client::SCTP_CONNECTED, 
-				sctp::Client::SSL_HANDSHAKING, sctp::Client::SSL_CONNECTED, sctp::Client::SSL_SHUTDOWN, }}
+			{ sctp::Client::State::SCTP_CONNECTING, sctp::Client::State::SCTP_CONNECTED, 
+				sctp::Client::State::SSL_HANDSHAKING, sctp::Client::State::SSL_CONNECTED, sctp::Client::State::SSL_SHUTDOWN, }}
 };
 
 std::map<sctp::Client::State, std::string> state_names {
-	{ sctp::Client::NONE, "NONE" },
-	{ sctp::Client::INITIALIZED, "INITIALIZED" },
-	{ sctp::Client::SCTP_CONNECTING, "SCTP_CONNECTING"},
-	{ sctp::Client::SCTP_CONNECTED, "SCTP_CONNECTED"},
-	{ sctp::Client::SSL_HANDSHAKING, "SSL_HANDSHAKING"},
-	{ sctp::Client::SSL_CONNECTED, "SSL_CONNECTED"},
-	{ sctp::Client::SSL_SHUTDOWN, "SSL_SHUTDOWN"},
-	{ sctp::Client::PURGE, "PURGE"}
+	{ sctp::Client::State::NONE, "NONE" },
+	{ sctp::Client::State::INITIALIZED, "INITIALIZED" },
+	{ sctp::Client::State::SCTP_CONNECTING, "SCTP_CONNECTING"},
+	{ sctp::Client::State::SCTP_CONNECTED, "SCTP_CONNECTED"},
+	{ sctp::Client::State::SSL_HANDSHAKING, "SSL_HANDSHAKING"},
+	{ sctp::Client::State::SSL_CONNECTED, "SSL_CONNECTED"},
+	{ sctp::Client::State::SSL_SHUTDOWN, "SSL_SHUTDOWN"},
+	{ sctp::Client::State::PURGE, "PURGE"}
 };
 
 std::map<uint16_t, std::string> notification_names {
@@ -143,18 +144,18 @@ void Client::state(Client::State new_state)
 	TRACE(state_names[state_] + " -> " + state_names[new_state]);
 
 	switch (new_state) {
-	case SCTP_CONNECTED:
+	case State::SCTP_CONNECTED:
 		// TODO: should be refactored into ssl_obj
 		ssl_ = SSL_new(ssl_obj_->ctx_);
 		output_bio_ = BIO_new(BIO_s_mem());
 		input_bio_ = BIO_new(BIO_s_mem());
-		assert(ssl_); assert(output_bio_); assert(input_bio_);
+		BOOST_ASSERT(ssl_); BOOST_ASSERT(output_bio_); BOOST_ASSERT(input_bio_);
 
 		SSL_set_bio(ssl_, input_bio_, output_bio_);
 
 		SSL_set_connect_state(ssl_);
 		break;
-	case SSL_HANDSHAKING:
+	case State::SSL_HANDSHAKING:
 		{
 			int res = SSL_do_handshake(ssl_);
 
@@ -173,7 +174,7 @@ void Client::state(Client::State new_state)
 			}	
 		}
 		break;
-	case PURGE:
+	case State::PURGE:
 		/* end udp data processing thread by queueing empty data*/
 		//raw_udp_data_.enqueue(std::make_unique<sctp::Data>());
 		raw_udp_data_->enqueue(std::make_unique<std::vector<char>>());		
@@ -589,11 +590,11 @@ void Client::init()
 	catch (const std::runtime_error& exc)
 	{
 		CRITICAL(exc.what());
-		state(PURGE);
+		state(State::PURGE);
 		throw;
 	}
 
-	state(INITIALIZED);
+	state(State::INITIALIZED);
 
 	TRACE_func_left();
 }
@@ -604,7 +605,7 @@ void Client::operator()()
 	CHECK_STATE();
 	TRACE_func_entry();
 
-	state(SCTP_CONNECTING);
+	state(State::SCTP_CONNECTING);
 
 	udp_recv_thr_ = std::thread {&Client::udp_recv_loop, this};
 	udp_data_thr_ = std::thread {&Client::handle_raw_udp_data_loop, this};
@@ -643,7 +644,7 @@ void Client::stop()
 		usrsctp_shutdown(sock_, SHUT_WR);
 	}
 
-	if (state_ == SCTP_CONNECTING) shutdown(udp_sock_fd_, SHUT_RDWR);
+	if (state_ == State::SCTP_CONNECTING) shutdown(udp_sock_fd_, SHUT_RDWR);
 
 	TRACE_func_left();
 }
@@ -651,12 +652,12 @@ void Client::stop()
 
 ssize_t Client::send_raw(const void* buf, size_t len)
 {
-	assert(sock_);
+	BOOST_ASSERT(sock_);
 	CHECK_STATE();
 
 	ssize_t sent = -1;
 
-	if (state_ != Client::SSL_CONNECTED) {
+	if (state_ != Client::State::SSL_CONNECTED) {
 		// addrs - NULL for connected socket
 		// addrcnt: Number of addresses.
 		// As at most one address is supported, addrcnt is 0 if addrs is NULL and 1 otherwise.
@@ -743,7 +744,7 @@ void Client::udp_recv_loop()
 		CRITICAL(exc.what());
 	}
 
-	state(PURGE);
+	state(State::PURGE);
 
 	TRACE_func_left();
 }
@@ -771,7 +772,7 @@ void Client::handle_server_data(void* buffer, ssize_t n, const struct sockaddr_i
 {
 	TRACE(state_names[state_]);
 
-	size_t outbuf_len = (state_ != SSL_CONNECTED) ?
+	size_t outbuf_len = (state_ != State::SSL_CONNECTED) ?
 								MAX_TLS_RECORD_SIZE : n;
 
 	decrypted_msg_buff_.clear();
@@ -779,7 +780,7 @@ void Client::handle_server_data(void* buffer, ssize_t n, const struct sockaddr_i
 	void* outbuf = decrypted_msg_buff_.data();
 
 	switch (state_) {
-	case Client::SSL_HANDSHAKING:
+	case Client::State::SSL_HANDSHAKING:
 	{
 
 		int written = BIO_write(input_bio_, buffer, n);
@@ -808,12 +809,12 @@ void Client::handle_server_data(void* buffer, ssize_t n, const struct sockaddr_i
 					throw std::runtime_error(strerror(errno));
 				}
 
-				state(SSL_CONNECTED);
+				state(State::SSL_CONNECTED);
 				break;
 			}
 
 			if (SSL_ERROR_NONE == SSL_get_error(ssl_, res) and !BIO_ctrl_pending(output_bio_)) {
-				state(SSL_CONNECTED);
+				state(State::SSL_CONNECTED);
 				break;
 			}
 
@@ -825,12 +826,12 @@ void Client::handle_server_data(void* buffer, ssize_t n, const struct sockaddr_i
 				if (send_raw(outbuf, read) < 0) throw std::runtime_error(strerror(errno));
 			}
 
-			state(SSL_CONNECTED);
+			state(State::SSL_CONNECTED);
 		}
 	}
 	break;
 
-	case Client::SSL_CONNECTED:
+	case Client::State::SSL_CONNECTED:
 	{
 		TRACE(std::string("encrypted message length n: ") + std::to_string(n));
 
@@ -847,7 +848,7 @@ void Client::handle_server_data(void* buffer, ssize_t n, const struct sockaddr_i
 			TRACE(std::string("SSL read: ") + std::to_string(read));
 
 			if (read == 0 and (SSL_ERROR_ZERO_RETURN == SSL_get_error(ssl_, read))) {
-				state(SSL_SHUTDOWN);
+				state(State::SSL_SHUTDOWN);
 				break;
 			}
 
@@ -856,7 +857,7 @@ void Client::handle_server_data(void* buffer, ssize_t n, const struct sockaddr_i
 				continue;
 			}
 
-			assert(SSL_ERROR_NONE == SSL_get_error(ssl_, read));
+			BOOST_ASSERT(SSL_ERROR_NONE == SSL_get_error(ssl_, read));
 
 			total_decrypted_message_size += read;
 		}
@@ -919,7 +920,7 @@ void Client::handle_server_data(void* buffer, ssize_t n, const struct sockaddr_i
 	}
 	break;
 
-	case Client::SCTP_CONNECTED:
+	case Client::State::SCTP_CONNECTED:
 	default:
 		throw std::logic_error("Received data in unhandled client state.");
 		break;
@@ -1015,8 +1016,8 @@ void Client::handle_association_change_event(struct sctp_assoc_change* sac)
 	*/
 	switch (sac->sac_state) {
 	case SCTP_COMM_UP:
-		state(SCTP_CONNECTED);
-		state(SSL_HANDSHAKING);
+		state(State::SCTP_CONNECTED);
+		state(State::SSL_HANDSHAKING);
 		break;
 
 	case SCTP_COMM_LOST:
@@ -1203,7 +1204,7 @@ void Client::handle_sender_dry_event(struct sctp_sender_dry_event*)
 {
 	sender_dry_ = true;
 
-	if (state_ == SSL_CONNECTED and cfg_->send_possible_cback_f) {
+	if (state_ == State::SSL_CONNECTED and cfg_->send_possible_cback_f) {
 		try {
 			cfg_->send_possible_cback_f();
 		} catch (...) {

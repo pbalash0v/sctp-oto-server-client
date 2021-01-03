@@ -241,19 +241,19 @@ int main(int /* argc */, char* argv[])
 		std::string message;
 
 		switch (state) {
-		case sctp::Client::INITIALIZED:
+		case sctp::Client::State::INITIALIZED:
 			message += "Initialization done.";
 			break;			
-		case sctp::Client::SCTP_CONNECTING:
+		case sctp::Client::State::SCTP_CONNECTING:
 			message += "Connecting...";
 			break;
-		case sctp::Client::SCTP_CONNECTED:
+		case sctp::Client::State::SCTP_CONNECTED:
 			message += "Connected.";
 			break;
-		case sctp::Client::SSL_HANDSHAKING:
+		case sctp::Client::State::SSL_HANDSHAKING:
 			message += "Handshaking SSL...";
 			break;
-		case sctp::Client::SSL_CONNECTED:
+		case sctp::Client::State::SSL_CONNECTED:
 			message += "SSL established. Press ctrl-D to terminate, enter for stats.";
 			{
 				auto v = rand_gen();
@@ -262,10 +262,10 @@ int main(int /* argc */, char* argv[])
 				running = true;
 			}
 			break;
-		case sctp::Client::SSL_SHUTDOWN:
+		case sctp::Client::State::SSL_SHUTDOWN:
 			message += "SSL shutdown.";
 			break;				
-		case sctp::Client::PURGE:
+		case sctp::Client::State::PURGE:
 			message += "Terminating...";
 			close(pipefd[1]);
 		default:

@@ -59,7 +59,7 @@ int main(int, char const**)
 		
 		client.cfg()->state_cback_f = [&](auto state)
 		{
-			if (state == sctp::Client::SSL_CONNECTED)
+			if (state == sctp::Client::State::SSL_CONNECTED)
 			{
 				client.send(TEST_STRING, strlen(TEST_STRING) + 1);
 				std::this_thread::sleep_for(std::chrono::milliseconds(510));
@@ -102,7 +102,7 @@ int main(int, char const**)
 		cfg->key_filename = c_and_k.key().c_str();
 		cfg->event_cback_f = [&](const auto& evt)
 		{
-			if (evt->type != Event::CLIENT_DATA) return;
+			if (evt->type != Event::Type::CLIENT_DATA) return;
 			
 			const char* msg = static_cast<const char*>(evt->client_data.data());
 			if (strcmp(msg, TEST_STRING)) BOOST_ASSERT(false);

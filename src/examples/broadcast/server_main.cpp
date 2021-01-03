@@ -138,7 +138,7 @@ int main(int argc, char* argv[])
 		auto& c = evt->client;
 
 		switch (evt->type) {
-		case Event::CLIENT_DATA:
+		case Event::Type::CLIENT_DATA:
 			{	
 				std::string message {static_cast<const char*>(evt->client_data.data()),
 					 evt->client_data.size()};
@@ -149,19 +149,19 @@ int main(int argc, char* argv[])
 				bcaster.enqueue(std::move(evt->client_data));
 			}
 			break;
-		case Event::CLIENT_STATE:
+		case Event::Type::CLIENT_STATE:
 			spdlog::info("{}", *c);
 
-			if (evt->client_state == Client::SSL_CONNECTED) {
+			if (evt->client_state == IClient::State::SSL_CONNECTED) {
 				bcaster.add_new_client(c);
 			}
 
-			if (evt->client_state == Client::SCTP_SHUTDOWN_CMPLT) {
+			if (evt->client_state == IClient::State::SCTP_SHUTDOWN_CMPLT) {
  				spdlog::info("{} disconnected.", *c);
  				bcaster.drop_client(c);
 			}			
 			break;
-		case Event::CLIENT_SEND_POSSIBLE:
+		case Event::Type::CLIENT_SEND_POSSIBLE:
 			spdlog::debug("{} send possible.", *c);
 			bcaster.notify_send_possible(c);
 			break;

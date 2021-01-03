@@ -2,7 +2,6 @@
 #include <cstring>
 #include <string>
 #include <chrono>
-#include <cassert>
 #include <algorithm>
 #include <thread>
 #include <sstream>
@@ -30,7 +29,7 @@
 namespace
 {
 
-SyncQueue<std::unique_ptr<SCTPMessage>> sctp_msgs_;
+SyncQueue<std::unique_ptr<sctp::Message>> sctp_msgs_;
 
 inline void set_thread_name(std::thread& thread, const char* name)
 {
@@ -105,7 +104,7 @@ SCTPServer::~SCTPServer()
 		TRACE("before force close of clients");
 		for (auto& c : clients_) {
 			try {
-				c->state(IClient::PURGE);
+				c->state(IClient::State::PURGE);
 			} catch (...) {}
 		}
 		TRACE("force close of clients done");
@@ -121,7 +120,7 @@ SCTPServer::~SCTPServer()
 	if (sctp_msg_handler_.joinable())
 	{
 		//sctp_msgs_.enqueue(std::make_unique<SCTPMessage>());
-		sctp_msgs_.enqueue(std::unique_ptr<SCTPMessage>{});
+		sctp_msgs_.enqueue(std::unique_ptr<sctp::Message>{});
 		sctp_msg_handler_.join();
 	}
 	TRACE("sctp msgs handling thread joined");
@@ -158,7 +157,7 @@ void SCTPServer::cleanup()
 		TRACE("before clients shutdown");
 		for (auto& c : clients_) {
 			try {
-				c->state(IClient::SCTP_SRV_INITIATED_SHUTDOWN);
+				c->state(IClient::State::SCTP_SRV_INITIATED_SHUTDOWN);
 			} catch (...) {}
 		}
 		TRACE("clients shutdown done");
@@ -379,7 +378,7 @@ void SCTPServer::drop_client(std::shared_ptr<IClient> c)
 void SCTPServer::handle_server_upcall(struct socket* serv_sock, void* arg, int)
 {
 	BOOST_ASSERT(arg);
-	SCTPServer* s = (SCTPServer*) arg;
+	SCTPServer* s = static_cast<SCTPServer*>(arg);
 	/* 
 		log macros depend on local object named cfg_.
 		Getting it here explicitly.
@@ -415,10 +414,10 @@ void SCTPServer::handle_server_upcall(struct socket* serv_sock, void* arg, int)
 
 		try {
 			new_client->init();
-			new_client->state(IClient::SCTP_ACCEPTED);
+			new_client->state(IClient::State::SCTP_ACCEPTED);
 		} catch (const std::runtime_error& exc) {
 			ERROR(std::string("Dropping client: ") + exc.what());
-			new_client->state(IClient::PURGE);
+			new_client->state(IClient::State::PURGE);
 			s->drop_client(new_client);
 		}
 		
@@ -459,7 +458,7 @@ std::shared_ptr<IClient> SCTPServer::get_client(const struct socket* sock)
 void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int)
 {
 	BOOST_ASSERT(arg);
-	SCTPServer* s = (SCTPServer*) arg; 
+	SCTPServer* s = static_cast<SCTPServer*>(arg);
 	/* 
 		log macros depend on local object named cfg_.
 		Getting it here explicitly.
@@ -467,7 +466,7 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 	auto cfg_ = s->cfg();
 	/* from here on we can use log macros */
 
-	//TRACE_func_entry();
+	// TRACE_func_entry(); BOOST_SCOPE_EXIT_ALL(&) { TRACE_func_left(); };
 
 	int events = usrsctp_get_events(upcall_sock);
 
@@ -529,12 +528,13 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 		unsigned int infotype;
 		socklen_t infolen = sizeof(struct sctp_recvv_rn);
 		//infolen = (socklen_t) sizeof(struct sctp_rcvinfo);
-		char recv_buf[1<<16] = { 0 };
+		char recv_buf[1<<16] = {0};
 
 		/* got data or socket api notification */
 		while ((n = usrsctp_recvv(upcall_sock, recv_buf, sizeof recv_buf,
 										 (struct sockaddr*) &addr, &from_len, (void *) &rn,
-											&infolen, &infotype, &flags)) > 0) {
+											&infolen, &infotype, &flags)) > 0)
+		{
 
 			if (not (flags & MSG_EOR)) { /* usrsctp_recvv incomplete */
 				//TRACE("usrsctp_recvv incomplete: " + std::to_string(n));
@@ -555,7 +555,7 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 			 At this point we can have message buffered in vector or in char array on a stack.
 			 Unifying.
 			*/
-			assert(flags & MSG_EOR);
+			BOOST_ASSERT(flags & MSG_EOR);
 			nbytes = (client->sctp_msg_buff().empty()) ? n : client->sctp_msg_buff().size();
 			void* data_buf = (client->sctp_msg_buff().empty()) ? recv_buf : client->sctp_msg_buff().data();
 
@@ -567,9 +567,9 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 
 			try {
 				sctp_msgs_.enqueue((flags & MSG_NOTIFICATION) ?
-						std::make_unique<SCTPMessage>(SCTPMessage::NOTIFICATION, client, data_buf, nbytes)
+						std::make_unique<sctp::Message>(sctp::Message::Type::NOTIFICATION, client, data_buf, nbytes)
 						:
-						std::make_unique<SCTPMessage>(SCTPMessage::DATA, client, data_buf, nbytes,
+						std::make_unique<sctp::Message>(sctp::Message::Type::DATA, client, data_buf, nbytes,
 						 addr, rn, infotype));
 			} catch (const std::runtime_error& exc) {
 				ERROR(client_errno("handle_client_data", client));
@@ -610,7 +610,6 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 		}		
 	}
 
-	//TRACE_func_left();
 	return;
 }
 
@@ -637,9 +636,9 @@ void SCTPServer::sctp_msg_handler_loop()
 			continue;
 		}
 
-		if (evt->type == Event::NONE) continue;
+		if (evt->type == Event::Type::NONE) continue;
 
-		if (evt->type == Event::CLIENT_STATE)
+		if (evt->type == Event::Type::CLIENT_STATE)
 		{
 			try
 			{
@@ -666,9 +665,9 @@ void SCTPServer::sctp_msg_handler_loop()
 			continue;
 		}
 
-		if (evt->type == Event::CLIENT_SEND_POSSIBLE)
+		if (evt->type == Event::Type::CLIENT_SEND_POSSIBLE)
 		{
-			if (cfg_->event_cback_f && msg->client->state() == IClient::SSL_CONNECTED)
+			if (cfg_->event_cback_f && msg->client->state() == IClient::State::SSL_CONNECTED)
 			{
 				try
 				{
@@ -683,16 +682,12 @@ void SCTPServer::sctp_msg_handler_loop()
 			continue;
 		}
 
-		if ((evt->type == Event::CLIENT_DATA) and (evt->client_data.size() > 0) and (cfg_->event_cback_f))
+		if ((evt->type == Event::Type::CLIENT_DATA) and (evt->client_data.size() > 0) and (cfg_->event_cback_f))
 		{
 			try
 			{
 				cfg_->event_cback_f(std::move(evt));
 			} 
-			catch (const std::runtime_error& exc)
-			{
-				ERROR(exc.what());				
-			}
 			catch (...)
 			{
 				CRITICAL("Exception in user's event_cback function");

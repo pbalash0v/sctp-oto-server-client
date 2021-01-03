@@ -5,25 +5,27 @@
 
 
 class SCTPServer;
-struct SCTPMessage;
+namespace sctp
+{
+struct Message;
+}
 struct Event;
 
 class IClient
 {
 public:
-   enum State
+   enum class State
    {
-   	NONE,
-      SCTP_ACCEPTED,
-      SCTP_CONNECTED,
-      SSL_HANDSHAKING,
-      SSL_CONNECTED,
+		NONE,
+		SCTP_ACCEPTED,
+		SCTP_CONNECTED,
+		SSL_HANDSHAKING,
+		SSL_CONNECTED,
 		SSL_SHUTDOWN,
 		SCTP_SHUTDOWN_CMPLT,
 		SCTP_SRV_INITIATED_SHUTDOWN,
 		PURGE
    };
-
 
 	virtual ~IClient() {};
 
@@ -36,7 +38,7 @@ public:
 
 	virtual void send(const void* buf, size_t len) = 0;
 
-	virtual std::unique_ptr<Event> handle_message(const std::unique_ptr<SCTPMessage>&) = 0;
+	virtual std::unique_ptr<Event> handle_message(const std::unique_ptr<sctp::Message>&) = 0;
 
 	virtual void close() = 0;
 

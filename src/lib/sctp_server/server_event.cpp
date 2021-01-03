@@ -10,4 +10,4 @@ Event::Event(Event::Type t, std::shared_ptr<IClient> clnt, IClient::State s)
 Event::Event(Event::Type t, std::shared_ptr<IClient> clnt, std::vector<char> v)
 	: type(t), client(clnt), client_data(std::move(v)) {};
 
-Event::Event(const SCTPMessage& m) : client(m.client) {};
+Event::Event(const sctp::Message& m) : client(m.client) {};

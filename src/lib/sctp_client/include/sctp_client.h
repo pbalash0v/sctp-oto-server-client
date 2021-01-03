@@ -50,7 +50,7 @@ enum class LogLevel
 class Client
 {
 public:
-	enum State
+	enum class State
 	{
 		NONE,
 		INITIALIZED,
@@ -112,7 +112,7 @@ public:
 	*/
 	void operator()();
 
-	bool connected() const { return state_ == SSL_CONNECTED; };
+	bool connected() const { return state_ == State::SSL_CONNECTED; };
 
 	ssize_t send(const void*, size_t);
 
@@ -136,7 +136,7 @@ private:
 
 	std::atomic_bool sender_dry_ {false};
 
-	State state_ = NONE;
+	State state_ = State::NONE;
 
 	int udp_sock_fd_ {-1};
 	uint16_t bound_udp_encaps_port_ {};
