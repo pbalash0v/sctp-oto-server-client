@@ -31,7 +31,7 @@ constexpr auto DEFAULT_SCTP_MESSAGE_SIZE_BYTES {1 << 16};
 
 namespace sctp
 {
-class SSL_h;
+class SSLWrapper;
 
 enum class LogLevel
 {
@@ -123,7 +123,7 @@ public:
 private:
 	std::shared_ptr<Client::Config> cfg_;
 
-	std::unique_ptr<SSL_h> ssl_obj_ {nullptr};
+	std::unique_ptr<SSLWrapper> ssl_obj_ {nullptr};
 	SSL* ssl_ {nullptr};
 	BIO* output_bio_ {nullptr};
 	BIO* input_bio_ {nullptr};

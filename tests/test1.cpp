@@ -27,5 +27,25 @@ int main(int, char const**)
 		BOOST_ASSERT(false);
 	}
 
+
+	try
+	{
+		sctp::Server s{cfg};
+		s();
+
+		try
+		{
+			sctp::Server _{cfg};
+		}
+		catch (const std::logic_error&)
+		{
+		}
+	}
+	catch (const std::runtime_error&)
+	{
+		BOOST_ASSERT(false);
+	}
+
+
 	return EXIT_SUCCESS;
 }

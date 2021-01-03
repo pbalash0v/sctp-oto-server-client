@@ -14,7 +14,7 @@ find_package(Boost 1.65.0 REQUIRED system filesystem program_options)
 set(CMAKE_INSTALL_RPATH $ORIGIN $ORIGIN/../lib)
 
 add_library(sctp_common OBJECT
-	ssl_h.cpp
+	ssl.cpp
 )
 add_library(SCTP_OTO::sctp_common ALIAS sctp_common)
 

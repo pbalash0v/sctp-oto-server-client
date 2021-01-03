@@ -19,7 +19,7 @@ class Client;
 namespace sctp
 {
 enum class LogLevel;
-class SSL_h;
+class SSLWrapper;
 
 
 constexpr std::uint16_t DEFAULT_UDP_ENCAPS_PORT {9899};
@@ -96,7 +96,7 @@ private:
 	inline static std::atomic_bool instance_exists_  {false};
 
 	/* holds main SSL context etc */
-	std::unique_ptr<SSL_h> ssl_obj_;
+	std::unique_ptr<SSLWrapper> ssl_obj_;
 
 	struct socket* serv_sock_ {nullptr};
 

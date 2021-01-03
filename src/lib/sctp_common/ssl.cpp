@@ -4,7 +4,7 @@
 
 #include <openssl/err.h>
 
-#include "ssl_h.h"
+#include "ssl.hpp"
 
 namespace
 {
@@ -19,16 +19,16 @@ int ssl_verify_peer(int ok __attribute__((unused)), X509_STORE_CTX* ctx __attrib
 namespace sctp
 {
 
-SSL_h::SSL_h(SSL_h::Type type) : type_(type) {}
+SSLWrapper::SSLWrapper(SSLWrapper::Type type) : type_(type) {}
 
-SSL_h::~SSL_h()
+SSLWrapper::~SSLWrapper()
 {
 	if (nullptr != ctx_) SSL_CTX_free(ctx_);	
 }
 
-void SSL_h::init(const std::string& cert_file, const std::string& key_file)
+void SSLWrapper::init(const std::string& cert_file, const std::string& key_file)
 {
-	// bool is_client = (type_ == SSL_h::CLIENT);
+	// bool is_client = (type_ == SSLWrapper::CLIENT);
 
 	/* SSL library initialisation */
 	SSL_library_init();
@@ -56,7 +56,7 @@ void SSL_h::init(const std::string& cert_file, const std::string& key_file)
 	#define SERVER_METHOD TLS_server_method
 #endif
 
-	ctx_ = SSL_CTX_new((type_ == SSL_h::Type::CLIENT) ? CLIENT_METHOD() : SERVER_METHOD());
+	ctx_ = SSL_CTX_new((type_ == SSLWrapper::Type::CLIENT) ? CLIENT_METHOD() : SERVER_METHOD());
 
 	if (!ctx_) throw std::runtime_error("SSL_CTX_new()");
 

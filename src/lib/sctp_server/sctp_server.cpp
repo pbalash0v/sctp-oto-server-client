@@ -23,7 +23,7 @@
 #include "client_sctp_message.h"
 #include "log_level.h"
 #include "logging.h"
-#include "ssl_h.h"
+#include "ssl.hpp"
 #include "server_event.h"
 
 
@@ -59,7 +59,7 @@ namespace sctp
 
 Server::Server(std::shared_ptr<Server::Config> ptr)
 	: cfg_{ptr}
-	, ssl_obj_{std::make_unique<SSL_h>(SSL_h::Type::SERVER)}
+	, ssl_obj_{std::make_unique<SSLWrapper>(SSLWrapper::Type::SERVER)}
 {
 	if (instance_exists_) throw std::logic_error("Singleton !"); // :(
 	instance_exists_ = true;

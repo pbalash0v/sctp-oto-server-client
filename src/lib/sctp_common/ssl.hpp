@@ -8,7 +8,7 @@
 namespace sctp
 {
 
-class SSL_h final
+class SSLWrapper final
 {
 public:
 	enum class Type
@@ -17,14 +17,14 @@ public:
 		SERVER
 	};
    
-	explicit SSL_h(Type);
+	explicit SSLWrapper(Type);
 
-	SSL_h(const SSL_h& oth) = delete;
-	SSL_h& operator=(const SSL_h& oth) = delete;
-	SSL_h(SSL_h&& oth) = default;
-	SSL_h& operator=(SSL_h&& oth) = default;
+	SSLWrapper(const SSLWrapper& oth) = delete;
+	SSLWrapper& operator=(const SSLWrapper& oth) = delete;
+	SSLWrapper(SSLWrapper&& oth) = default;
+	SSLWrapper& operator=(SSLWrapper&& oth) = default;
 
-	~SSL_h();
+	~SSLWrapper();
 
 	void init(const std::string& cert_file, const std::string& key_file);
 

@@ -14,7 +14,7 @@
 #include "sync_queue.hpp"
 #include "sctp_client.h"
 #include "logging.h"
-#include "ssl_h.h"
+#include "ssl.hpp"
 
 
 namespace
@@ -85,7 +85,7 @@ Client::Client() : Client(std::make_shared<Client::Config>()) {};
 
 Client::Client(std::shared_ptr<Client::Config> p)
 	: cfg_ {p}
-	, ssl_obj_ {std::make_unique<SSL_h>(SSL_h::Type::CLIENT)}
+	, ssl_obj_ {std::make_unique<SSLWrapper>(SSLWrapper::Type::CLIENT)}
 	, raw_udp_data_ {std::make_unique<SyncQueue<std::unique_ptr<std::vector<char>>>>()}
 {
 	sctp_msg_buff_.reserve(cfg_->message_size*2);
