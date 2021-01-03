@@ -20,7 +20,3 @@ target_include_directories(libspdlog SYSTEM INTERFACE
 target_compile_features(libspdlog INTERFACE
 	cxx_std_17
 )
-# nothing really installed, just silence cmake errors
-install(TARGETS libspdlog
-	EXPORT its_log_utils
-)
