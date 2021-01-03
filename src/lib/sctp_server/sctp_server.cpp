@@ -19,6 +19,7 @@
 
 #include "sctp_server.h"
 #include "sync_queue.hpp"
+#include "client.h"
 #include "client_sctp_message.h"
 #include "log_level.h"
 #include "logging.h"
@@ -52,8 +53,10 @@ inline std::string client_errno(const char* func, std::shared_ptr<IClient>& c)
 
 } //anon namespace
 
+namespace sctp
+{
 
-SCTPServer::SCTPServer(std::shared_ptr<SCTPServer::Config> ptr)
+Server::Server(std::shared_ptr<Server::Config> ptr)
 	: cfg_{ptr}
 	, ssl_obj_{std::make_unique<SSL_h>(SSL_h::Type::SERVER)}
 {
@@ -62,9 +65,20 @@ SCTPServer::SCTPServer(std::shared_ptr<SCTPServer::Config> ptr)
 	init();
 }
 
-std::shared_ptr<IClient> SCTPServer::client_factory(struct socket* s)
+std::shared_ptr<IClient> Server::client_factory(struct socket* s)
 {
-	return std::make_shared<Client>(s, *this, cfg_->message_size);
+	std::shared_ptr<IClient> client{};
+
+	try
+	{
+		client = std::make_shared<Client>(s, *this, cfg_->message_size);
+	}
+	catch (const std::runtime_error& exc)
+	{
+		ERROR(std::string{"Client construction failed: "} + exc.what());
+	}
+
+	return client;
 };
 
 /*
@@ -73,7 +87,7 @@ std::shared_ptr<IClient> SCTPServer::client_factory(struct socket* s)
 	However, you won't be able to receive any notifications,
 	since you have closed the socket. This is normal socket API behaviour."
 */
-SCTPServer::~SCTPServer()
+Server::~Server()
 {
 	TRACE_func_entry();
 	BOOST_SCOPE_EXIT_ALL(&)
@@ -134,7 +148,7 @@ SCTPServer::~SCTPServer()
 	which leads to notification SCTP_ASSOC_CHANGE SCTP_SHUTDOWN_COMP in a handle_client_upcall
 	and finally usrsctp_recvv resulting in 0, where it is removed from clients_ vec.
 */
-void SCTPServer::cleanup()
+void Server::cleanup()
 {
 	TRACE_func_entry(); BOOST_SCOPE_EXIT_ALL(&) { TRACE_func_left(); };
 
@@ -171,7 +185,7 @@ void SCTPServer::cleanup()
 	This is some kind of hack to try manually creating UDP socket and see if we can do this.
 	Will throw runtime_error if udp encaps port already in use.
 */
-void SCTPServer::try_init_local_UDP()
+void Server::try_init_local_UDP()
 {
 	TRACE_func_entry(); BOOST_SCOPE_EXIT_ALL(&) { TRACE_func_left(); };
 
@@ -221,7 +235,7 @@ void SCTPServer::try_init_local_UDP()
 	}
 }
 
-void SCTPServer::init()
+void Server::init()
 {
 	TRACE_func_entry(); BOOST_SCOPE_EXIT_ALL(&) { TRACE_func_left(); };
 
@@ -229,7 +243,7 @@ void SCTPServer::init()
 
 	ssl_obj_->init(cfg_->cert_filename, cfg_->key_filename);
 
-	sctp_msg_handler_ = std::thread { &SCTPServer::sctp_msg_handler_loop, this };
+	sctp_msg_handler_ = std::thread {&Server::sctp_msg_handler_loop, this};
 	set_thread_name(sctp_msg_handler_, "SCTP msgs");
 
 	try_init_local_UDP();
@@ -334,7 +348,7 @@ void SCTPServer::init()
 }
 
 
-void SCTPServer::operator()()
+void Server::operator()()
 {
 	TRACE_func_entry(); BOOST_SCOPE_EXIT_ALL(&) { TRACE_func_left(); };
 
@@ -346,11 +360,11 @@ void SCTPServer::operator()()
 		throw std::runtime_error(std::string("usrsctp_listen: ") + strerror(errno));
 	}
 
-	usrsctp_set_upcall(serv_sock_, &SCTPServer::handle_server_upcall, this);
+	usrsctp_set_upcall(serv_sock_, &Server::handle_server_upcall, this);
 }
 
 
-void SCTPServer::stop()
+void Server::stop()
 {
 	TRACE_func_entry(); BOOST_SCOPE_EXIT_ALL(&) { TRACE_func_left(); };
 
@@ -358,12 +372,12 @@ void SCTPServer::stop()
 }
 
 
-void SCTPServer::send(std::shared_ptr<IClient> c, const void* data, size_t len)
+void Server::send(std::shared_ptr<IClient> c, const void* data, size_t len)
 {
 	c->send(data, len);
 }
 
-void SCTPServer::drop_client(std::shared_ptr<IClient> c)
+void Server::drop_client(std::shared_ptr<IClient> c)
 {
 	TRACE_func_entry(); BOOST_SCOPE_EXIT_ALL(&) { TRACE_func_left(); };
 
@@ -375,10 +389,10 @@ void SCTPServer::drop_client(std::shared_ptr<IClient> c)
 }
 
 
-void SCTPServer::handle_server_upcall(struct socket* serv_sock, void* arg, int)
+void Server::handle_server_upcall(struct socket* serv_sock, void* arg, int)
 {
 	BOOST_ASSERT(arg);
-	SCTPServer* s = static_cast<SCTPServer*>(arg);
+	Server* s = static_cast<Server*>(arg);
 	/* 
 		log macros depend on local object named cfg_.
 		Getting it here explicitly.
@@ -392,12 +406,12 @@ void SCTPServer::handle_server_upcall(struct socket* serv_sock, void* arg, int)
 
 	if (events & SCTP_EVENT_READ)
 	{
+		TRACE("Accepting new connection.");
+
 		struct sockaddr_in remote_addr;
 		socklen_t addr_len = sizeof(struct sockaddr_in);
 		struct socket* conn_sock;
 
-		TRACE("Accepting new connection.");
-		
 		memset(&remote_addr, 0, sizeof(struct sockaddr_in));
 		if ((conn_sock = ::usrsctp_accept(serv_sock, (struct sockaddr *) &remote_addr, &addr_len)) == NULL)
 		{
@@ -405,36 +419,31 @@ void SCTPServer::handle_server_upcall(struct socket* serv_sock, void* arg, int)
 			return;
 		}
 
-		auto new_client = s->client_factory(conn_sock);
 
+		auto new_client = s->client_factory(conn_sock);
+		if (not new_client) return;
 		{
-			std::lock_guard<std::mutex> _ { s->clients_mutex_ } ;
+			std::lock_guard<std::mutex> _ {s->clients_mutex_};
 			s->clients_.push_back(new_client);
 		}
-
-		try {
-			new_client->init();
+		try
+		{
 			new_client->state(IClient::State::SCTP_ACCEPTED);
-		} catch (const std::runtime_error& exc) {
-			ERROR(std::string("Dropping client: ") + exc.what());
+			DEBUG("Accepted: " + new_client->to_string());
+		}
+		catch (const std::runtime_error& exc)
+		{
+			ERROR(std::string{"Dropping client: "} + exc.what());
 			new_client->state(IClient::State::PURGE);
 			s->drop_client(new_client);
 		}
-		
-		DEBUG("Accepted: " + new_client->to_string());
 	}
 
-	if (events & SCTP_EVENT_ERROR) {
-		ERROR("SCTP_EVENT_ERROR on server socket.");
-	}
-
-	if (events & SCTP_EVENT_WRITE) {
-		ERROR("SCTP_EVENT_WRITE on server socket.");
-	}
-
+	if (events & SCTP_EVENT_ERROR) ERROR("SCTP_EVENT_ERROR on server socket.");
+	if (events & SCTP_EVENT_WRITE) ERROR("SCTP_EVENT_WRITE on server socket.");
 }
 
-std::shared_ptr<IClient> SCTPServer::get_client(const struct socket* sock)
+std::shared_ptr<IClient> Server::get_client(const struct socket* sock)
 {
 	std::lock_guard<std::mutex> _ {clients_mutex_};
 
@@ -452,13 +461,13 @@ std::shared_ptr<IClient> SCTPServer::get_client(const struct socket* sock)
 	handle_client_upcall is registered with any new client socket in accept thread
 
 	struct socket* sock: client socket.
-	void* arg : pointer to SCTPServer instance, supplied on new socket init.
+	void* arg : pointer to Server instance, supplied on new socket init.
 	last int argument: supposed to be upcall_flags, haven't seen it's usage in examples
 */
-void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int)
+void Server::handle_client_upcall(struct socket* upcall_sock, void* arg, int)
 {
 	BOOST_ASSERT(arg);
-	SCTPServer* s = static_cast<SCTPServer*>(arg);
+	Server* s = static_cast<Server*>(arg);
 	/* 
 		log macros depend on local object named cfg_.
 		Getting it here explicitly.
@@ -614,7 +623,7 @@ void SCTPServer::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 }
 
 
-void SCTPServer::sctp_msg_handler_loop()
+void Server::sctp_msg_handler_loop()
 {
 	TRACE_func_entry(); BOOST_SCOPE_EXIT_ALL(&) { TRACE_func_left(); };
 
@@ -699,7 +708,7 @@ void SCTPServer::sctp_msg_handler_loop()
 }
 
 
-std::ostream& operator<<(std::ostream& out, const SCTPServer::Config& c)
+std::ostream& operator<<(std::ostream& out, const Server::Config& c)
 {
 	out << "UDP encaps port: " << std::to_string(c.udp_encaps_port) << ", ";
 	out << "SCTP port: " << std::to_string(c.sctp_port) << ", ";	
@@ -710,8 +719,10 @@ std::ostream& operator<<(std::ostream& out, const SCTPServer::Config& c)
 	return out;
 }
 
-std::ostream& operator<<(std::ostream &out, const SCTPServer& s)
+std::ostream& operator<<(std::ostream &out, const Server& s)
 {
 	out << *(s.cfg_);
 	return out;
 }
+
+} //namespace sctp

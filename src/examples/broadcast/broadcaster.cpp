@@ -14,7 +14,7 @@ Broadcaster::~Broadcaster()
 	if (sender_thr_.joinable()) sender_thr_.join();
 }
 
-void Broadcaster::operator()(SCTPServer& s)
+void Broadcaster::operator()(sctp::Server& s)
 {
 	sender_thr_ = std::thread { [&]() 
 	{

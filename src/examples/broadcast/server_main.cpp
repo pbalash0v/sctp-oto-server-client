@@ -38,23 +38,23 @@ namespace
 }
 
 
-std::tuple<std::optional<std::shared_ptr<SCTPServer::Config>>, int> get_cfg(int argc, char* argv[])
+std::tuple<std::optional<std::shared_ptr<sctp::Server::Config>>, int> get_cfg(int argc, char* argv[])
 {
 	namespace po = boost::program_options;
 
 	constexpr auto MAX_IP_PORT {std::numeric_limits<uint16_t>::max()};
 
-	auto cfg = std::make_shared<SCTPServer::Config>();
+	auto cfg = std::make_shared<sctp::Server::Config>();
 
-	uint16_t sctp_port {DEFAULT_SCTP_PORT};
-	uint16_t udp_port {DEFAULT_UDP_ENCAPS_PORT};
+	uint16_t sctp_port {sctp::DEFAULT_SCTP_PORT};
+	uint16_t udp_port {sctp::DEFAULT_UDP_ENCAPS_PORT};
 
 	po::options_description desc {"Allowed options"};
 	desc.add_options()
 		("version,V", "print version and exit")
 		("verbose,v", "be verbose")
-		("sctp-port,s", po::value<std::uint16_t>(&sctp_port)->default_value(DEFAULT_SCTP_PORT), (std::string {"local SCTP server port (default is " + std::to_string(DEFAULT_SCTP_PORT) + ")"}).c_str())
-		("udp-port,u", po::value<std::uint16_t>(&udp_port)->default_value(DEFAULT_UDP_ENCAPS_PORT), (std::string {"local UDP encapsulation port (default is " + std::to_string(DEFAULT_UDP_ENCAPS_PORT) + ")"}).c_str())
+		("sctp-port,s", po::value<std::uint16_t>(&sctp_port)->default_value(sctp::DEFAULT_SCTP_PORT), (std::string {"local SCTP server port (default is " + std::to_string(sctp::DEFAULT_SCTP_PORT) + ")"}).c_str())
+		("udp-port,u", po::value<std::uint16_t>(&udp_port)->default_value(sctp::DEFAULT_UDP_ENCAPS_PORT), (std::string {"local UDP encapsulation port (default is " + std::to_string(sctp::DEFAULT_UDP_ENCAPS_PORT) + ")"}).c_str())
 		("help,h", "produce this help screen");
 
 	po::variables_map vm;
@@ -199,7 +199,7 @@ int main(int argc, char* argv[])
 
 	try
 	{
-		SCTPServer srv{*cfg};
+		sctp::Server srv{*cfg};
 		spdlog::info("{}", srv);
 		bcaster(srv);
 		spdlog::info("Serving. Press ctrl-D to terminate.");

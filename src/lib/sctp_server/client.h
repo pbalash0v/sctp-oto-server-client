@@ -8,16 +8,19 @@
 class Client : public IClient
 {
 public:
-	explicit Client(struct socket* sock, SCTPServer& server);
-	explicit Client(struct socket* sctp_sock, SCTPServer& s, size_t msg_size); 
+	explicit Client(struct socket* sock, sctp::Server& server);
+	explicit Client(struct socket* sctp_sock, sctp::Server& s, size_t msg_size);
 	Client(const Client& oth) = delete;
 	Client& operator=(const Client& oth) = delete;
 	virtual ~Client();
 
-	virtual void init() override;
 
 	virtual void state(IClient::State new_state) override;
-	virtual IClient::State state() const noexcept override;
+
+	virtual IClient::State state() const noexcept override
+	{
+		return state_;
+	}
 
 	virtual struct socket* socket() const override { return sock; };
 
@@ -34,15 +37,16 @@ public:
 	friend bool operator== (const Client&, const Client&);
 	friend bool operator!= (const Client&, const Client&);
 
-	friend class SCTPServer;
+	friend class sctp::Server;
+
 private:
 	struct socket* sock {nullptr};
 
-	SCTPServer& server_;
+	sctp::Server& server_;
 
 	IClient::State state_ {IClient::State::NONE};
 
-	size_t msg_size_ { 0 };
+	size_t msg_size_ {};
 
 	std::vector<char> sctp_msg_buff_;
 	std::vector<char> decrypted_msg_buff_;
@@ -52,7 +56,10 @@ private:
 	BIO* output_bio {nullptr};
 	BIO* input_bio {nullptr};
 
-	virtual ssize_t send_raw(const void* buf, size_t len);
+private:
+	void init(SSL_CTX*);
+
+	ssize_t send_raw(const void* buf, size_t len);
 
 	std::unique_ptr<Event> handle_notification(const std::unique_ptr<sctp::Message>& m);
 	std::unique_ptr<Event> handle_data(const std::unique_ptr<sctp::Message>& m);
@@ -66,7 +73,6 @@ private:
 	void handle_adaptation_indication(const struct sctp_adaptation_event*) const;
 	void handle_send_failed_event(const struct sctp_send_failed_event*) const;
 	void handle_stream_change_event(const struct sctp_stream_change_event*) const;
-
 };
 
 

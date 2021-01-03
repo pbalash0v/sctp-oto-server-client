@@ -11,23 +11,24 @@
 
 #include <sys/socket.h> //socklen_t
 
-#include "client.h"
 #include "server_event.h"
 
+
+class SSL_h;
+class IClient;
+class Client;
+
+
+namespace sctp
+{
+enum class LogLevel;
 
 constexpr uint16_t DEFAULT_UDP_ENCAPS_PORT {9899};
 constexpr uint16_t DEFAULT_SCTP_PORT {5001};
 
 constexpr auto DEFAULT_SCTP_MESSAGE_SIZE_BYTES {(1 << 16)};
 
-namespace sctp
-{
-	enum class LogLevel;
-}
-
-class SSL_h;
-
-class SCTPServer
+class Server
 {
 public:
 	using event_cback_t = std::function<void(std::unique_ptr<Event>)>;
@@ -48,19 +49,19 @@ public:
     	friend std::ostream& operator<<(std::ostream &out, const Config &c); 
 	};
 
-	explicit SCTPServer(std::shared_ptr<SCTPServer::Config>);
+	explicit Server(std::shared_ptr<Server::Config>);
 	
-	SCTPServer(const SCTPServer&) = delete;
-	SCTPServer& operator=(const SCTPServer&) = delete;
-	SCTPServer(SCTPServer&&) = delete;
-	SCTPServer& operator=(SCTPServer&&) = delete;
+	Server(const Server&) = delete;
+	Server& operator=(const Server&) = delete;
+	Server(Server&&) = delete;
+	Server& operator=(Server&&) = delete;
 
-	virtual ~SCTPServer();
+	virtual ~Server();
 
 	/*
 		Getter for cfg object
 	*/
-	std::shared_ptr<SCTPServer::Config> cfg() { return cfg_; };
+	std::shared_ptr<Server::Config> cfg() { return cfg_; };
 
  	/*
  		Actually starts server.
@@ -80,17 +81,16 @@ public:
 	void stop();
 	
 
- 	friend std::ostream& operator<<(std::ostream&, const SCTPServer&);
+ 	friend std::ostream& operator<<(std::ostream&, const Server&);
 
-	friend class Client;
-	friend class IClient;
+	friend class ::Client;
+	friend class ::IClient;
 
 protected:
 	std::shared_ptr<IClient> client_factory(struct socket*);
 
-
 private:
-	std::shared_ptr<SCTPServer::Config> cfg_;
+	std::shared_ptr<Server::Config> cfg_;
 
 	std::atomic_bool initialized_ {false};
 	/* bad signleton-like implementation */
@@ -121,6 +121,6 @@ private:
 	void drop_client(std::shared_ptr<IClient>);
 };
 
-
+} // namespace sctp
 
 #endif // __sctp_server_h__

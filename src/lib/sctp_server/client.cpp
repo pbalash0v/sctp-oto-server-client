@@ -26,7 +26,7 @@
 	Getting it here explicitly.
 	After this we can use log macros.
 */
-#define ENABLE_LOGGING() std::shared_ptr<SCTPServer::Config> cfg_ = server_.cfg_
+#define ENABLE_LOGGING() std::shared_ptr<sctp::Server::Config> cfg_ = server_.cfg_
 
 namespace
 {
@@ -89,11 +89,11 @@ void inline log_client_error_and_throw(const char* func)
 
 } //anon namespace
 
-Client::Client(struct socket* sctp_sock, SCTPServer& s)
-	: Client(sctp_sock, s, DEFAULT_SCTP_MESSAGE_SIZE_BYTES)
+Client::Client(struct socket* sctp_sock, sctp::Server& s)
+	: Client(sctp_sock, s, sctp::DEFAULT_SCTP_MESSAGE_SIZE_BYTES)
 {}
 
-Client::Client(struct socket* sctp_sock, SCTPServer& s, size_t message_size)
+Client::Client(struct socket* sctp_sock, sctp::Server& s, size_t message_size)
 	: sock {sctp_sock}
 	, server_ {s}
 	, msg_size_ {message_size}
@@ -101,6 +101,8 @@ Client::Client(struct socket* sctp_sock, SCTPServer& s, size_t message_size)
 	sctp_msg_buff_.reserve(2*message_size);
 	decrypted_msg_buff_.reserve(2*message_size);
 	encrypted_msg_buff_.reserve(2*message_size);
+
+	init(server_.ssl_obj_->ctx_);
 }
 
 Client::~Client()
@@ -108,9 +110,9 @@ Client::~Client()
 	if (nullptr != ssl) ::SSL_free(ssl);
 }
 
-void Client::init()
+void Client::init(SSL_CTX* ctx)
 {
-	ssl = ::SSL_new(server_.ssl_obj_->ctx_);
+	ssl = ::SSL_new(ctx);
 	BOOST_ASSERT(ssl);
 
 	output_bio = ::BIO_new(BIO_s_mem());
@@ -120,7 +122,6 @@ void Client::init()
 	BOOST_ASSERT(input_bio);
 	  
 	::SSL_set_bio(ssl, input_bio, output_bio);
-
 	::SSL_set_accept_state(ssl);
 }
 
@@ -177,7 +178,7 @@ void Client::state(IClient::State new_state)
 				throw std::runtime_error("setsockopt: sndbuf" + std::string(strerror(errno)));
 			}
 			
-			if (usrsctp_set_upcall(sock, &SCTPServer::handle_client_upcall, &server_)) {
+			if (usrsctp_set_upcall(sock, &sctp::Server::handle_client_upcall, &server_)) {
 				ERROR("usrsctp_set_upcall for " + to_string());
 				throw std::runtime_error("usrsctp_set_upcall: " + std::string(strerror(errno)));
 			}
@@ -221,12 +222,6 @@ void Client::state(IClient::State new_state)
 	state_ = new_state;
 }
 
-
-IClient::State Client::state() const noexcept
-{
-	return state_;
-}
-
 /*
 	Public send
 */
@@ -234,27 +229,32 @@ void Client::send(const void* buf, size_t len)
 {
 	ssize_t sent = -1;
 
-	if (state() != IClient::State::SSL_CONNECTED) {
+	if (state() != IClient::State::SSL_CONNECTED)
+	{
 		sent = send_raw(buf, len);
-	} else {
+	}
+	else
+	{
 		int written = SSL_write(ssl, buf, len);
-		if (SSL_ERROR_NONE != SSL_get_error(ssl, written)) {
+		if (SSL_ERROR_NONE != SSL_get_error(ssl, written))
+		{
 			log_client_error_and_throw("SSL_write");
 		}
 
 		encrypted_msg_buff_.clear();
 		encrypted_msg_buff_.resize(BIO_ctrl_pending(output_bio));
 
-		int read = BIO_read(output_bio, encrypted_msg_buff_.data(),
-				encrypted_msg_buff_.size());
-		if (SSL_ERROR_NONE != SSL_get_error(ssl, read)) {
+		int read = BIO_read(output_bio, encrypted_msg_buff_.data(), encrypted_msg_buff_.size());
+		if (SSL_ERROR_NONE != SSL_get_error(ssl, read))
+		{
 			log_client_error_and_throw("BIO_read");
 		}
 
 		sent = send_raw(encrypted_msg_buff_.data(), read);
 	} 
 
-	if (sent < 0) {
+	if (sent < 0)
+	{
 		log_client_error_and_throw((std::string("send: ") + strerror(errno)).c_str());
 	}
 }
@@ -288,7 +288,6 @@ std::unique_ptr<Event> Client::handle_message(const std::unique_ptr<sctp::Messag
 {
 	return (m->type == sctp::Message::Type::DATA) ? handle_data(m) : handle_notification(m);
 }
-
 
 std::unique_ptr<Event> Client::handle_data(const std::unique_ptr<sctp::Message>& m)
 {

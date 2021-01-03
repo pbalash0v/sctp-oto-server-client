@@ -98,7 +98,7 @@ int main(int, char const**)
 		cert_and_key c_and_k;
 
 		std::atomic_bool running {true};
-		auto cfg = std::make_shared<SCTPServer::Config>();
+		auto cfg = std::make_shared<sctp::Server::Config>();
 
 		cfg->cert_filename = c_and_k.cert().c_str();
 		cfg->key_filename = c_and_k.key().c_str();
@@ -118,7 +118,7 @@ int main(int, char const**)
 
 		try
 		{
-			SCTPServer server{cfg};
+			sctp::Server server{cfg};
 			server();
 			/* signal server init to client */
 			close(fd[0]);

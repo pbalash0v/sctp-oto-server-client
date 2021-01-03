@@ -4,12 +4,13 @@
 #include <memory>
 
 
-class SCTPServer;
 namespace sctp
 {
 struct Message;
+class Server;
 }
 struct Event;
+
 
 class IClient
 {
@@ -28,8 +29,6 @@ public:
    };
 
 	virtual ~IClient() {};
-
-	virtual void init() = 0;
 
 	virtual void state(IClient::State) = 0;
 	virtual IClient::State state() const = 0;
@@ -50,7 +49,6 @@ public:
 	{
 		return out << c.to_string();
 	};
-
 	friend std::ostream& operator<<(std::ostream &out, const IClient::State s);
 };
 

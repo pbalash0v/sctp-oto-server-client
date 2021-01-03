@@ -119,7 +119,7 @@ int main(int, char const**)
 		bool client1_done { false };
 		bool client2_done { false };
 
-		auto cfg = std::make_shared<SCTPServer::Config>();
+		auto cfg = std::make_shared<sctp::Server::Config>();
 		cfg->cert_filename = c_and_k.cert().c_str();
 		cfg->key_filename = c_and_k.key().c_str();
 		cfg->debug_cback_f = [&](auto, const auto& s)
@@ -149,7 +149,7 @@ int main(int, char const**)
 
 		try
 		{
-			SCTPServer server{cfg};
+			sctp::Server server{cfg};
 			server();
 			/* signal server init to client */
 			close(fd[0]);

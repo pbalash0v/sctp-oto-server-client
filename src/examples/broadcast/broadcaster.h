@@ -7,7 +7,10 @@
 
 #include "sync_queue.hpp"
 
-class SCTPServer;
+namespace sctp
+{
+class Server;
+}
 class IClient;
 
 class Broadcaster
@@ -21,7 +24,7 @@ public:
 
 	virtual ~Broadcaster();
 
-	virtual void operator()(SCTPServer&);
+	virtual void operator()(sctp::Server&);
 
 	virtual void enqueue(std::vector<char>);
 

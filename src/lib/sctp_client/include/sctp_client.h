@@ -28,13 +28,12 @@ class SSL_h;
 template <typename T>
 class SyncQueue;
 
+constexpr auto DEFAULT_SCTP_MESSAGE_SIZE_BYTES {1 << 16};
 
 namespace sctp
 {
 
 struct Data;
-constexpr auto DEFAULT_SCTP_MESSAGE_SIZE_BYTES = 1 << 16;
-
 
 enum class LogLevel
 {
@@ -80,7 +79,7 @@ public:
 		uint16_t server_sctp_port {DEFAULT_SERVER_SCTP_PORT};
 		std::string server_address {DEFAULT_SERVER_ADDRESS};
 
-		size_t message_size {sctp::DEFAULT_SCTP_MESSAGE_SIZE_BYTES};
+		size_t message_size {DEFAULT_SCTP_MESSAGE_SIZE_BYTES};
 
 		std::string cert_filename {DEFAULT_CLIENT_CERT_FILENAME};
 		std::string key_filename {DEFAULT_CLIENT_KEY_FILENAME};

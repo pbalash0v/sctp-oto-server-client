@@ -24,7 +24,6 @@ struct Event
 		ERROR
 	};
 
-	explicit Event() = default;
 	explicit Event(Event::Type, std::shared_ptr<IClient>);	
 	explicit Event(Event::Type, std::shared_ptr<IClient>, IClient::State);
 	explicit Event(Event::Type, std::shared_ptr<IClient>, std::vector<char>);

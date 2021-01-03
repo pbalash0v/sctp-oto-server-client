@@ -21,6 +21,7 @@ public:
 	SSL_h& operator=(const SSL_h& oth) = delete;
 	SSL_h(SSL_h&& oth) = default;
 	SSL_h& operator=(SSL_h&& oth) = default;
+
 	~SSL_h();
 
 	void init(const std::string& cert_file, const std::string& key_file);
