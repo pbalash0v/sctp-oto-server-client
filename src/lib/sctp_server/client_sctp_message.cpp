@@ -6,7 +6,7 @@
 namespace sctp
 {
 
-Message::Message(Type tp, std::shared_ptr<IClient> c, void* b, size_t s,
+Message::Message(Type tp, std::shared_ptr<Server::IClient> c, void* b, size_t s,
 					struct sockaddr_in& a, struct sctp_recvv_rn r, unsigned int t)
 	: type(tp), client(c), size(s), addr(a), rn(r), infotype(t)
 {
@@ -17,7 +17,7 @@ Message::Message(Type tp, std::shared_ptr<IClient> c, void* b, size_t s,
 	size = s;
 };
 
-Message::Message(Type t, std::shared_ptr<IClient> c, void* b, size_t s)
+Message::Message(Type t, std::shared_ptr<Server::IClient> c, void* b, size_t s)
 	: type(t), client(c), size(s)
 {
 	msg = calloc(s, sizeof(char));

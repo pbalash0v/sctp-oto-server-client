@@ -82,13 +82,13 @@ void Broadcaster::enqueue(std::vector<char> d)
 	cv_.notify_one();
 }
 
-void Broadcaster::add_new_client(std::shared_ptr<IClient> c)
+void Broadcaster::add_new_client(std::shared_ptr<sctp::Server::IClient> c)
 {
 	std::lock_guard<std::mutex> _ { signals_mutex_ };
 	send_qs_[c] = std::make_unique<SyncQueue<std::shared_ptr<std::vector<char>>>>();
 }
 
-void Broadcaster::drop_client(std::shared_ptr<IClient> c)
+void Broadcaster::drop_client(std::shared_ptr<sctp::Server::IClient> c)
 {
  	std::lock_guard<std::mutex> _ {signals_mutex_};
  	auto& cli_q = *send_qs_[c];
@@ -107,7 +107,7 @@ void Broadcaster::drop_client(std::shared_ptr<IClient> c)
 	send_qs_.erase(c);
 }
 
-void Broadcaster::notify_send_possible(std::shared_ptr<IClient> c)
+void Broadcaster::notify_send_possible(std::shared_ptr<sctp::Server::IClient> c)
 {
 	{
 		std::lock_guard<std::mutex> _ {signals_mutex_};

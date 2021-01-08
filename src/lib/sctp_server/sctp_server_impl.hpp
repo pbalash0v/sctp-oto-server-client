@@ -13,7 +13,6 @@
 
 #include <sctp_server.hpp>
 #include <log_level.hpp>
-#include <iclient.hpp>
 
 
 class Client;
@@ -55,7 +54,7 @@ public:
 	/*
 		Sends message to client.
 	*/
-	void send(std::shared_ptr<IClient>, const void*, size_t);
+	void send(std::shared_ptr<Server::IClient>, const void*, size_t);
 
 	/* 
 		might not be called explicitly
@@ -67,10 +66,9 @@ public:
  	friend std::ostream& operator<<(std::ostream&, const ServerImpl&);
 
 	friend class ::Client;
-	friend class ::IClient;
 
 protected:
-	std::shared_ptr<IClient> client_factory(struct socket*);
+	std::shared_ptr<Server::IClient> client_factory(struct socket*);
 
 private:
 	std::shared_ptr<Server::Config> cfg_;
@@ -87,7 +85,7 @@ private:
 	std::thread sctp_msg_handler_;
 
 	std::mutex clients_mutex_;
-	std::vector<std::shared_ptr<IClient>> clients_;
+	std::vector<std::shared_ptr<Server::IClient>> clients_;
 
 private:	
 	/*
@@ -99,9 +97,9 @@ private:
 	void try_init_local_UDP();
 	static void handle_server_upcall(struct socket*, void* arg, int flgs);
 	static void handle_client_upcall(struct socket*, void* arg, int flgs);
-	std::shared_ptr<IClient> get_client(const struct socket*);
+	std::shared_ptr<Server::IClient> get_client(const struct socket*);
 	void cleanup();
-	void drop_client(std::shared_ptr<IClient>);
+	void drop_client(std::shared_ptr<Server::IClient>);
 };
 
 } // namespace sctp

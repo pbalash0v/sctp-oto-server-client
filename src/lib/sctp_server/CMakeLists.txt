@@ -77,8 +77,8 @@ set_target_properties(${TARGET_NAME} PROPERTIES
 #
 # those are library public API interface used by its components
 # should go to dev package
-install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/${TARGET_NAME}
-	DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/${TARGET_NAME}.hpp
+	DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}
 	COMPONENT ${TARGET_NAME}_Dev
 )
 
@@ -98,7 +98,7 @@ install(EXPORT ${TARGET_NAME}
 	DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${TARGET_NAME}
 	COMPONENT ${TARGET_NAME}_Runtime
 	COMPONENT ${TARGET_NAME}_Dev
-	FILE ${TARGET_NAME}rConfig.cmake
+	FILE ${TARGET_NAME}Config.cmake
 	NAMESPACE SCTP_OTO::
 )
 

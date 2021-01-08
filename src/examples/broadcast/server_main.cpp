@@ -149,11 +149,11 @@ int main(int argc, char* argv[])
 		case sctp::ServerEvent::Type::CLIENT_STATE:
 			spdlog::info("{}", *c);
 
-			if (evt->client_state == IClient::State::SSL_CONNECTED) {
+			if (evt->client_state == sctp::Server::IClient::State::SSL_CONNECTED) {
 				bcaster.add_new_client(c);
 			}
 
-			if (evt->client_state == IClient::State::SCTP_SHUTDOWN_CMPLT) {
+			if (evt->client_state == sctp::Server::IClient::State::SCTP_SHUTDOWN_CMPLT) {
  				spdlog::info("{} disconnected.", *c);
  				bcaster.drop_client(c);
 			}			

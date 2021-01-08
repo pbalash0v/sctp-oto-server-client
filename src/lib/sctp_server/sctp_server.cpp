@@ -26,7 +26,7 @@ void Server::operator()()
 	server_impl_ptr_->operator()();
 }
 
-void Server::send(std::shared_ptr<IClient> cli, const void* buf, size_t len)
+void Server::send(std::shared_ptr<Server::IClient> cli, const void* buf, size_t len)
 {
 	server_impl_ptr_->send(cli, buf, len);
 }

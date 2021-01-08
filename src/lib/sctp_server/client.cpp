@@ -12,7 +12,6 @@
 
 #include "client.hpp"
 #include "client_sctp_message.hpp"
-
 #include "sctp_server_impl.hpp"
 #include "logging.hpp"
 #include "log_level.hpp"
@@ -32,16 +31,16 @@ namespace
 
 constexpr auto BUFFER_SIZE {1 << 16};
 
-std::map<IClient::State, std::string> state_names {
-	{ IClient::State::NONE, "NONE" },
-	{ IClient::State::SCTP_ACCEPTED, "SCTP_ACCEPTED" },
-	{ IClient::State::SCTP_CONNECTED, "SCTP_CONNECTED"},
-	{ IClient::State::SSL_HANDSHAKING, "SSL_HANDSHAKING"},
-	{ IClient::State::SSL_CONNECTED, "SSL_CONNECTED"},
-	{ IClient::State::SSL_SHUTDOWN, "SSL_SHUTDOWN"},
-	{ IClient::State::SCTP_SHUTDOWN_CMPLT, "SCTP_SHUTDOWN_CMPLT"},
-	{ IClient::State::SCTP_SRV_INITIATED_SHUTDOWN, "SCTP_SRV_INITIATED_SHUTDOWN"},
-	{ IClient::State::PURGE, "PURGE"}
+std::map<sctp::Server::IClient::State, std::string> state_names {
+	{ sctp::Server::IClient::State::NONE, "NONE" },
+	{ sctp::Server::IClient::State::SCTP_ACCEPTED, "SCTP_ACCEPTED" },
+	{ sctp::Server::IClient::State::SCTP_CONNECTED, "SCTP_CONNECTED"},
+	{ sctp::Server::IClient::State::SSL_HANDSHAKING, "SSL_HANDSHAKING"},
+	{ sctp::Server::IClient::State::SSL_CONNECTED, "SSL_CONNECTED"},
+	{ sctp::Server::IClient::State::SSL_SHUTDOWN, "SSL_SHUTDOWN"},
+	{ sctp::Server::IClient::State::SCTP_SHUTDOWN_CMPLT, "SCTP_SHUTDOWN_CMPLT"},
+	{ sctp::Server::IClient::State::SCTP_SRV_INITIATED_SHUTDOWN, "SCTP_SRV_INITIATED_SHUTDOWN"},
+	{ sctp::Server::IClient::State::PURGE, "PURGE"}
 };
 
 std::map<uint16_t, std::string> notification_names {
@@ -144,7 +143,7 @@ void Client::state(IClient::State new_state)
 
 	switch (new_state)
 	{
-	case IClient::State::SCTP_ACCEPTED:
+	case sctp::Server::IClient::State::SCTP_ACCEPTED:
 		{
 			uint16_t event_types[] = {	SCTP_ASSOC_CHANGE,
 	                          			SCTP_PEER_ADDR_CHANGE,

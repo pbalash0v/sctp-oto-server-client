@@ -2,7 +2,7 @@
 
 #include <openssl/ssl.h>
 
-#include "iclient.hpp"
+#include "sctp_server.hpp"
 
 namespace sctp
 {
@@ -10,7 +10,7 @@ namespace sctp
 	struct ServerEvent;
 }
 
-class Client : public IClient
+class Client : public sctp::Server::IClient
 {
 public:
 	explicit Client(struct socket* sock, sctp::ServerImpl& server);
