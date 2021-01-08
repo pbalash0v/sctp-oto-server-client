@@ -66,9 +66,9 @@ ServerImpl::ServerImpl(std::shared_ptr<Server::Config> ptr)
 	init();
 }
 
-std::shared_ptr<sctp::Server::IClient> ServerImpl::client_factory(struct socket* s)
+std::shared_ptr<Server::IClient> ServerImpl::client_factory(struct socket* s)
 {
-	std::shared_ptr<sctp::Server::IClient> client{};
+	std::shared_ptr<Server::IClient> client{};
 
 	try
 	{
@@ -119,7 +119,7 @@ ServerImpl::~ServerImpl()
 		TRACE("before force close of clients");
 		for (auto& c : clients_) {
 			try {
-				c->state(sctp::Server::IClient::State::PURGE);
+				c->state(Server::IClient::State::PURGE);
 			} catch (...) {}
 		}
 		TRACE("force close of clients done");
@@ -172,7 +172,7 @@ void ServerImpl::cleanup()
 		TRACE("before clients shutdown");
 		for (auto& c : clients_) {
 			try {
-				c->state(sctp::Server::IClient::State::SCTP_SRV_INITIATED_SHUTDOWN);
+				c->state(Server::IClient::State::SCTP_SRV_INITIATED_SHUTDOWN);
 			} catch (...) {}
 		}
 		TRACE("clients shutdown done");
@@ -377,12 +377,12 @@ void ServerImpl::stop()
 }
 
 
-void ServerImpl::send(std::shared_ptr<sctp::Server::IClient> c, const void* data, size_t len)
+void ServerImpl::send(std::shared_ptr<Server::IClient> c, const void* data, size_t len)
 {
 	c->send(data, len);
 }
 
-void ServerImpl::drop_client(std::shared_ptr<sctp::Server::IClient> c)
+void ServerImpl::drop_client(std::shared_ptr<Server::IClient> c)
 {
 	TRACE_func_entry(); BOOST_SCOPE_EXIT_ALL(&) { TRACE_func_left(); };
 
@@ -433,13 +433,13 @@ void ServerImpl::handle_server_upcall(struct socket* serv_sock, void* arg, int)
 		}
 		try
 		{
-			new_client->state(sctp::Server::IClient::State::SCTP_ACCEPTED);
+			new_client->state(Server::IClient::State::SCTP_ACCEPTED);
 			DEBUG("Accepted: " + new_client->to_string());
 		}
 		catch (const std::runtime_error& exc)
 		{
 			ERROR(std::string{"Dropping client: "} + exc.what());
-			new_client->state(sctp::Server::IClient::State::PURGE);
+			new_client->state(Server::IClient::State::PURGE);
 			s->drop_client(new_client);
 		}
 	}
@@ -448,7 +448,7 @@ void ServerImpl::handle_server_upcall(struct socket* serv_sock, void* arg, int)
 	if (events & SCTP_EVENT_WRITE) ERROR("SCTP_EVENT_WRITE on server socket.");
 }
 
-std::shared_ptr<sctp::Server::IClient> ServerImpl::get_client(const struct socket* sock)
+std::shared_ptr<Server::IClient> ServerImpl::get_client(const struct socket* sock)
 {
 	std::lock_guard<std::mutex> _ {clients_mutex_};
 
@@ -484,7 +484,7 @@ void ServerImpl::handle_client_upcall(struct socket* upcall_sock, void* arg, int
 
 	int events = usrsctp_get_events(upcall_sock);
 
-	std::shared_ptr<sctp::Server::IClient> client;
+	std::shared_ptr<Server::IClient> client;
 	try
 	{
 		client = s->get_client(upcall_sock);
@@ -639,7 +639,7 @@ void ServerImpl::sctp_msg_handler_loop()
 		/* end thread on nullptr message */
 		if (not msg) break;
 
-		std::unique_ptr<sctp::ServerEvent> evt{nullptr};
+		std::unique_ptr<ServerEvent> evt{nullptr};
 		try
 		{
 			evt = msg->client->handle_message(msg);
@@ -650,9 +650,9 @@ void ServerImpl::sctp_msg_handler_loop()
 			continue;
 		}
 
-		if (evt->type == sctp::ServerEvent::Type::NONE) continue;
+		if (evt->type == ServerEvent::Type::NONE) continue;
 
-		if (evt->type == sctp::ServerEvent::Type::CLIENT_STATE)
+		if (evt->type == ServerEvent::Type::CLIENT_STATE)
 		{
 			try
 			{
@@ -679,7 +679,7 @@ void ServerImpl::sctp_msg_handler_loop()
 			continue;
 		}
 
-		if (evt->type == sctp::ServerEvent::Type::CLIENT_SEND_POSSIBLE)
+		if (evt->type == ServerEvent::Type::CLIENT_SEND_POSSIBLE)
 		{
 			if (cfg_->event_cback_f && msg->client->state() == Server::IClient::State::SSL_CONNECTED)
 			{
@@ -696,7 +696,7 @@ void ServerImpl::sctp_msg_handler_loop()
 			continue;
 		}
 
-		if ((evt->type == sctp::ServerEvent::Type::CLIENT_DATA) and (evt->client_data.size() > 0) and (cfg_->event_cback_f))
+		if ((evt->type == ServerEvent::Type::CLIENT_DATA) and (evt->client_data.size() > 0) and (cfg_->event_cback_f))
 		{
 			try
 			{

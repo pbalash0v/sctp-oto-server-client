@@ -13,6 +13,6 @@ ServerEvent::ServerEvent(ServerEvent::Type t, std::shared_ptr<Server::IClient> c
 ServerEvent::ServerEvent(ServerEvent::Type t, std::shared_ptr<Server::IClient> clnt, std::vector<char> v)
 	: type(t), client(clnt), client_data(std::move(v)) {};
 
-ServerEvent::ServerEvent(const sctp::Message& m) : client(m.client) {};
+ServerEvent::ServerEvent(const Message& m) : client(m.client) {};
 
 } // namespace sctp
