@@ -43,17 +43,13 @@ int main(int, char const**)
 
 	if (pid == 0) // child client process
 	{
-		cert_and_key c_and_k;
-
- 		assert(prctl(PR_SET_PDEATHSIG, SIGHUP) >= 0);
+ 		BOOST_ASSERT(prctl(PR_SET_PDEATHSIG, SIGHUP) >= 0);
 
 		std::atomic_bool running { true };
 
 		auto cli_cfg = ([&]
 		{
 			auto cfg = std::make_shared<sctp::Client::Config>();
-			cfg->cert_filename = c_and_k.cert().c_str();
-			cfg->key_filename = c_and_k.key().c_str();
 			return cfg;
 		})();
 
@@ -93,16 +89,12 @@ int main(int, char const**)
  	}
  	else if (pid > 0) // server process
  	{
-		cert_and_key c_and_k;
-
 		std::atomic_bool running {true};
+		
 		auto cfg = std::make_shared<sctp::Server::Config>();
-
-		cfg->cert_filename = c_and_k.cert().c_str();
-		cfg->key_filename = c_and_k.key().c_str();
 		cfg->event_cback_f = [&](const auto& evt)
 		{
-			if (evt->type != Event::Type::CLIENT_DATA) return;
+			if (evt->type != sctp::ServerEvent::Type::CLIENT_DATA) return;
 			
 			const char* msg = static_cast<const char*>(evt->client_data.data());
 			if (strcmp(msg, TEST_STRING)) BOOST_ASSERT(false);

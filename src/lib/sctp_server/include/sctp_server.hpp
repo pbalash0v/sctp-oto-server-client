@@ -1,41 +1,62 @@
 #ifndef __sctp_server_hpp__
 #define __sctp_server_hpp__
 
-#include <vector>
 #include <string>
 #include <memory>
 #include <functional>
-#include <thread>
-#include <mutex>
-#include <atomic>
 
-#include <sys/socket.h> //socklen_t
-
+#include <log_level.hpp>
 #include <iclient.hpp>
-#include <server_event.hpp>
 
-
-class Client;
 
 namespace sctp
 {
-enum class LogLevel;
-class SSLWrapper;
+class ServerImpl;
 
 
-constexpr std::uint16_t DEFAULT_UDP_ENCAPS_PORT {9899};
-constexpr std::uint16_t DEFAULT_SCTP_PORT {5001};
+struct ServerEvent
+{
+	enum class Type
+	{
+		NONE,
+		CLIENT_DATA,
+		CLIENT_STATE,
+		CLIENT_SEND_POSSIBLE,
+		ERROR
+	};
 
-constexpr std::size_t DEFAULT_SCTP_MESSAGE_SIZE_BYTES {(1 << 16)};
+	explicit ServerEvent(Type, std::shared_ptr<IClient>);	
+	explicit ServerEvent(Type, std::shared_ptr<IClient>, IClient::State);
+	explicit ServerEvent(Type, std::shared_ptr<IClient>, std::vector<char>);
+	explicit ServerEvent(const sctp::Message&);
 
-class Server
+	ServerEvent(const ServerEvent&) = delete;
+	ServerEvent& operator=(const ServerEvent&) = delete;
+	ServerEvent(ServerEvent&&) = default;
+	ServerEvent& operator=(ServerEvent&&) = default;
+
+	~ServerEvent() = default;
+
+	Type type {Type::NONE};
+	std::shared_ptr<IClient> client {nullptr};
+	IClient::State client_state {IClient::State::NONE};
+	std::vector<char> client_data;
+};
+
+
+class Server final
 {
 public:
-	using event_cback_t = std::function<void(std::unique_ptr<Event>)>;
-	using debug_cback_t = std::function<void(sctp::LogLevel, const std::string&)>;	
+	using event_cback_t = std::function<void(std::unique_ptr<ServerEvent>)>;
+	using debug_cback_t = std::function<void(sctp::LogLevel, const std::string&)>;
 
 	struct Config
 	{
+		constexpr static std::uint16_t DEFAULT_UDP_ENCAPS_PORT {9899};
+		constexpr static std::uint16_t DEFAULT_SCTP_PORT {5001};
+
+		constexpr static std::size_t DEFAULT_SCTP_MESSAGE_SIZE_BYTES {(1 << 16)};
+
 		uint16_t udp_encaps_port {DEFAULT_UDP_ENCAPS_PORT};
 		uint16_t sctp_port {DEFAULT_SCTP_PORT};
 		size_t message_size {DEFAULT_SCTP_MESSAGE_SIZE_BYTES};
@@ -50,18 +71,17 @@ public:
 	};
 
 	explicit Server(std::shared_ptr<Server::Config>);
-	
+
 	Server(const Server&) = delete;
 	Server& operator=(const Server&) = delete;
-	Server(Server&&) = delete;
-	Server& operator=(Server&&) = delete;
+	Server(Server&&) = default;
+	Server& operator=(Server&&) = default;
 
-	virtual ~Server();
-
+	~Server();
 	/*
 		Getter for cfg object
 	*/
-	std::shared_ptr<Server::Config> cfg() { return cfg_; };
+	std::shared_ptr<Server::Config> cfg();
 
  	/*
  		Actually starts server.
@@ -80,45 +100,11 @@ public:
 	*/
 	void stop();
 	
-
  	friend std::ostream& operator<<(std::ostream&, const Server&);
 
-	friend class ::Client;
-	friend class ::IClient;
-
-protected:
-	std::shared_ptr<IClient> client_factory(struct socket*);
-
 private:
-	std::shared_ptr<Server::Config> cfg_;
+	std::unique_ptr<sctp::ServerImpl> server_impl_ptr_{nullptr};
 
-	std::atomic_bool initialized_ {false};
-	/* bad signleton-like implementation */
-	inline static std::atomic_bool instance_exists_  {false};
-
-	/* holds main SSL context etc */
-	std::unique_ptr<SSLWrapper> ssl_obj_;
-
-	struct socket* serv_sock_ {nullptr};
-
-	std::thread sctp_msg_handler_;
-
-	std::mutex clients_mutex_;
-	std::vector<std::shared_ptr<IClient>> clients_;
-
-private:	
-	/*
-		Usrsctp lib, SSL etc initializations. (synchronous).
-		Calling is mandatory.
-	*/
-	void init();
-	void sctp_msg_handler_loop();
-	void try_init_local_UDP();
-	static void handle_server_upcall(struct socket*, void* arg, int flgs);
-	static void handle_client_upcall(struct socket*, void* arg, int flgs);
-	std::shared_ptr<IClient> get_client(const struct socket*);
-	void cleanup();
-	void drop_client(std::shared_ptr<IClient>);
 };
 
 } // namespace sctp

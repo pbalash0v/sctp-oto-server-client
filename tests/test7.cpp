@@ -42,8 +42,6 @@ int main(int, char const**)
 	{
 		BOOST_ASSERT(prctl(PR_SET_PDEATHSIG, SIGHUP) >= 0);
 
-		cert_and_key c_and_k;
-
 		std::atomic_bool client1_done { false };
 		std::atomic_bool client2_done { false };
 
@@ -52,8 +50,6 @@ int main(int, char const**)
 		auto cli1_cfg = ([&]
 		{
 			auto cfg = std::make_shared<sctp::Client::Config>();
-			cfg->cert_filename = c_and_k.cert().c_str();
-			cfg->key_filename = c_and_k.key().c_str();
 			return cfg;
 		})();
 
@@ -74,8 +70,6 @@ int main(int, char const**)
 		auto cli2_cfg = ([&]
 		{
 			auto cfg = std::make_shared<sctp::Client::Config>();
-			cfg->cert_filename = c_and_k.cert().c_str();
-			cfg->key_filename = c_and_k.key().c_str();
 			return cfg;
 		})();
 		sctp::Client client2 { cli2_cfg };
@@ -108,17 +102,11 @@ int main(int, char const**)
 	}
 	else if (pid > 0) // server process
 	{
-		cert_and_key c_and_k;
-
 		std::atomic_bool running { true };
-
-
 		bool client1_done { false };
 		bool client2_done { false };
 
 		auto cfg = std::make_shared<sctp::Server::Config>();
-		cfg->cert_filename = c_and_k.cert().c_str();
-		cfg->key_filename = c_and_k.key().c_str();
 		cfg->debug_cback_f = [&](auto, const auto& s)
 		{
 			std::string s_{s};
@@ -127,7 +115,7 @@ int main(int, char const**)
 		};
 		cfg->event_cback_f = [&](const auto& evt)
 		{
-			if (evt->type != Event::Type::CLIENT_DATA) return;
+			if (evt->type != sctp::ServerEvent::Type::CLIENT_DATA) return;
 
 			const char* msg = static_cast<const char*>(evt->client_data.data());
 			std::string msg_str { msg };

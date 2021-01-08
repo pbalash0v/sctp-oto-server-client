@@ -17,7 +17,6 @@
 #include "sctp_client.hpp"
 #include "rand_data_gen.hpp"
 #include "traffic_stats.hpp"
-#include "helper.hpp"
 
 
 namespace
@@ -199,10 +198,6 @@ int main(int /* argc */, char* argv[])
 	/* Client config */
 
 	auto cfg_ = get_cfg_or_die(argv, options);
-
-	cert_and_key c_and_k;
-	cfg_->cert_filename = c_and_k.cert();
-	cfg_->key_filename = c_and_k.key();
 
 	sctp::Client client{cfg_};
 

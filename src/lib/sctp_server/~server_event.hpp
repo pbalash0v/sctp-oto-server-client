@@ -1,17 +1,16 @@
-#pragma once
+#ifndef __sctp_event_hpp__
+#define __sctp_event_hpp__
 
 #include <memory>
 
 #include "iclient.hpp"
-#include "client.hpp"
 
 
 namespace sctp
 {
 struct Message;
-}
 
-struct Event
+struct ServerEvent
 {
 	enum class Type
 	{
@@ -31,8 +30,12 @@ struct Event
 	Event& operator=(const Event&) = delete;
 	virtual ~Event() = default;
 
-	Event::Type type {IClient::State::NONE};
+	Event::Type type {Event::Type::NONE};
 	std::shared_ptr<IClient> client {nullptr};
 	IClient::State client_state {IClient::State::NONE};
 	std::vector<char> client_data;
 };
+
+}
+
+#endif // __sctp_event_hpp__

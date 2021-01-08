@@ -11,6 +11,7 @@
 #include <arpa/inet.h>
 
 #include <openssl/ssl.h>
+#include <log_level.hpp>
 
 
 constexpr uint16_t DEFAULT_LOCAL_UDP_ENCAPS_PORT = 0; //choose ephemeral
@@ -29,16 +30,6 @@ constexpr auto DEFAULT_SCTP_MESSAGE_SIZE_BYTES {1 << 16};
 namespace sctp
 {
 class SSLWrapper;
-
-enum class LogLevel
-{
-	TRACE,
-	DEBUG,
-	INFO,
-	WARNING,
-	ERROR,
-	CRITICAL
-};
 
 
 class Client final

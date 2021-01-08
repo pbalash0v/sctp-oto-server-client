@@ -1,4 +1,5 @@
-#pragma once
+#ifndef __sctp_helper_hpp__
+#define __sctp_helper_hpp__
 
 #include <boost/assert.hpp>
 #include <boost/filesystem.hpp>
@@ -7,12 +8,45 @@
 
 namespace
 {
-	namespace bp = boost::process;
 
-	size_t constexpr length(const char* str)
+size_t constexpr length(const char* str)
+{
+    return *str ? 1 + length(str + 1) : 0;
+}
+
+}
+
+
+namespace sctp
+{
+
+namespace bp = boost::process;
+
+class cert_and_key final
+{
+public:
+	cert_and_key()
 	{
-	    return *str ? 1 + length(str + 1) : 0;
+		std::tie(cert_, key_) = generate_cert_and_key();
 	}
+
+	cert_and_key(const cert_and_key&) = delete;
+	cert_and_key& operator=(const cert_and_key&) = delete;
+
+	~cert_and_key()
+	{
+		boost::filesystem::remove(cert_);
+		boost::filesystem::remove(key_);
+	}
+
+	std::string cert() const noexcept { return cert_.string(); }
+	std::string key() const noexcept { return key_.string(); }
+
+private:
+	boost::filesystem::path cert_;
+	boost::filesystem::path key_;
+
+private:
 
 	std::tuple<boost::filesystem::path, boost::filesystem::path> generate_paths()
 	{
@@ -39,29 +73,9 @@ namespace
 
 		return {cert, key};
 	}
+};
 
-	class cert_and_key final
-	{
-	public:
-		cert_and_key()
-		{
-			std::tie(cert_, key_) = generate_cert_and_key();
-		}
 
-		cert_and_key(const cert_and_key&) = delete;
-		cert_and_key& operator=(const cert_and_key&) = delete;
+} // anon namespace
 
-		~cert_and_key()
-		{
-			boost::filesystem::remove(cert_);
-			boost::filesystem::remove(key_);
-		}
-
-		std::string cert() const noexcept { return cert_.string(); }
-		std::string key() const noexcept { return key_.string(); }
-
-	private:
-		boost::filesystem::path cert_;
-		boost::filesystem::path key_;
-	};
-}
+#endif // __sctp_helper_hpp__

@@ -6,23 +6,23 @@
 	#define CHECK_STATE() do {} while (0)
 #else
 	#define log(level, text) \
-							do { \
-								if (nullptr == cfg_->debug_cback_f) break; \
-								std::string s; \
-								s += std::string(basename(__FILE__)) \
-								 + ", " + std::string(__func__) \
-								 + ":" + std::to_string(__LINE__) \
-								 + "\t " + std::string(text); \
-								cfg_->debug_cback_f(level, s); \
-							} while (0)
+				do { \
+					if (nullptr == cfg_->debug_cback_f) break; \
+					std::string s; \
+					s += std::string(basename(__FILE__)) \
+					 + ", " + std::string(__func__) \
+					 + ":" + std::to_string(__LINE__) \
+					 + "\t " + std::string(text); \
+					cfg_->debug_cback_f(level, s); \
+				} while (0)
 
 	#define CHECK_STATE() \
-							do { \
-								if (not (_check_state(std::string(__func__), state_))) { \
-									CRITICAL("Wrong state transition."); \
-									throw std::logic_error("Disallowed state."); \
-								} \
-							} while (0)
+				do { \
+					if (not (_check_state(std::string(__func__), state_))) { \
+						CRITICAL("Wrong state transition."); \
+						throw std::logic_error("Disallowed state."); \
+					} \
+				} while (0)
 #endif
 
 

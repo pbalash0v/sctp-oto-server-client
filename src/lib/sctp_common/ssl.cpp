@@ -1,32 +1,28 @@
 #include <iostream>
-#include <cassert>
 #include <string.h>
 
 #include <openssl/err.h>
 
 #include "ssl.hpp"
+#include "helper.hpp"
 
-namespace
-{
-
-int ssl_verify_peer(int ok __attribute__((unused)), X509_STORE_CTX* ctx __attribute__((unused)))
-{
-	return 1;
-}
-
-} //anon namespace
 
 namespace sctp
 {
 
-SSLWrapper::SSLWrapper(SSLWrapper::Type type) : type_(type) {}
+SSLWrapper::SSLWrapper(SSLWrapper::Type type, CertAndKeyGenerator g)
+	: type_{type}
+	, cert_and_key_gen_{g}
+{
+}
 
 SSLWrapper::~SSLWrapper()
 {
 	if (nullptr != ctx_) SSL_CTX_free(ctx_);	
 }
 
-void SSLWrapper::init(const std::string& cert_file, const std::string& key_file)
+
+std::unique_ptr<cert_and_key>& SSLWrapper::init(std::string cert_file, std::string key_file)
 {
 	// bool is_client = (type_ == SSLWrapper::CLIENT);
 
@@ -61,7 +57,7 @@ void SSLWrapper::init(const std::string& cert_file, const std::string& key_file)
 	if (!ctx_) throw std::runtime_error("SSL_CTX_new()");
 
 	/* the client doesn't have to send it's certificate */
-	SSL_CTX_set_verify(ctx_, SSL_VERIFY_PEER, ssl_verify_peer);
+	SSL_CTX_set_verify(ctx_, SSL_VERIFY_PEER, [](int, X509_STORE_CTX*) { return 1; });
 
 	#if 0
 	/* Load certificate and private key files, and check consistency */
@@ -78,6 +74,14 @@ void SSLWrapper::init(const std::string& cert_file, const std::string& key_file)
 	}
 
 	#endif
+
+	if ((cert_file.empty() or key_file.empty())
+		and (cert_and_key_gen_ == CertAndKeyGenerator::DO_GENERATE))
+	{
+		cert_and_key_ptr = std::make_unique<cert_and_key>();
+		cert_file = cert_and_key_ptr->cert();
+		key_file = cert_and_key_ptr->key();
+	}
 
 	if (SSL_CTX_use_certificate_file(ctx_, cert_file.c_str(),  SSL_FILETYPE_PEM) != 1)
 		throw std::runtime_error("SSL_CTX_use_certificate_file");
@@ -96,6 +100,8 @@ void SSLWrapper::init(const std::string& cert_file, const std::string& key_file)
 	#define CIPHER_LIST "ALL:!ADH:!LOW:!EXP:!MD5:@STRENGTH"
 	if (SSL_CTX_set_cipher_list(ctx_, CIPHER_LIST) != 1)
 		throw std::runtime_error("SSL_CTX_set_cipher_list");
+
+	return cert_and_key_ptr;
 }
 
 

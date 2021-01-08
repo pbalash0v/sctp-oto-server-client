@@ -8,6 +8,7 @@ project(sctp_oto
 # cmake-gui configurable options
 option(SCTP_OTO_BUILD_EXAMPLES "Build examples" ON)
 option(SCTP_OTO_BUILD_TESTS "Build tests" OFF)
+option(SCTP_OTO_BUILD_PYTHON_BINDINGS "Build Python bindings" OFF)
 
 # append local cmake dir to include path for cmake modules
 list(INSERT CMAKE_MODULE_PATH 0 "${CMAKE_CURRENT_SOURCE_DIR}/cmake")

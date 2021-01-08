@@ -13,14 +13,9 @@
 
 int main(int, const char**)
 {
-	cert_and_key c_and_k;
-
 	auto cli_cfg = ([&]
 	{
 		auto cfg = std::make_shared<sctp::Client::Config>();
-
-		cfg->cert_filename = c_and_k.cert().c_str();
-		cfg->key_filename = c_and_k.key().c_str();
 
 		return cfg;
 	})();

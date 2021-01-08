@@ -1,23 +1,21 @@
 #ifndef __iclient_hpp__
 #define __iclient_hpp__
 
-#include <vector>
 #include <memory>
-
+#include <vector>
 
 namespace sctp
 {
-struct Message;
 class Server;
+struct ServerEvent;
+struct Message;
 }
-struct Event;
-
 
 class IClient
 {
 public:
-   enum class State
-   {
+	enum class State
+	{
 		NONE,
 		SCTP_ACCEPTED,
 		SCTP_CONNECTED,
@@ -27,7 +25,7 @@ public:
 		SCTP_SHUTDOWN_CMPLT,
 		SCTP_SRV_INITIATED_SHUTDOWN,
 		PURGE
-   };
+	};
 
 	virtual ~IClient() {};
 
@@ -38,7 +36,7 @@ public:
 
 	virtual void send(const void* buf, size_t len) = 0;
 
-	virtual std::unique_ptr<Event> handle_message(const std::unique_ptr<sctp::Message>&) = 0;
+	virtual std::unique_ptr<sctp::ServerEvent> handle_message(const std::unique_ptr<sctp::Message>&) = 0;
 
 	virtual void close() = 0;
 
@@ -50,6 +48,7 @@ public:
 	{
 		return out << c.to_string();
 	};
+
 	friend std::ostream& operator<<(std::ostream &out, const IClient::State s);
 };
 

@@ -12,12 +12,14 @@ find_package(OpenSSL 1.1.1 REQUIRED)
 #################################
 # Define targets	
 #################################
-set(CMAKE_INSTALL_RPATH $ORIGIN $ORIGIN/../lib)
 set(TARGET_NAME sctp_server)
+
+set(CMAKE_INSTALL_RPATH $ORIGIN $ORIGIN/../lib)
 
 add_library(${TARGET_NAME})
 target_sources(${TARGET_NAME} PRIVATE
 	${TARGET_NAME}.cpp
+	${TARGET_NAME}_impl.cpp	
 	server_event.cpp
 	client_sctp_message.cpp
 	client.cpp	
@@ -31,7 +33,7 @@ set_target_properties(${TARGET_NAME} PROPERTIES
 	CXX_STANDARD 17
 	CXX_STANDARD_REQUIRED ON
 	CXX_EXTENSIONS OFF
-	PROPERTIES POSITION_INDEPENDENT_CODE
+	POSITION_INDEPENDENT_CODE ON
 )
 
 #target_compile_definitions(${TARGET_NAME} PRIVATE
@@ -47,11 +49,11 @@ target_include_directories(${TARGET_NAME} PUBLIC
 )
 
 target_link_libraries(${TARGET_NAME} PRIVATE
-	$<BUILD_INTERFACE:SCTP_OTO::sctp_common>
 	$<BUILD_INTERFACE:USRSCTP::static>
 )
 
 target_link_libraries(${TARGET_NAME} PUBLIC
+	$<BUILD_INTERFACE:SCTP_OTO::sctp_common>
 	${OPENSSL_LIBRARIES}
 )
 

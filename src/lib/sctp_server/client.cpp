@@ -13,8 +13,7 @@
 #include "client.hpp"
 #include "client_sctp_message.hpp"
 
-#include "sctp_server.hpp"
-#include "server_event.hpp"
+#include "sctp_server_impl.hpp"
 #include "logging.hpp"
 #include "log_level.hpp"
 #include "ssl.hpp"
@@ -89,11 +88,11 @@ void inline log_client_error_and_throw(const char* func)
 
 } //anon namespace
 
-Client::Client(struct socket* sctp_sock, sctp::Server& s)
+Client::Client(struct socket* sctp_sock, sctp::ServerImpl& s)
 	: Client(sctp_sock, s, sctp::DEFAULT_SCTP_MESSAGE_SIZE_BYTES)
 {}
 
-Client::Client(struct socket* sctp_sock, sctp::Server& s, size_t message_size)
+Client::Client(struct socket* sctp_sock, sctp::ServerImpl& s, size_t message_size)
 	: sock {sctp_sock}
 	, server_ {s}
 	, msg_size_ {message_size}
@@ -178,7 +177,7 @@ void Client::state(IClient::State new_state)
 				throw std::runtime_error("setsockopt: sndbuf" + std::string(strerror(errno)));
 			}
 			
-			if (usrsctp_set_upcall(sock, &sctp::Server::handle_client_upcall, &server_)) {
+			if (usrsctp_set_upcall(sock, &sctp::ServerImpl::handle_client_upcall, &server_)) {
 				ERROR("usrsctp_set_upcall for " + to_string());
 				throw std::runtime_error("usrsctp_set_upcall: " + std::string(strerror(errno)));
 			}
@@ -284,12 +283,12 @@ void Client::close()
 	usrsctp_close(sock);
 }
 
-std::unique_ptr<Event> Client::handle_message(const std::unique_ptr<sctp::Message>& m)
+std::unique_ptr<sctp::ServerEvent> Client::handle_message(const std::unique_ptr<sctp::Message>& m)
 {
 	return (m->type == sctp::Message::Type::DATA) ? handle_data(m) : handle_notification(m);
 }
 
-std::unique_ptr<Event> Client::handle_data(const std::unique_ptr<sctp::Message>& m)
+std::unique_ptr<sctp::ServerEvent> Client::handle_data(const std::unique_ptr<sctp::Message>& m)
 {
 	ENABLE_LOGGING();
 
@@ -310,7 +309,7 @@ std::unique_ptr<Event> Client::handle_data(const std::unique_ptr<sctp::Message>&
 
 	void* outbuf = decrypted_msg_buff_.data();
 
-	auto evt = std::make_unique<Event>(*m);
+	auto evt = std::make_unique<sctp::ServerEvent>(*m);
 
 	TRACE(state_names[state_]);
 	switch (state_)
@@ -340,7 +339,7 @@ std::unique_ptr<Event> Client::handle_data(const std::unique_ptr<sctp::Message>&
 				send(outbuf, read);
 			}
 
-			evt->type = Event::Type::CLIENT_STATE;
+			evt->type = sctp::ServerEvent::Type::CLIENT_STATE;
 			evt->client_state = IClient::State::SSL_HANDSHAKING;
 		}
 		break;
@@ -373,13 +372,13 @@ std::unique_ptr<Event> Client::handle_data(const std::unique_ptr<sctp::Message>&
 
 					send(outbuf, read);
 
-					evt->type = Event::Type::CLIENT_STATE;
+					evt->type = sctp::ServerEvent::Type::CLIENT_STATE;
 					evt->client_state = IClient::State::SSL_CONNECTED;
 					break;
 				}
 
 				if (SSL_ERROR_NONE == SSL_get_error(ssl, r) and not BIO_ctrl_pending(output_bio)) {
-					evt->type = Event::Type::CLIENT_STATE;
+					evt->type = sctp::ServerEvent::Type::CLIENT_STATE;
 					evt->client_state = IClient::State::SSL_CONNECTED;
 					break;
 				}				
@@ -395,7 +394,7 @@ std::unique_ptr<Event> Client::handle_data(const std::unique_ptr<sctp::Message>&
 					send(outbuf, read);
 				}
 
-				evt->type = Event::Type::CLIENT_STATE;
+				evt->type = sctp::ServerEvent::Type::CLIENT_STATE;
 				evt->client_state = IClient::State::SSL_CONNECTED;
 				break;
 			}
@@ -469,7 +468,7 @@ std::unique_ptr<Event> Client::handle_data(const std::unique_ptr<sctp::Message>&
 			// 	return std::string(message);
 			// })());
 
-			evt->type = Event::Type::CLIENT_DATA;
+			evt->type = sctp::ServerEvent::Type::CLIENT_DATA;
 			evt->client_data = std::vector<char> {static_cast<char*>(outbuf), static_cast<char*>(outbuf) + total_decrypted_message_size};
 		}
 		break;
@@ -488,7 +487,7 @@ std::unique_ptr<Event> Client::handle_data(const std::unique_ptr<sctp::Message>&
 /*
 	Functions to handle assoc notifications
 */
-void Client::handle_association_change_event(const struct sctp_assoc_change* sac, std::unique_ptr<Event>& e) const
+void Client::handle_association_change_event(const struct sctp_assoc_change* sac, std::unique_ptr<sctp::ServerEvent>& e) const
 {
 	ENABLE_LOGGING();
 	unsigned int i, n;
@@ -574,7 +573,7 @@ void Client::handle_association_change_event(const struct sctp_assoc_change* sac
 
 	switch (sac->sac_state) {
 		case SCTP_COMM_UP:
-			e->type = Event::Type::CLIENT_STATE;
+			e->type = sctp::ServerEvent::Type::CLIENT_STATE;
 			e->client_state = IClient::State::SCTP_CONNECTED;
 			DEBUG("SCTP_COMM_UP: " + to_string());
 			break;
@@ -583,7 +582,7 @@ void Client::handle_association_change_event(const struct sctp_assoc_change* sac
 		case SCTP_RESTART:
 			break;
 		case SCTP_SHUTDOWN_COMP:
-			e->type = Event::Type::CLIENT_STATE;
+			e->type = sctp::ServerEvent::Type::CLIENT_STATE;
 			e->client_state = IClient::State::SCTP_SHUTDOWN_CMPLT;
 			DEBUG("SCTP_SHUTDOWN_COMP: " + to_string());
 			break;
@@ -784,13 +783,12 @@ void Client::handle_remote_error_event(const struct sctp_remote_error* sre) cons
 	return;
 }
 
-void Client::handle_sender_dry_event(const struct sctp_sender_dry_event*,
-	std::unique_ptr<Event>& e) const
+void Client::handle_sender_dry_event(const struct sctp_sender_dry_event*, std::unique_ptr<sctp::ServerEvent>& e) const
 {
-	e->type = Event::Type::CLIENT_SEND_POSSIBLE;
+	e->type = sctp::ServerEvent::Type::CLIENT_SEND_POSSIBLE;
 }
 
-std::unique_ptr<Event> Client::handle_notification(const std::unique_ptr<sctp::Message>& m)
+std::unique_ptr<sctp::ServerEvent> Client::handle_notification(const std::unique_ptr<sctp::Message>& m)
 {
 	ENABLE_LOGGING();
 	TRACE_func_entry();
@@ -809,7 +807,7 @@ std::unique_ptr<Event> Client::handle_notification(const std::unique_ptr<sctp::M
 
 	TRACE("handle_notification: " + notification_names[notif->sn_header.sn_type]);
 
-	auto evt = std::make_unique<Event>(*m);
+	auto evt = std::make_unique<sctp::ServerEvent>(*m);
 	evt->client_state = state_;
 
 	switch (notif->sn_header.sn_type) {

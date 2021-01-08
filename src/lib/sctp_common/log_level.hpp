@@ -1,5 +1,5 @@
-#pragma once
-
+#ifndef __log_level_hpp__
+#define __log_level_hpp__
 
 namespace sctp
 {
@@ -11,7 +11,10 @@ enum class LogLevel
 	INFO,
 	WARNING,
 	ERROR,
-	CRITICAL
+	CRITICAL,
+	NONE
 };
 
-} 
+} //namespace sctp
+
+#endif // __log_level_hpp__

@@ -14,7 +14,6 @@
 #include "sctp_server.hpp"
 #include "log_level.hpp"
 #include "sync_queue.hpp"
-#include "helper.hpp"
 
 
 namespace
@@ -44,15 +43,15 @@ std::tuple<std::optional<std::shared_ptr<sctp::Server::Config>>, int> get_cfg(in
 
 	auto cfg = std::make_shared<sctp::Server::Config>();
 
-	uint16_t sctp_port {};
-	uint16_t udp_port {};
+	uint16_t sctp_port {sctp::Server::Config::DEFAULT_SCTP_PORT};
+	uint16_t udp_port {sctp::Server::Config::DEFAULT_UDP_ENCAPS_PORT};
 
 	po::options_description desc {"Allowed options"};
 	desc.add_options()
 		("version,V", "print version and exit")
 		("verbose,v", "be verbose")
-		("sctp-port,s", po::value<std::uint16_t>(&sctp_port)->default_value(sctp::DEFAULT_SCTP_PORT), (std::string {"local SCTP server port (default is " + std::to_string(sctp::DEFAULT_SCTP_PORT) + ")"}).c_str())
-		("udp-port,u", po::value<std::uint16_t>(&udp_port)->default_value(sctp::DEFAULT_UDP_ENCAPS_PORT), (std::string {"local UDP encapsulation port (default is " + std::to_string(sctp::DEFAULT_UDP_ENCAPS_PORT) + ")"}).c_str())
+		("sctp-port,s", po::value<std::uint16_t>(&sctp_port)->default_value(sctp::Server::Config::DEFAULT_SCTP_PORT), (std::string {"local SCTP server port (default is " + std::to_string(sctp::Server::Config::DEFAULT_SCTP_PORT) + ")"}).c_str())
+		("udp-port,u", po::value<std::uint16_t>(&udp_port)->default_value(sctp::Server::Config::DEFAULT_UDP_ENCAPS_PORT), (std::string {"local UDP encapsulation port (default is " + std::to_string(sctp::Server::Config::DEFAULT_UDP_ENCAPS_PORT) + ")"}).c_str())
 		("help,h", "produce this help screen");
 
 	po::variables_map vm;
@@ -120,21 +119,18 @@ int main(int argc, char* argv[])
 
 	auto [cfg, res] = get_cfg(argc, argv);
 	if (not cfg) return res;
-	cert_and_key c_and_k;
 
-	(*cfg)->cert_filename = c_and_k.cert();
-	(*cfg)->key_filename = c_and_k.key();
 	(*cfg)->event_cback_f = [&](auto evt)
 	{
 		auto& c = evt->client;
 
 		switch (evt->type) {
-		case Event::Type::CLIENT_DATA:
+		case sctp::ServerEvent::Type::CLIENT_DATA:
 			break;
-		case Event::Type::CLIENT_STATE:
+		case sctp::ServerEvent::Type::CLIENT_STATE:
 			spdlog::info("{}", *c);
 			break;
-		case Event::Type::CLIENT_SEND_POSSIBLE:
+		case sctp::ServerEvent::Type::CLIENT_SEND_POSSIBLE:
 			break;
 		default:
 			break;

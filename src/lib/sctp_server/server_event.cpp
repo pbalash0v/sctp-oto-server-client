@@ -1,14 +1,18 @@
-#include "server_event.hpp"
+#include "sctp_server_impl.hpp"
 #include "client_sctp_message.hpp"
 
+namespace sctp
+{
 
-Event::Event(Event::Type t, std::shared_ptr<IClient> clnt)
+ServerEvent::ServerEvent(ServerEvent::Type t, std::shared_ptr<IClient> clnt)
 	: type(t), client(clnt) {};
 
-Event::Event(Event::Type t, std::shared_ptr<IClient> clnt, IClient::State s)
+ServerEvent::ServerEvent(ServerEvent::Type t, std::shared_ptr<IClient> clnt, IClient::State s)
 	: type(t), client(clnt), client_state(s) {};
 
-Event::Event(Event::Type t, std::shared_ptr<IClient> clnt, std::vector<char> v)
+ServerEvent::ServerEvent(ServerEvent::Type t, std::shared_ptr<IClient> clnt, std::vector<char> v)
 	: type(t), client(clnt), client_data(std::move(v)) {};
 
-Event::Event(const sctp::Message& m) : client(m.client) {};
+ServerEvent::ServerEvent(const sctp::Message& m) : client(m.client) {};
+
+} // namespace sctp
