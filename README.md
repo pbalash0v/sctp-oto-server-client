@@ -1,4 +1,4 @@
-# Simple one-to-one style TLS SCTP Server and Client
+# Simple one-to-one style SCTP TLS Server and Client
 (mainly for educational purposes, WiP)
 
 To compile and run you may need to install some prerequisite packages.
