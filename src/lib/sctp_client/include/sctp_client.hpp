@@ -16,15 +16,6 @@ class ClientImpl;
 class Client final
 {
 public:
-	static constexpr const uint16_t DEFAULT_LOCAL_UDP_ENCAPS_PORT = 0; //choose ephemeral
-	static constexpr const uint16_t DEFAULT_LOCAL_SCTP_PORT = 0; // set the same as udp encaps port
-
-	static constexpr const char* DEFAULT_SERVER_ADDRESS = "127.0.0.1";
-	static constexpr const uint16_t DEFAULT_SERVER_UDP_ENCAPS_PORT = 9899;
-	static constexpr const uint16_t DEFAULT_SERVER_SCTP_PORT = 5001;
-
-	static constexpr const auto DEFAULT_SCTP_MESSAGE_SIZE_BYTES {1 << 16};
-
 	enum class State
 	{
 		NONE,
@@ -44,6 +35,15 @@ public:
 
 	struct Config
 	{
+		static constexpr const uint16_t DEFAULT_LOCAL_UDP_ENCAPS_PORT = 0; //choose ephemeral
+		static constexpr const uint16_t DEFAULT_LOCAL_SCTP_PORT = 0; // set the same as udp encaps port
+
+		static constexpr const char* DEFAULT_SERVER_ADDRESS = "127.0.0.1";
+		static constexpr const uint16_t DEFAULT_SERVER_UDP_ENCAPS_PORT = 9899;
+		static constexpr const uint16_t DEFAULT_SERVER_SCTP_PORT = 5001;
+
+		static constexpr const auto DEFAULT_SCTP_MESSAGE_SIZE_BYTES {1 << 16};
+
 		uint16_t udp_encaps_port {DEFAULT_LOCAL_UDP_ENCAPS_PORT};
 		uint16_t sctp_port {DEFAULT_LOCAL_SCTP_PORT};
 		uint16_t server_udp_port {DEFAULT_SERVER_UDP_ENCAPS_PORT};
@@ -67,7 +67,7 @@ public:
 	Client(const Client&) = delete;
 	Client& operator=(const Client&) = delete;
 	Client(Client&&) = default;
-	Client& operator=(Client&&) = default;	
+	Client& operator=(Client&&) = default;
 	~Client();
 
 	/*
