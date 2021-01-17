@@ -44,11 +44,6 @@ public:
 
 	struct Config
 	{
-		Config() = default;
-		Config(const Config&) = delete;
-		Config& operator=(const Config&) = delete;
-		virtual ~Config() = default;
-
 		uint16_t udp_encaps_port {DEFAULT_LOCAL_UDP_ENCAPS_PORT};
 		uint16_t sctp_port {DEFAULT_LOCAL_SCTP_PORT};
 		uint16_t server_udp_port {DEFAULT_SERVER_UDP_ENCAPS_PORT};
