@@ -52,8 +52,7 @@ std::ostream& operator<<(std::ostream& out, const Server::Config& c)
 
 std::ostream& operator<<(std::ostream &out, const Server& s)
 {
-	out << *(s.server_impl_ptr_->cfg());
-	return out;
+	return out << *(s.server_impl_ptr_->cfg());
 }
 
 } // namespace sctp

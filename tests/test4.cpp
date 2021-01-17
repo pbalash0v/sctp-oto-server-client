@@ -94,9 +94,9 @@ int main(int, char const**)
 		auto cfg = std::make_shared<sctp::Server::Config>();
 		cfg->event_cback_f = [&](const auto& evt)
 		{
-			if (evt->type != sctp::ServerEvent::Type::CLIENT_DATA) return;
+			if (evt.type != sctp::ServerEvent::Type::CLIENT_DATA) return;
 			
-			const char* msg = static_cast<const char*>(evt->client_data.data());
+			const char* msg = static_cast<const char*>(evt.client_data.data());
 			if (strcmp(msg, TEST_STRING)) BOOST_ASSERT(false);
 			else running = false;
 		};

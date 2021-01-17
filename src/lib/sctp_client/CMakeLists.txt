@@ -18,6 +18,7 @@ set(TARGET_NAME sctp_client)
 add_library(${TARGET_NAME})
 target_sources(${TARGET_NAME} PRIVATE
 	${TARGET_NAME}.cpp
+	${TARGET_NAME}_impl.cpp
 )
 
 add_library(SCTP_OTO::${TARGET_NAME} ALIAS ${TARGET_NAME})
@@ -35,6 +36,9 @@ set_target_properties(${TARGET_NAME} PROPERTIES
 #
 #)
 
+target_include_directories(${TARGET_NAME} PRIVATE
+	${CMAKE_CURRENT_LIST_DIR}
+)
 # library public user interface
 # this will transitively propagate to any lib user
 target_include_directories(${TARGET_NAME} PUBLIC

@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.17)
 
+include(GNUInstallDirs)
+
 message(STATUS "Standby, pulling pybind11...")
 
 FetchContent_Declare(pybind
@@ -20,4 +22,19 @@ set_target_properties(pysctp PROPERTIES
 
 target_link_libraries(pysctp PUBLIC
 	SCTP_OTO::sctp_server
+)
+
+install(FILES ${CMAKE_CURRENT_LIST_DIR}/example.py
+	DESTINATION ${CMAKE_INSTALL_LIBDIR}
+	COMPONENT ${TARGET_NAME}_Dev
+)
+
+install(TARGETS pysctp
+	LIBRARY 
+		DESTINATION ${CMAKE_INSTALL_LIBDIR}
+		COMPONENT ${TARGET_NAME}_Runtime
+		NAMELINK_COMPONENT ${TARGET_NAME}_Dev
+	ARCHIVE
+		DESTINATION ${CMAKE_INSTALL_LIBDIR}
+		COMPONENT ${TARGET_NAME}_Dev
 )

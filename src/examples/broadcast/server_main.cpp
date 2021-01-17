@@ -131,29 +131,29 @@ int main(int argc, char* argv[])
 
 	(*cfg)->event_cback_f = [&](auto evt)
 	{
-		auto& c = evt->client;
+		auto& c = evt.client;
 
-		switch (evt->type)
+		switch (evt.type)
 		{
 		case sctp::ServerEvent::Type::CLIENT_DATA:
 			{	
-				std::string message {static_cast<const char*>(evt->client_data.data()),
-					 evt->client_data.size()};
+				std::string message {static_cast<const char*>(evt.client_data.data()),
+					 evt.client_data.size()};
 
 				spdlog::info("{}: {}", *c,
 					 ((message.size() < 30) ? message : message.substr(0, 30)));
 
-				bcaster.enqueue(std::move(evt->client_data));
+				bcaster.enqueue(std::move(evt.client_data));
 			}
 			break;
 		case sctp::ServerEvent::Type::CLIENT_STATE:
 			spdlog::info("{}", *c);
 
-			if (evt->client_state == sctp::Server::IClient::State::SSL_CONNECTED) {
+			if (evt.client_state == sctp::Server::IClient::State::SSL_CONNECTED) {
 				bcaster.add_new_client(c);
 			}
 
-			if (evt->client_state == sctp::Server::IClient::State::SCTP_SHUTDOWN_CMPLT) {
+			if (evt.client_state == sctp::Server::IClient::State::SCTP_SHUTDOWN_CMPLT) {
  				spdlog::info("{} disconnected.", *c);
  				bcaster.drop_client(c);
 			}			

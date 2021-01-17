@@ -102,9 +102,9 @@ static std::shared_ptr<sctp::Client::Config> get_cfg_or_die(char* argv[], struct
 		std::cout <<
 		"Usage: " << basename(argv[0]) << " [OPTIONS]" << std::endl <<
 		std::endl <<
-		"\t-s, --server\t\t -- server address (defaults to " << DEFAULT_SERVER_ADDRESS << ")" << std::endl <<
-		"\t-u, --udp-port\t\t -- server UDP encapsulation port (defaults to " << DEFAULT_SERVER_UDP_ENCAPS_PORT << ")" << std::endl <<
-		"\t-p, --sctp-port\t\t -- server SCTP port (defaults to " << DEFAULT_SERVER_SCTP_PORT << ")" << std::endl <<
+		"\t-s, --server\t\t -- server address (defaults to " << sctp::Client::DEFAULT_SERVER_ADDRESS << ")" << std::endl <<
+		"\t-u, --udp-port\t\t -- server UDP encapsulation port (defaults to " << sctp::Client::DEFAULT_SERVER_UDP_ENCAPS_PORT << ")" << std::endl <<
+		"\t-p, --sctp-port\t\t -- server SCTP port (defaults to " << sctp::Client::DEFAULT_SERVER_SCTP_PORT << ")" << std::endl <<
 		"\t-l, --log\t\t -- enable rotating log (defaults to " << DEFAULT_LOG_FILENAME << ")" << std::endl <<
 #ifdef HAVE_NCURSES
 		"\t-t, --tui\t\t -- run TUI (unstable)" << std::endl <<
@@ -137,7 +137,7 @@ static std::shared_ptr<sctp::Client::Config> get_cfg_or_die(char* argv[], struct
 
 	cfg->server_udp_port = ([&]
 	{
-		auto _port = DEFAULT_SERVER_UDP_ENCAPS_PORT;
+		auto _port = sctp::Client::DEFAULT_SERVER_UDP_ENCAPS_PORT;
 
 		if (options[CLIOptions::SERVER_UDP_PORT].count) {
 			auto _p = std::strtoul(options[CLIOptions::SERVER_UDP_PORT].argument, NULL, 10);
@@ -154,7 +154,7 @@ static std::shared_ptr<sctp::Client::Config> get_cfg_or_die(char* argv[], struct
 
 	cfg->server_sctp_port = ([&]
 	{
-		auto _port = DEFAULT_SERVER_SCTP_PORT;
+		auto _port = sctp::Client::DEFAULT_SERVER_SCTP_PORT;
 
 		if (options[CLIOptions::SERVER_SCTP_PORT].count) {
 			auto _p = std::strtoul(options[CLIOptions::SERVER_SCTP_PORT].argument, NULL, 10);
@@ -171,7 +171,7 @@ static std::shared_ptr<sctp::Client::Config> get_cfg_or_die(char* argv[], struct
 
 	cfg->server_address = ([&]
 	{
-		std::string serv_addr = DEFAULT_SERVER_ADDRESS;
+		std::string serv_addr = sctp::Client::DEFAULT_SERVER_ADDRESS;
 
 		if (options[CLIOptions::SERVER_ADDRESS].count) {
 			serv_addr = options[CLIOptions::SERVER_ADDRESS].argument;

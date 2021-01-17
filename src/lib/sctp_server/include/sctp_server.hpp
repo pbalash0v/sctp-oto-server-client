@@ -17,7 +17,7 @@ class Message;
 class Server final
 {
 public:
-	using event_cback_t = std::function<void(std::unique_ptr<ServerEvent>)>;
+	using event_cback_t = std::function<void(ServerEvent)>;
 	using debug_cback_t = std::function<void(sctp::LogLevel, const std::string&)>;
 
 	struct Config
@@ -37,7 +37,7 @@ public:
 		event_cback_t event_cback_f {nullptr};
 		debug_cback_t debug_cback_f {nullptr};
 
-    	friend std::ostream& operator<<(std::ostream &out, const Config &c); 
+    	friend std::ostream& operator<<(std::ostream&, const Config&); 
 	};
 
 	class IClient
@@ -65,7 +65,7 @@ public:
 
 		virtual void send(const void* buf, size_t len) = 0;
 
-		virtual std::unique_ptr<sctp::ServerEvent> handle_message(const std::unique_ptr<sctp::Message>&) = 0;
+		virtual sctp::ServerEvent handle_message(const std::unique_ptr<sctp::Message>&) = 0;
 
 		virtual void close() = 0;
 
@@ -78,7 +78,7 @@ public:
 			return out << c.to_string();
 		};
 
-		friend std::ostream& operator<<(std::ostream &out, const IClient::State s);
+		friend std::ostream& operator<<(std::ostream&, const IClient::State);
 	};
 
 	explicit Server(std::shared_ptr<Server::Config>);
@@ -129,6 +129,7 @@ struct ServerEvent
 		ERROR
 	};
 
+	explicit ServerEvent() = default;
 	explicit ServerEvent(Type, std::shared_ptr<Server::IClient>);
 	explicit ServerEvent(Type, std::shared_ptr<Server::IClient>, Server::IClient::State);
 	explicit ServerEvent(Type, std::shared_ptr<Server::IClient>, std::vector<char>);
@@ -144,7 +145,7 @@ struct ServerEvent
 	Type type {Type::NONE};
 	std::shared_ptr<Server::IClient> client {nullptr};
 	Server::IClient::State client_state {Server::IClient::State::NONE};
-	std::vector<char> client_data;
+	std::vector<char> client_data {};
 };
 
 } // namespace sctp

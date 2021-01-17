@@ -191,10 +191,10 @@ void ServerImpl::try_init_local_UDP()
 	TRACE_func_entry(); BOOST_SCOPE_EXIT_ALL(&) { TRACE_func_left(); };
 
 	/* will point to the result */
-	struct addrinfo* serv_info = NULL;
+	struct addrinfo* serv_info {nullptr};
 	/* RAII for serv_info */
 	std::unique_ptr<struct addrinfo, std::function<void(struct addrinfo*)>> serv_info_ptr
-		 (NULL, [&](auto s) { freeaddrinfo(s); });
+		 (nullptr, [&](auto s) { freeaddrinfo(s); });
 
 	struct addrinfo hints;
 
@@ -204,9 +204,9 @@ void ServerImpl::try_init_local_UDP()
 	hints.ai_flags = AI_PASSIVE;     // fill in my IP for me
 
 	int status;
-	if ((status = getaddrinfo(NULL, std::to_string(cfg_->udp_encaps_port).c_str(),
+	if ((status = getaddrinfo(nullptr, std::to_string(cfg_->udp_encaps_port).c_str(),
 		 &hints, &serv_info)) != 0) {
-		CRITICAL(std::string("getaddrinfo: ") + gai_strerror(status));
+		CRITICAL(std::string{"getaddrinfo: "} + gai_strerror(status));
 		throw std::runtime_error(gai_strerror(status));
 	} else {
 		serv_info_ptr.reset(serv_info);
@@ -639,7 +639,7 @@ void ServerImpl::sctp_msg_handler_loop()
 		/* end thread on nullptr message */
 		if (not msg) break;
 
-		std::unique_ptr<ServerEvent> evt{nullptr};
+		ServerEvent evt;
 		try
 		{
 			evt = msg->client->handle_message(msg);
@@ -650,13 +650,13 @@ void ServerImpl::sctp_msg_handler_loop()
 			continue;
 		}
 
-		if (evt->type == ServerEvent::Type::NONE) continue;
+		if (evt.type == ServerEvent::Type::NONE) continue;
 
-		if (evt->type == ServerEvent::Type::CLIENT_STATE)
+		if (evt.type == ServerEvent::Type::CLIENT_STATE)
 		{
 			try
 			{
-				msg->client->state(evt->client_state);	
+				msg->client->state(evt.client_state);	
 			}
 			catch (std::runtime_error& exc)
 			{
@@ -679,7 +679,7 @@ void ServerImpl::sctp_msg_handler_loop()
 			continue;
 		}
 
-		if (evt->type == ServerEvent::Type::CLIENT_SEND_POSSIBLE)
+		if (evt.type == ServerEvent::Type::CLIENT_SEND_POSSIBLE)
 		{
 			if (cfg_->event_cback_f && msg->client->state() == Server::IClient::State::SSL_CONNECTED)
 			{
@@ -696,7 +696,7 @@ void ServerImpl::sctp_msg_handler_loop()
 			continue;
 		}
 
-		if ((evt->type == ServerEvent::Type::CLIENT_DATA) and (evt->client_data.size() > 0) and (cfg_->event_cback_f))
+		if ((evt.type == ServerEvent::Type::CLIENT_DATA) and (evt.client_data.size() > 0) and (cfg_->event_cback_f))
 		{
 			try
 			{

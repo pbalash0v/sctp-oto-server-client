@@ -1,40 +1,30 @@
-#pragma once
+#ifndef __sctp_client_hpp__
+#define __sctp_client_hpp__
 
-#include <thread>
+#include <memory>
 #include <functional>
 #include <string>
-#include <atomic>
-#include <unordered_map>
 #include <vector>
-#include <cstring>
 
-#include <arpa/inet.h>
-
-#include <openssl/ssl.h>
 #include <log_level.hpp>
 
 
-constexpr uint16_t DEFAULT_LOCAL_UDP_ENCAPS_PORT = 0; //choose ephemeral
-constexpr uint16_t DEFAULT_LOCAL_SCTP_PORT = 0; // set the same as udp encaps port
-
-constexpr const char* DEFAULT_SERVER_ADDRESS = "127.0.0.1";
-constexpr uint16_t DEFAULT_SERVER_UDP_ENCAPS_PORT = 9899;
-constexpr uint16_t DEFAULT_SERVER_SCTP_PORT = 5001;
-
-
-template <typename T>
-class SyncQueue;
-
-constexpr auto DEFAULT_SCTP_MESSAGE_SIZE_BYTES {1 << 16};
-
 namespace sctp
 {
-class SSLWrapper;
-
+class ClientImpl;
 
 class Client final
 {
 public:
+	static constexpr const uint16_t DEFAULT_LOCAL_UDP_ENCAPS_PORT = 0; //choose ephemeral
+	static constexpr const uint16_t DEFAULT_LOCAL_SCTP_PORT = 0; // set the same as udp encaps port
+
+	static constexpr const char* DEFAULT_SERVER_ADDRESS = "127.0.0.1";
+	static constexpr const uint16_t DEFAULT_SERVER_UDP_ENCAPS_PORT = 9899;
+	static constexpr const uint16_t DEFAULT_SERVER_SCTP_PORT = 5001;
+
+	static constexpr const auto DEFAULT_SCTP_MESSAGE_SIZE_BYTES {1 << 16};
+
 	enum class State
 	{
 		NONE,
@@ -45,7 +35,7 @@ public:
 		SSL_CONNECTED,
 		SSL_SHUTDOWN,
 		PURGE
-   };
+	};
 
 	using Client_cback_t = std::function<void(std::unique_ptr<std::vector<char>>)>;
 	using Client_state_cback_t = std::function<void(State)>;
@@ -74,24 +64,29 @@ public:
 		Client_debug_t debug_cback_f {nullptr};
 		Client_state_cback_t state_cback_f {nullptr};
 		Client_send_possible_t send_possible_cback_f {nullptr};
+
+		friend std::ostream& operator<<(std::ostream&, const Config&);
 	};
 
 	explicit Client(std::shared_ptr<Client::Config>);
 	Client(const Client&) = delete;
 	Client& operator=(const Client&) = delete;
+	Client(Client&&) = default;
+	Client& operator=(Client&&) = default;	
 	~Client();
 
 	/*
 		Getter for cfg object
 	*/
-	std::shared_ptr<Client::Config> cfg() { return cfg_; };
+	std::shared_ptr<Client::Config> cfg();
+	const std::shared_ptr<Client::Config> cfg() const;
 
 	/* 
 		Starts client. Doesn't block.
 	*/
 	void operator()();
 
-	bool connected() const { return state_ == State::SSL_CONNECTED; };
+	bool connected() const noexcept;
 
 	ssize_t send(const void*, size_t);
 
@@ -99,68 +94,14 @@ public:
 
 	std::string to_string() const;
 
-	friend std::ostream& operator<<(std::ostream&, const sctp::Client&);
+	friend std::ostream& operator<<(std::ostream&, const Client&);
 
 private:
-	std::shared_ptr<Client::Config> cfg_;
-
-	std::unique_ptr<SSLWrapper> ssl_obj_ {nullptr};
-	SSL* ssl_ {nullptr};
-	BIO* output_bio_ {nullptr};
-	BIO* input_bio_ {nullptr};
-
-	std::atomic_bool usrsctp_lib_initialized_ {false};
-	static inline std::atomic_size_t number_of_instances_ {};
-
-	std::atomic_bool sender_dry_ {false};
-
-	State state_ = State::NONE;
-
-	int udp_sock_fd_ {-1};
-	uint16_t bound_udp_encaps_port_ {};
-	struct socket* sock_ {nullptr};
-
-	std::unique_ptr<SyncQueue<std::unique_ptr<std::vector<char>>>> raw_udp_data_ {nullptr};
-	std::vector<char> sctp_msg_buff_;
-	std::vector<char> decrypted_msg_buff_;
-	std::vector<char> encrypted_msg_buff_;
-
-	std::thread udp_recv_thr_;
-	std::thread udp_data_thr_;
-
-private:
-	void init();
-
-	void init_local_UDP();
-	void init_remote_UDP();
-	void init_usrsctp_lib();
-	void init_SCTP();
-
-	void udp_recv_loop();
-	void handle_raw_udp_data_loop();
-
-	ssize_t send_raw(const void*, size_t);
-
-	static int conn_output(void*, void*, size_t, uint8_t, uint8_t);
-	static void handle_upcall(struct socket*, void*, int);
-
-	void handle_server_data(void*, ssize_t, const struct sockaddr_in&,
-		const struct sctp_recvv_rn&, unsigned int);
-
-	void handle_notification(union sctp_notification*, size_t);
-	void handle_association_change_event(struct sctp_assoc_change*);
-	void handle_remote_error_event(struct sctp_remote_error*);
-	void handle_stream_change_event(struct sctp_stream_change_event*);
-	void handle_stream_reset_event(struct sctp_stream_reset_event*);
-	void handle_shutdown_event(struct sctp_shutdown_event*);
-	void handle_adaptation_indication(struct sctp_adaptation_event*);
-	void handle_send_failed_event(struct sctp_send_failed_event*);
-	void handle_peer_address_change_event(struct sctp_paddr_change*);
-	void handle_sender_dry_event(struct sctp_sender_dry_event*);
-
-	void state(Client::State);
+	std::unique_ptr<ClientImpl> client_impl_ptr_ {nullptr};
 };
+
 
 } //namespace sctp
 
-std::ostream& operator<<(std::ostream&, const sctp::Client::Config&);
+
+#endif // __sctp_client_h__

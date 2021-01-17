@@ -122,9 +122,9 @@ int main(int argc, char* argv[])
 
 	(*cfg)->event_cback_f = [&](auto evt)
 	{
-		auto& c = evt->client;
+		auto& c = evt.client;
 
-		switch (evt->type) {
+		switch (evt.type) {
 		case sctp::ServerEvent::Type::CLIENT_DATA:
 			break;
 		case sctp::ServerEvent::Type::CLIENT_STATE:

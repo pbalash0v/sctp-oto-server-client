@@ -115,9 +115,9 @@ int main(int, char const**)
 		};
 		cfg->event_cback_f = [&](const auto& evt)
 		{
-			if (evt->type != sctp::ServerEvent::Type::CLIENT_DATA) return;
+			if (evt.type != sctp::ServerEvent::Type::CLIENT_DATA) return;
 
-			const char* msg = static_cast<const char*>(evt->client_data.data());
+			const char* msg = static_cast<const char*>(evt.client_data.data());
 			std::string msg_str { msg };
 
 			if (not strcmp(msg, TEST_STRING_CLIENT_1)) {

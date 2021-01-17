@@ -29,7 +29,7 @@ public:
 
 	virtual struct socket* socket() const override { return sock; };
 
-	std::unique_ptr<sctp::ServerEvent> handle_message(const std::unique_ptr<sctp::Message>&) override;
+	sctp::ServerEvent handle_message(const std::unique_ptr<sctp::Message>&) override;
 
 	virtual void send(const void* buf, size_t len) override;
 
@@ -66,11 +66,11 @@ private:
 
 	ssize_t send_raw(const void* buf, size_t len);
 
-	std::unique_ptr<sctp::ServerEvent> handle_notification(const std::unique_ptr<sctp::Message>& m);
-	std::unique_ptr<sctp::ServerEvent> handle_data(const std::unique_ptr<sctp::Message>& m);
+	sctp::ServerEvent handle_notification(const std::unique_ptr<sctp::Message>& m);
+	sctp::ServerEvent handle_data(const std::unique_ptr<sctp::Message>& m);
 
-	void handle_association_change_event(const struct sctp_assoc_change*, std::unique_ptr<sctp::ServerEvent>&) const;
-	void handle_sender_dry_event(const struct sctp_sender_dry_event*, std::unique_ptr<sctp::ServerEvent>& e) const;
+	void handle_association_change_event(const struct sctp_assoc_change*, sctp::ServerEvent&) const;
+	void handle_sender_dry_event(const struct sctp_sender_dry_event*, sctp::ServerEvent&) const;
 	void handle_peer_address_change_event(const struct sctp_paddr_change*) const;
 	void handle_remote_error_event(const struct sctp_remote_error*) const;
 	void handle_shutdown_event(const struct sctp_shutdown_event*) const;
